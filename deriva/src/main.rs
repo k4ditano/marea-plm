@@ -21,6 +21,7 @@ mod paths;
 mod proto;
 mod reaparicion;
 mod search;
+#[cfg(unix)]
 mod serve;
 mod util;
 mod vectores;
@@ -34,13 +35,34 @@ fn main() {
 
     let salida = match orden {
         "serve" => {
+            #[cfg(unix)]
             if let Err(e) = serve::servir() {
                 eprintln!("deriva-worker: {}", e);
                 std::process::exit(1);
             }
+            #[cfg(not(unix))]
+            {
+                eprintln!("deriva-worker: Unix socket server is unavailable on Windows; Marea uses the native CLI commands");
+                std::process::exit(2);
+            }
+            #[cfg(unix)]
             return;
         }
         "ingest" => por_metodo("ingest", opcion(&args, "--request")),
+        "enrich" => {
+            if args.iter().any(|a| a == "--request-stdin") {
+                // Thumbnails exceed Windows' command-line limit. Keep binary
+                // payloads off argv and bound the input before decoding JSON.
+                use std::io::Read;
+                let mut request = String::new();
+                match std::io::stdin().take(1_048_577).read_to_string(&mut request) {
+                    Ok(_) if request.len() <= 1_048_576 => por_metodo("enrich", Some(request)),
+                    _ => (serde_json::json!({"ok": false, "error": "Invalid or oversized enrichment request"}).to_string(), false),
+                }
+            } else {
+                por_metodo("enrich", opcion(&args, "--request"))
+            }
+        }
         "search" => {
             let q = opcion(&args, "--query").unwrap_or_default();
             let n = opcion(&args, "--limit").unwrap_or_else(|| "20".into());
@@ -120,7 +142,7 @@ fn main() {
                     "db": paths::db_path().to_string_lossy(),
                     "blobs": paths::blobs().to_string_lossy(),
                     "backups": paths::backups().to_string_lossy(),
-                    "socket": paths::socket().to_string_lossy(),
+                    "socket": paths::socket_description(),
                     "schema": db::VERSION,
                 })
             );
@@ -202,8 +224,9 @@ fn ayuda() {
     eprintln!(
         r#"deriva-worker · la biblioteca local de Deriva
 
-  serve                              atiende el socket; es como le habla Marea
+  serve                              Unix socket server (Unix only)
   ingest   --request <json>          guarda algo
+  enrich   --request-stdin           enrich from bounded JSON on stdin
   search   --query <texto> [--limit] busca
   get      --id <id>                 una captura entera
   list     [--limit N]               lo último guardado

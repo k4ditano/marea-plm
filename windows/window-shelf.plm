@@ -1,0 +1,22 @@
+    fact windows_shelf_folded = false
+    prop windows_shelf_hint = 0 ~100ms
+    prop windows_shelf_unfold = 1 ~220ms
+    follow windows_shelf_unfold = if(windows_shelf_folded, 0, 1)
+    let windows_shelf_count = stones.0.present + stones.1.present + stones.2.present + stones.3.present + stones.4.present + stones.5.present
+    let windows_shelf_visible = windows_shelf_count > 0 and not open and not searching and not tray_open
+    group {
+        show: windows_shelf_visible
+        ellipse { at: cx - r + 5, cy_actual + rise * 0.6 + 22; radius: 11; color: coal }
+        text number(windows_shelf_count, 0) { at: cx - r + 5, cy_actual + rise * 0.6 + 22; anchor: center; size: 11; color: mint; opacity: if(windows_shelf_folded, 1, 0) }
+        text "›" { at: cx - r + 5, cy_actual + rise * 0.6 + 22; anchor: center; size: 14; color: mint; opacity: if(windows_shelf_folded, 0, 1) }
+        zone ellipse windows_shelf_toggle { at: cx - r + 5, cy_actual + rise * 0.6 + 22; radius: 13; cursor: pointer; active: windows_shelf_visible }
+        on press windows_shelf_toggle { windows_shelf_folded = not windows_shelf_folded }
+        on enter windows_shelf_toggle { windows_shelf_hint: 1 }
+        on leave windows_shelf_toggle { windows_shelf_hint: 0 }
+        group {
+            opacity: windows_shelf_hint
+            show: windows_shelf_hint > 0.01
+            box { at: cx - r + 5, cy_actual + rise * 0.6 + 50; size: 166, 24; corner: 10; color: coal }
+            text pick(windows_shelf_folded, "Hide applications", "Show applications") { at: cx - r + 5, cy_actual + rise * 0.6 + 50; anchor: center; size: 10; color: ink }
+        }
+    }

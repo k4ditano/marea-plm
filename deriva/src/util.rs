@@ -22,20 +22,9 @@ pub fn nuevo_id() -> String {
 }
 
 pub fn azar(dest: &mut [u8]) {
-    use std::io::Read;
-    //  `/dev/urandom` y no un generador propio sembrado con la hora: dos
-    //  procesos que arrancan en el mismo milisegundo sacarían la misma
-    //  secuencia, y aquí eso son dos capturas con el mismo id.
-    if let Ok(mut f) = std::fs::File::open("/dev/urandom") {
-        if f.read_exact(dest).is_ok() {
-            return;
-        }
-    }
-    //  Si ni eso, algo va muy mal; al menos que no sean ceros.
-    let t = ahora_ms() as u64;
-    for (i, d) in dest.iter_mut().enumerate() {
-        *d = ((t >> (i % 8 * 8)) as u8) ^ (i as u8).wrapping_mul(31);
-    }
+    // Time alone collides across concurrent CLI processes, especially on
+    // Windows where /dev/urandom does not exist. Fail rather than reuse IDs.
+    getrandom::fill(dest).expect("the operating system random source is unavailable");
 }
 
 pub fn hex(bytes: &[u8]) -> String {

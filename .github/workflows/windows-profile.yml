@@ -1,0 +1,95 @@
+name: Desktop profile logic
+on:
+  workflow_dispatch:
+    inputs:
+      pleamar_repository:
+        description: Repository containing the native pleamar port
+        required: true
+        default: k4ditano/pleamar
+        type: string
+      pleamar_ref:
+        description: Exact port commit or PR ref, including the luau-test example
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  logic:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2022]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: marea
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.pleamar_repository }}
+          ref: ${{ inputs.pleamar_ref }}
+          path: pleamar
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Portable agent quota reader (isolated files, no credentials/network)
+        working-directory: marea
+        run: node tools/test-reservas.mjs
+      - name: YouTube preview fetching, cache and failure handling (offline fixtures)
+        working-directory: marea
+        run: node --test tools/test-deriva-preview.mjs
+      - name: Real Deriva store with bundled SQLite
+        working-directory: marea
+        run: cargo test --locked --manifest-path deriva/Cargo.toml
+      - name: Build the Deriva CLI
+        working-directory: marea
+        run: cargo build --locked --manifest-path deriva/Cargo.toml
+      - name: Real Deriva CLI on isolated Unicode libraries
+        working-directory: marea
+        run: python windows/test-deriva-native.py --worker deriva/target/debug/deriva-worker${{ runner.os == 'Windows' && '.exe' || '' }}
+      - name: Performance trace validation (no desktop)
+        working-directory: marea
+        run: python windows/test-measure-desktop.py
+      - name: Linux build dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libwayland-dev libxkbcommon-dev libfontconfig1-dev libpam0g-dev pkg-config
+      - name: Build native engine and isolated Luau runner
+        working-directory: pleamar
+        run: cargo build --locked --bin pleamar --example luau-test
+      - name: Generated profile and isolated service logic
+        working-directory: marea
+        run: python windows/test-logic.py --binary ../pleamar/target/debug/pleamar${{ runner.os == 'Windows' && '.exe' || '' }} --luau-runner ../pleamar/target/debug/examples/luau-test${{ runner.os == 'Windows' && '.exe' || '' }}
+      - name: Real native Luau to SQLite transport without a display
+        if: runner.os == 'Windows'
+        working-directory: marea
+        run: python windows/test-deriva-runtime.py --binary ../pleamar/target/debug/pleamar.exe --worker deriva/target/debug/deriva-worker.exe
+      - name: Unicode shortcut metadata and native publisher registration
+        if: runner.os == 'Windows'
+        working-directory: marea
+        run: powershell.exe -NoLogo -NoProfile -File windows/test-shortcuts.ps1 -PleamarBinary ../pleamar/target/debug/pleamar.exe
+      - name: Runtime packaging rejects incomplete or modified compiler files
+        if: runner.os == 'Windows'
+        working-directory: marea
+        run: powershell.exe -NoLogo -NoProfile -File windows/test-runtime-files.ps1
+      - name: Bounded package updates through transient file locks
+        if: runner.os == 'Windows'
+        working-directory: marea
+        run: powershell.exe -NoLogo -NoProfile -File windows/test-update-files.ps1
+      - name: Reject a native runtime built without Luau
+        if: runner.os == 'Windows'
+        working-directory: pleamar
+        shell: pwsh
+        run: |
+          Copy-Item target/debug/pleamar.exe target/debug/pleamar-with-luau.exe
+          try {
+            cargo build --locked --no-default-features --bin pleamar
+            if ($LASTEXITCODE -ne 0) { throw 'The diagnostic no-Luau build failed.' }
+            python ../marea/windows/test-runtime-probe.py --binary target/debug/pleamar-with-luau.exe --without-luau target/debug/pleamar.exe
+            if ($LASTEXITCODE -ne 0) { throw 'The native Luau runtime preflight regression failed.' }
+          } finally {
+            Copy-Item target/debug/pleamar-with-luau.exe target/debug/pleamar.exe -Force
+          }

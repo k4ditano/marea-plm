@@ -31,7 +31,7 @@
 import { readFileSync, writeFileSync, mkdirSync, openSync, readSync, closeSync,
          statSync, readdirSync, existsSync } from "node:fs";
 import { homedir } from "node:os";
-import { join, dirname } from "node:path";
+import { join, dirname, isAbsolute } from "node:path";
 
 const CLAUDE_USO = "https://api.anthropic.com/api/oauth/usage";
 const CLAUDE_ESPERA = 6000;
@@ -49,8 +49,11 @@ function salir(objeto, codigo = 0) {
 }
 
 function estado() {
-    const base = process.env.XDG_STATE_HOME?.startsWith("/")
-        ? process.env.XDG_STATE_HOME : join(homedir(), ".local", "state");
+    const base = process.env.XDG_STATE_HOME && isAbsolute(process.env.XDG_STATE_HOME)
+        ? process.env.XDG_STATE_HOME
+        : process.platform === "win32"
+            ? process.env.LOCALAPPDATA || process.env.APPDATA || join(homedir(), "AppData", "Local")
+            : join(homedir(), ".local", "state");
     return join(base, "proyecto-marea");
 }
 
@@ -65,6 +68,7 @@ function leerJson(ruta) {
 
 //  Un porcentaje, o desconocido. Nunca un cero de consolación.
 function pct(v) {
+    if (typeof v === "string" && v.trim() === "") return null;
     const n = typeof v === "string" ? Number(v) : v;
     if (typeof n !== "number" || !Number.isFinite(n)) return null;
     if (n < 0 || n > 100) return null;
@@ -77,11 +81,6 @@ function epoca(iso) {
     if (typeof iso !== "string" || iso.length === 0) return null;
     const t = Date.parse(iso);
     return Number.isNaN(t) ? null : t / 1000;
-}
-
-function enElCamino(binario) {
-    const rutas = (process.env.PATH || "").split(":");
-    return rutas.some((d) => d && existsSync(join(d, binario)));
 }
 
 // ── Claude Code ──────────────────────────────────────────────────
@@ -145,7 +144,8 @@ function tokenClaude() {
 async function usoEnVivo() {
     const cache = join(estado(), "reservas-claude.json");
     const guardado = leerJson(cache);
-    if (guardado && ahora() - (guardado.cuando || 0) < CLAUDE_CACHE_S)
+    if (guardado && Number.isFinite(guardado.cuando) && ahora() >= guardado.cuando
+        && ahora() - guardado.cuando < CLAUDE_CACHE_S)
         return { uso: guardado.uso, cuando: guardado.cuando };
 
     const tok = tokenClaude();
@@ -237,15 +237,16 @@ function ultimoLimite(ruta) {
     //  El final del fichero basta: el `rate_limits` que vale es el último, y un
     //  rollout largo son megas que no hace falta parsear enteros.
     let trozo = "";
+    let fd;
     try {
         const est = statSync(ruta);
         const desde = Math.max(0, est.size - CODEX_COLA);
-        const fd = openSync(ruta, "r");
+        fd = openSync(ruta, "r");
         const buf = Buffer.alloc(Math.min(CODEX_COLA, est.size));
         const leidos = readSync(fd, buf, 0, buf.length, desde);
-        closeSync(fd);
         trozo = buf.subarray(0, leidos).toString("utf8");
     } catch (e) { return null; }
+    finally { if (fd !== undefined) closeSync(fd); }
 
     let lineas = trozo.split("\n");
     //  Si se ha cortado por el medio, la primera línea del trozo está mutilada.
@@ -255,7 +256,11 @@ function ultimoLimite(ruta) {
         if (!lineas[i].includes('"rate_limits"')) continue;
         let reg = null;
         try { reg = JSON.parse(lineas[i]); } catch (e) { continue; }
+        if (reg?.type !== "event_msg" || reg?.payload?.type !== "token_count") continue;
         const info = (reg && reg.payload && reg.payload.rate_limits) || null;
+        // A separate model bucket must not replace the main Codex allowance.
+        // Older clients omit limit_id; their legacy primary/secondary shape stays valid.
+        if (info?.limit_id && info.limit_id !== "codex") continue;
         if (info && typeof info === "object") return { info, cuando: epoca(reg.timestamp) };
     }
     return null;
@@ -278,7 +283,8 @@ function ventanaCodex(datos, id, observadoEn) {
     //  Codex da los segundos que faltan, no el instante. Se convierte contra el
     //  momento de la observación y no contra ahora: si el dato es de hace media
     //  hora, la renovación también es media hora más cerca.
-    const faltan = Number(datos.resets_in_seconds);
+    const raw = datos.resets_in_seconds;
+    const faltan = typeof raw === "number" || (typeof raw === "string" && raw.trim() !== "") ? Number(raw) : NaN;
     const renueva = Number.isFinite(faltan) && observadoEn ? observadoEn + faltan
         : epoca(datos.resets_at);
     return {
@@ -299,8 +305,11 @@ function leeCodex() {
 
     let hallazgo = null;
     for (const r of rollouts(carpeta)) {
-        hallazgo = ultimoLimite(r);
-        if (hallazgo) break;
+        const candidate = ultimoLimite(r);
+        // File mtime can advance without a new usage observation (e.g. resume,
+        // compaction or a late tool result). Compare provider timestamps too.
+        if (candidate && (!hallazgo || (candidate.cuando ?? -Infinity) > (hallazgo.cuando ?? -Infinity)))
+            hallazgo = candidate;
     }
     //  Local, y se dice. El lector de k4 no lo marcaba y su procedencia se
     //  perdía por el camino.
@@ -326,16 +335,15 @@ function leeCodex() {
 // ── el registro ──────────────────────────────────────────────────
 
 const AGENTES = [
-    { id: "claude", nombre: "Claude Code", binario: "claude", lee: leeClaude, red: true },
-    { id: "codex", nombre: "Codex", binario: "codex", lee: leeCodex, red: false },
+    { id: "claude", nombre: "Claude Code", lee: leeClaude, red: true },
+    { id: "codex", nombre: "Codex", lee: leeCodex, red: false },
 ];
 
 const conRed = !process.argv.includes("--sin-red");
 const fuera = [];
 for (const a of AGENTES) {
-    //  Sin el programa no hay tarjeta: un agente que no está instalado no
-    //  merece una tarjeta vacía diciendo que no tiene datos.
-    if (!enElCamino(a.binario)) continue;
+    // Desktop clients need not install a CLI on PATH. Each reader requires
+    // its provider's own data directory/config; absent data means no card.
     let datos = null;
     try { datos = a.red ? await a.lee(conRed) : a.lee(); }
     catch (e) { datos = { origen: null, observadoEn: null, limites: [], razon: "error" }; }
@@ -355,7 +363,7 @@ for (const a of AGENTES) {
 //  An unknown number is an empty field, never a zero.
 if (process.argv.includes("--lines")) {
     const campo = (v) => v === null || v === undefined || (typeof v === "number" && !Number.isFinite(v))
-        ? "" : String(v).replace(/[\t\n]/g, " ");
+        ? "" : String(v).replace(/[\r\t\n]/g, " ");
     const lineas = [["now", Math.round(ahora())]];
     for (const a of fuera) {
         lineas.push(["agent", a.id, a.nombre, a.plan, a.origen, a.observadoEn]);

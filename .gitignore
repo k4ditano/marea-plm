@@ -1,1 +1,7 @@
+__pycache__/
+*.pyc
+.tools/
+/marea-desktop.plm
+/marea-desktop.luau
 deriva/target/
+/dist/

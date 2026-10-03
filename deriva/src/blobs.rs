@@ -85,20 +85,19 @@ where
     let mut b = [0u8; 8];
     crate::util::azar(&mut b);
     let temporal = crate::paths::tmp().join(format!("t{}", crate::util::hex(&b)));
-    {
-        let mut f = std::fs::File::create(&temporal)?;
-        let r = escribir(&mut f);
-        if r.is_err() {
-            let _ = std::fs::remove_file(&temporal);
-            return r;
-        }
+    let result = (|| {
+        let mut f = std::fs::OpenOptions::new().write(true).create_new(true).open(&temporal)?;
+        escribir(&mut f)?;
         //  Al disco antes de renombrar. Sin esto, un corte justo después deja el
         //  nombre puesto sobre un fichero cuyo contenido todavía estaba en la
         //  caché del sistema.
         f.sync_all()?;
-    }
-    std::fs::rename(&temporal, destino)?;
-    Ok(())
+        drop(f);
+        std::fs::rename(&temporal, destino)
+    })();
+    // Close the handle before cleanup, including write, sync and rename errors.
+    if result.is_err() { let _ = std::fs::remove_file(&temporal); }
+    result
 }
 
 //  Lo que se quedó a medias de un arranque anterior. Se barre al empezar, que

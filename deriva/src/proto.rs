@@ -925,7 +925,7 @@ pub fn despachar(db: &Connection, p: &Peticion) -> Respuesta {
                     "schema": esquema,
                     "schema_expected": crate::db::VERSION,
                     "base": crate::paths::base().to_string_lossy(),
-                    "socket": crate::paths::socket().to_string_lossy(),
+                    "socket": crate::paths::socket_description(),
                     "backups": copias,
                     "stats": c.ok(),
                     "integrity": entera,

@@ -10,6 +10,7 @@ rusqlite = { version = "0.37", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.10"
+getrandom = "0.3"
 #  El parecido por significado, y CON `local-only`.
 #
 #  Sin esa bandera el crate se trae `hf-hub` y `ureq`, o sea la capacidad de
@@ -17,9 +18,11 @@ sha2 = "0.10"
 #  escrita en el README: «el worker no abre ni una conexión». Quien baja el
 #  modelo es la casa; aquí solo se lee de un directorio.
 #
-#  `fancy-regex` en vez de `onig` porque `onig` es C y este binario se compila
-#  en cualquier sitio sin pedir nada al sistema.
-model2vec-rs = { version = "0.2", default-features = false, features = ["local-only", "fancy-regex"] }
+# Activate the Rust regex backend directly. Model2Vec's convenience feature
+# also enables C++ tokenizer training with a static MSVC CRT, although this
+# worker only performs inference. That mixes CRTs with the native Rust binary.
+model2vec-rs = { version = "0.2", default-features = false, features = ["local-only"] }
+tokenizers = { version = "0.21", default-features = false, features = ["fancy-regex"] }
 
 [profile.release]
 opt-level = 2

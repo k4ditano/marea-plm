@@ -1,0 +1,7 @@
+    fact windows_media_can_volume = false
+    fact windows_media_volume = 0
+    fact windows_media_volume_pending = false
+    fact windows_media_volume_drag = false
+    prop windows_media_volume_target = 0 ~16ms
+    text windows_media_volume_status = ""
+    event windows_set_media_volume ->

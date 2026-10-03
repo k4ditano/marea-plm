@@ -1,0 +1,15 @@
+                let media_v = if(windows_media_volume_pending, windows_media_volume_target, windows_media_volume)
+                let media_finger = clamp((pointer.x - (x0 + 140)) / 272, 0, 1)
+                group {
+                    show: windows_media_can_volume
+                    text "Volume" { at: x0 + 66, by + 32; anchor: left center; size: 10; color: #8b8f95 }
+                    box { from: x0 + 140, by + 29; size: 272, 5; corner: 2.5; color: #30383a }
+                    box { from: x0 + 140, by + 29; size: 272 * media_v, 5; corner: 2.5; color: mint }
+                    ellipse { at: x0 + 140 + 272 * media_v, by + 31.5; radius: 5; color: ink }
+                    text number(media_v * 100, 0) { at: card.x + 225, by + 32; anchor: right center; size: 10; color: ink }
+                }
+                text windows_media_volume_status { at: x0 + 66, by + 32; anchor: left center; width: 390; lines: 1; size: 10; color: #8b8f95; show: not windows_media_can_volume }
+                zone box media_volume_track { from: x0 + 130, by + 21; size: 292, 22; cursor: pointer; active: content > 0.9 and windows_media_can_volume }
+                on press media_volume_track { windows_media_volume_pending = true; windows_media_volume_drag = true; windows_media_volume_target: media_finger ~16ms; emit windows_set_media_volume(media_finger) }
+                on drag media_volume_track { windows_media_volume_pending = true; windows_media_volume_target: media_finger ~16ms; emit windows_set_media_volume(media_finger) }
+                on release media_volume_track { windows_media_volume_pending = true; windows_media_volume_drag = false; windows_media_volume_target: media_finger ~16ms; emit windows_set_media_volume(media_finger) }
