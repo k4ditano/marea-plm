@@ -218,6 +218,7 @@ library SpanishLogic {
         // her tasks
         "A task of her own" = "Una tarea suya"
         "%s, at %s" = "%s, a las %s"
+        "Kept as a task: %s, at %s" = "Guardada como tarea: %s, a las %s"
         "Every day" = "Todos los días"
         "Weekdays" = "Entre semana"
         "Weekends" = "Fines de semana"

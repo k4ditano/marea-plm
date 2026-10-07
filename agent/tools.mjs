@@ -147,7 +147,7 @@ export const TOOLS = [
     {
         name: "task_schedule",
         tasks: true,
-        description: "Keeps a task to do on her own at a time, every day or on some days: «every day at 8:00 open my bank in Zen and tell me the balance». At that time it runs as a prompt of its own, in a conversation of its own, with the desktop tools and without asking the user each step (they are probably away). Write `what` as you would want to be told it then: the program, the page, the steps, and what to report. The user always confirms it before it is kept.",
+        description: "Keeps a task to do on her own at a time, every day or on some days: «every day at 8:00 open my bank in Zen and tell me the balance». At that time it runs as a prompt of its own, in a conversation of its own, with the desktop tools and without asking the user each step (they are probably away). Write `what` as you would want to be told it then: the program, the page, the steps, and what to report. The user confirms it before it is kept, unless they gave her free hands; then it is kept at once.",
         parameters: Type.Object({
             what: Type.String({ maxLength: 1500, description: "The task, in the user's language, complete enough to do alone" }),
             time: Type.String({ pattern: "^([01]?[0-9]|2[0-3]):[0-5][0-9]$", description: "24-hour time, as 08:00" }),

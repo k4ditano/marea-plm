@@ -737,7 +737,8 @@ return function(shared)
             --  Her memory: kept in sight, never asked.
             if tool:sub(1, 7) == "memory_" then
                 remember(m.id, tool, args)
-            --  Her tasks: a new one is always asked (it will act alone later).
+            --  Her tasks: a new one is asked (it will act alone later), unless
+            --  you gave her free hands (below).
             elseif tool:sub(1, 5) == "task_" and tool ~= "task_schedule" then
                 task_do(m.id, tool, args, nil)
             --  Doing one of her tasks on her own: you said she may do all of it.
@@ -745,9 +746,15 @@ return function(shared)
                 local row = add(3, said(tool, args), looks_only and "" or tostring(args.why or ""), 0)
                 perform(m.id, tool, args, row)
             --  Free hands: no card, except for a step that is the final one
-            --  (it sends, buys, deletes…): that one is always asked.
-            elseif looks_only or (fact["chat.free"] == true and args.final ~= true and tool ~= "task_schedule") then
-                local row = add(3, said(tool, args), looks_only and "" or tostring(args.why or ""), 0)
+            --  (it sends, buys, deletes…): that one is always asked. A task of
+            --  her own is kept at once too, and the chat says so.
+            elseif looks_only or (fact["chat.free"] == true and args.final ~= true) then
+                local line, why = said(tool, args), looks_only and "" or tostring(args.why or "")
+                if tool == "task_schedule" then
+                    line = string.format(tr("Kept as a task: %s, at %s"), task_days(args.days), tostring(args.time or "?"))
+                    why = tostring(args.what or "")
+                end
+                local row = add(3, line, why, 0)
                 perform(m.id, tool, args, row)
             else
                 local detail = said(tool, args)
