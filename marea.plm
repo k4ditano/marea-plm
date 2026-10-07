@@ -42,7 +42,7 @@ scene Marea {
         //  Software: `checkupdates` and the AUR's helper look, `pacman` and
         //  `sudo` update and install (the password goes on sudo's input),
         //  `kitty` takes what wants an answer by hand.
-        run: "curl", "timedatectl", "node", "notify-send", "fd", "deriva-worker", "kill", "xdg-open", "grim", "slurp", "hyprctl", "magick", "wl-copy", "mkdir", "wf-recorder", "xdg-user-dir", "test", "pgrep", "swaybg", "pactl", "pleamar-wm", "checkupdates", "pacman", "yay", "paru", "sudo", "pkill", "kitty", "uname", "grep", "agent/sandbox", "secret-tool", "nmcli", "qrencode", "rm"
+        run: "curl", "timedatectl", "node", "notify-send", "fd", "deriva-worker", "kill", "xdg-open", "grim", "slurp", "hyprctl", "magick", "wl-copy", "mkdir", "wf-recorder", "xdg-user-dir", "test", "pgrep", "swaybg", "pactl", "pleamar-wm", "checkupdates", "pacman", "yay", "paru", "sudo", "sh", "pkill", "kitty", "uname", "grep", "agent/sandbox", "secret-tool", "nmcli", "qrencode", "rm"
     }
     service clock as now { time: text = "--:--"; date: text; hour: number; minute: number }
     service audio as sound { volume: number; muted: bool; input: number; input_muted: bool }

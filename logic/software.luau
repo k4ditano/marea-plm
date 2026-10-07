@@ -434,6 +434,16 @@ return function(shared)
         else
             cmd, args = "sudo", { "-S", "-p", "", "pacman", "-S", "--needed", "--noconfirm", "--", w.name }
         end
+        --  The helper's own `sudo -v` (its --sudoloop) asks for the password
+        --  on a terminal, where nobody answers: it is validated first by
+        --  `sudo -S`, in the very process that becomes the helper (`exec`), and
+        --  sudo keeps it by that process when there is no terminal, so the
+        --  helper's `sudo -v` only keeps it fresh through long AUR builds.
+        if helper and cmd == helper then
+            local wrapped = { "-c", 'sudo -S -p "" -v && exec "$0" "$@"', helper }
+            for _, a in ipairs(args) do wrapped[#wrapped + 1] = a end
+            cmd, args = "sh", wrapped
+        end
         sw.run = { kind = w.kind, name = w.name, total = 0, dl = 0, ops = 0, done = 0, builds = 0, aur_total = aur_total,
                    base = 0, progress = 0, changed = {}, pacnew = 0, log = {}, error = nil, wrongpw = false, stopped = false }
         sw.pw = pw
