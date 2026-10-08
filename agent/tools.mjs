@@ -82,7 +82,7 @@ export const TOOLS = [
     },
     {
         name: "desktop_focus",
-        description: "Gives a window the user's keyboard and shows its workspace. It moves what the user sees: only when a window you need is not seen.",
+        description: "Gives a window the user's keyboard and shows its workspace. It moves what the user sees: only when a window you need is not seen, or other windows cover it (desktop_look shows them over it).",
         parameters: Type.Object({ pid, why, final }),
     },
     {
