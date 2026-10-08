@@ -279,7 +279,7 @@ library SpanishUi {
         "Sign in again" = "Volver a entrar"
         "Sign in" = "Iniciar sesión"
         "Let her use the computer" = "Déjala usar el ordenador"
-        "Without a card for each step. Sending, buying or deleting still asks" = "Sin tarjeta en cada paso. Enviar, comprar o borrar sigue preguntando"
+        "Without asking anything: she does it all, sending or buying too" = "Sin preguntar nada: lo hace todo, también enviar o comprar"
         "HER MODEL" = "SU MODELO"
         "Her models appear once she is signed in." = "Sus modelos aparecen cuando inicia sesión."
         "To talk, she needs an account" = "Para hablar, necesita una cuenta"

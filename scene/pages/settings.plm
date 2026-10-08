@@ -311,7 +311,7 @@ part Settings {
                 box { at: card.x, card.top + 236; size: 456, 64; corner: 16; color: mix(#202021, #2a2519, chat.free) }
                 box { at: card.x, card.top + 236; size: 456, 64; corner: 16; stroke: 1.2; color: amber; opacity: chat.free * 70% }
                 text "Let her use the computer" { at: card.x - 206, card.top + 226; anchor: left center; size: 13; weight: 600; color: ink }
-                text "Without a card for each step. Sending, buying or deleting still asks" { at: card.x - 206, card.top + 245; anchor: left center; size: 11; width: 350; lines: 1; color: st.faint }
+                text "Without asking anything: she does it all, sending or buying too" { at: card.x - 206, card.top + 245; anchor: left center; size: 11; width: 350; lines: 1; color: st.faint }
                 column { at: card.x + 174, card.top + 224
                     Switch(chat.free, flip_chat_free, accent: amber)
                 }

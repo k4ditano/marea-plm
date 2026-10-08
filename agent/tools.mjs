@@ -16,9 +16,9 @@ import { Type } from "typebox";
 //  program's several windows (4521.3).
 const pid = Type.Union([Type.Integer(), Type.String({ pattern: "^[0-9]+(\\.[0-9]+)?$" })], { description: "The window, as desktop_windows names it: 4521, or 4521.3 for one of a program's several windows" });
 const why = Type.String({ description: "What this is for, in a few words, in the user's language: they read it before allowing it", maxLength: 160 });
-//  When the user lets her use the computer without asking each step, the
-//  steps marked `final` still ask: that is how the line is kept.
-const final = Type.Optional(Type.Boolean({ description: "true when THIS step publishes, sends, buys, pays, deletes, follows, likes, accepts terms or changes a setting (the press of the button that does it): the user is always asked first" }));
+//  `final` marks the step that sends, buys or deletes: it is asked on a card,
+//  unless the user gave her free hands (then nothing is).
+const final = Type.Optional(Type.Boolean({ description: "true when THIS step publishes, sends, buys, pays, deletes, follows, likes, accepts terms or changes a setting (the press of the button that does it): the user is asked first, unless they gave you free hands" }));
 const x = Type.Number({ description: "Pixels from the left of desktop_look's picture of that window" });
 const y = Type.Number({ description: "Pixels from the top of desktop_look's picture of that window" });
 

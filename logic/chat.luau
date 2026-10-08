@@ -745,10 +745,10 @@ return function(shared)
             elseif running_task and tool ~= "task_schedule" then
                 local row = add(3, said(tool, args), looks_only and "" or tostring(args.why or ""), 0)
                 perform(m.id, tool, args, row)
-            --  Free hands: no card, except for a step that is the final one
-            --  (it sends, buys, deletes…): that one is always asked. A task of
+            --  Free hands: no card at all, the final step (it sends, buys,
+            --  deletes…) included: you let her do it on her own. A task of
             --  her own is kept at once too, and the chat says so.
-            elseif looks_only or (fact["chat.free"] == true and args.final ~= true) then
+            elseif looks_only or fact["chat.free"] == true then
                 local line, why = said(tool, args), looks_only and "" or tostring(args.why or "")
                 if tool == "task_schedule" then
                     line = string.format(tr("Kept as a task: %s, at %s"), task_days(args.days), tostring(args.time or "?"))
@@ -1096,7 +1096,7 @@ return function(shared)
         start_worker()
         fact["chat.state"] = "thinking"
         status(tr("Thinking…"))
-        send({ type = "prompt", text = words, now = os.date("%Y-%m-%d %H:%M, %A") })
+        send({ type = "prompt", text = words, now = os.date("%Y-%m-%d %H:%M, %A"), free = fact["chat.free"] == true })
     end)
     local function decide(i, yes)
         local first = math.max(1, #rows - ROWS + 1)
