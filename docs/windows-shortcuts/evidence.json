@@ -1,0 +1,16 @@
+{
+  "source": "2e90014604c5c4cc45059161c7795caf156e7cb7",
+  "ui_unchanged_at": "9e31ba1bd0dfb3356bcfa99309ae3b721a9f3d35",
+  "run": "https://github.com/SamuelHinestrosa/marea-plm/actions/runs/37689439486",
+  "engine": "01c57ca5c0884f0805ad70104a00874671472ca3",
+  "image_sha256": "52205d2a9d4622a0d35f653ae495c0786d2e5e002febf69d2723ff5e628d2d3f",
+  "native_rendering": true,
+  "fixture_logic": true,
+  "physical_input": false,
+  "key_hook_enabled": false,
+  "visually_reviewed": true,
+  "review": "Thirteen Spanish shortcut rows, including Win+F, remain visible without clipping or overlap. The checking status comes from the isolated fixture.",
+  "fullscreen_acceptance": "https://github.com/SamuelHinestrosa/pleamar-wm/actions/runs/37691051401",
+  "fullscreen_source": "701073096caad85c89774637b35beb9848b7a5a7",
+  "full_product_acceptance": false
+}

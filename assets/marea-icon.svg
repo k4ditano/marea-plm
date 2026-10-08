@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 80 80">
+  <title>Marea</title>
+  <!-- The original companion from header.svg, without the banner or satellites. -->
+  <defs>
+    <radialGradient id="coal" cx="0.4" cy="0.3" r="0.8">
+      <stop offset="0" stop-color="#2a2e2e"/>
+      <stop offset="1" stop-color="#151616"/>
+    </radialGradient>
+  </defs>
+  <circle cx="40" cy="40" r="32" fill="url(#coal)" stroke="#f5f7f5" stroke-opacity="0.16" stroke-width="2"/>
+  <rect x="27" y="30" width="7" height="15" rx="3.5" fill="#f5f7f5"/>
+  <rect x="46" y="30" width="7" height="15" rx="3.5" fill="#f5f7f5"/>
+</svg>

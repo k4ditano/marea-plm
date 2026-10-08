@@ -1,0 +1,6 @@
+    fact windows_startup_available = false
+    fact windows_startup_busy = false
+    fact windows_startup_enabled = false
+    text windows_startup_status = "Checking…"
+    event windows_toggle_startup ->
+    event windows_language_updated ->

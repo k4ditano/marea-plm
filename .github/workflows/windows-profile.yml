@@ -1,0 +1,218 @@
+name: Desktop profile logic
+on:
+  workflow_dispatch:
+    inputs:
+      pleamar_repository:
+        description: Repository containing the native pleamar port
+        required: true
+        default: k4ditano/pleamar
+        type: string
+      pleamar_ref:
+        description: Exact port commit or PR ref, including the luau-test example
+        required: true
+        type: string
+      measure_resources:
+        description: Also sample the native renderer during six conversation/closure cycles
+        default: false
+        type: boolean
+      performance_comparison:
+        description: Same-run reference comparison when measuring resources
+        default: retention
+        type: choice
+        options:
+          - retention
+          - idle-chat
+      retained_mode:
+        description: Renderer policy (auto uses retention only on software adapters)
+        default: auto
+        type: choice
+        options:
+          - auto
+          - 'on'
+          - 'off'
+permissions:
+  contents: read
+jobs:
+  logic:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2022]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: marea
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.pleamar_repository }}
+          ref: ${{ inputs.pleamar_ref }}
+          path: pleamar
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+          cache-workspace-crates: false
+          cache-bin: false
+          workspaces: |
+            pleamar -> target
+            marea/deriva -> target
+            marea/windows/agent-host -> target
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Portable agent quota reader (isolated files, no credentials/network)
+        working-directory: marea
+        run: node tools/test-reservas.mjs
+      - name: Pinned agent dependencies without install scripts
+        working-directory: marea/agent
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Agent images, desktop policy and OAuth selection (no account/network)
+        working-directory: marea
+        run: node --test agent/state-image.test.mjs agent/auth-interaction.test.mjs agent/desktop-policy.test.mjs
+      - name: Native agent host unit tests
+        if: runner.os == 'Windows'
+        working-directory: marea
+        run: cargo test --locked --manifest-path windows/agent-host/Cargo.toml
+      - name: Build the agent host and native denial fixture
+        if: runner.os == 'Windows'
+        working-directory: marea
+        run: cargo build --locked --manifest-path windows/agent-host/Cargo.toml --features test-fixtures
+      - name: Real Windows agent isolation, process lifetime and path boundaries
+        if: runner.os == 'Windows'
+        working-directory: marea
+        shell: pwsh
+        run: python windows/test-agent-sandbox.py --host windows/agent-host/target/debug/marea-agent.exe --node (Get-Command node).Source --child-probe windows/agent-host/target/debug/marea-agent-child-probe.exe
+      - name: YouTube preview fetching, cache and failure handling (offline fixtures)
+        working-directory: marea
+        run: node --test tools/test-deriva-preview.mjs tools/test-deriva-fetch.mjs
+      - name: Real Deriva store with bundled SQLite
+        working-directory: marea
+        run: cargo test --locked --manifest-path deriva/Cargo.toml
+      - name: Build the Deriva CLI
+        working-directory: marea
+        run: cargo build --locked --manifest-path deriva/Cargo.toml
+      - name: Real Deriva CLI on isolated Unicode libraries
+        working-directory: marea
+        run: python windows/test-deriva-native.py --worker deriva/target/debug/deriva-worker${{ runner.os == 'Windows' && '.exe' || '' }}
+      - name: Performance trace validation (no desktop)
+        working-directory: marea
+        run: python windows/test-measure-desktop.py
+      - name: Owned process memory counters (no desktop)
+        working-directory: marea
+        run: python windows/test-process-memory.py
+      - name: Resource interval calculations (no desktop)
+        working-directory: marea
+        run: python windows/test-profile-resources.py
+      - name: Native SDK distribution inventory
+        working-directory: marea
+        run: python windows/test-agent-files.py
+      - name: Linux build dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libwayland-dev libxkbcommon-dev libfontconfig1-dev libpam0g-dev pkg-config
+      - name: Build native engine and isolated Luau runner
+        working-directory: pleamar
+        run: cargo build --release --locked --bin pleamar --example luau-test
+      - name: Generated profile and isolated service logic
+        working-directory: marea
+        run: python windows/test-logic.py --binary ../pleamar/target/release/pleamar${{ runner.os == 'Windows' && '.exe' || '' }} --luau-runner ../pleamar/target/release/examples/luau-test${{ runner.os == 'Windows' && '.exe' || '' }}
+      - name: Prepare the pinned native shader compiler
+        if: runner.os == 'Windows'
+        working-directory: pleamar
+        shell: pwsh
+        run: ./scripts/prepare-windows-runtime.ps1 -BinaryDirectory target/release
+      - name: Measure reference rendering before the experiment
+        if: runner.os == 'Windows' && inputs.measure_resources && (inputs.retained_mode != 'off' || inputs.performance_comparison == 'idle-chat')
+        working-directory: marea
+        env:
+          MAREA_CI_PROFILE_UI: '1'
+          PLEAMAR_RETAINED_SURFACE: ${{ inputs.performance_comparison == 'idle-chat' && (inputs.retained_mode == 'on' && '1' || inputs.retained_mode == 'off' && '0' || 'auto') || '0' }}
+        run: python windows/test-profile-ui-ci.py --binary ../pleamar/target/release/pleamar.exe --output "${{ runner.temp }}/marea-references/before" --resource-cycles 6 ${{ inputs.performance_comparison == 'idle-chat' && '--idle-tide-baseline' || '' }}
+      - name: Render Marea controls, settings and chat on the disposable CI desktop
+        if: runner.os == 'Windows'
+        working-directory: marea
+        env:
+          MAREA_CI_PROFILE_UI: '1'
+          PLEAMAR_RETAINED_SURFACE: ${{ inputs.retained_mode == 'on' && '1' || inputs.retained_mode == 'off' && '0' || 'auto' }}
+        run: python windows/test-profile-ui-ci.py --binary ../pleamar/target/release/pleamar.exe --output "${{ runner.temp }}/marea-profile-ui" ${{ inputs.measure_resources && '--resource-cycles 6' || '' }}
+      - name: Native auto-hide, settings toggle and persistent choice
+        if: runner.os == 'Windows'
+        working-directory: marea
+        env:
+          MAREA_CI_PROFILE_UI: '1'
+        run: python windows/test-auto-hide-native.py --binary ../pleamar/target/release/pleamar.exe --ci-owned-desktop --output "${{ runner.temp }}/marea-auto-hide"
+      - name: Preserve auto-hide and settings screenshots
+        if: always() && runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: marea-native-auto-hide
+          path: ${{ runner.temp }}/marea-auto-hide
+          if-no-files-found: warn
+      - name: Preserve native Marea screenshots and interaction evidence
+        if: always() && runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: marea-native-profile-ui
+          path: ${{ runner.temp }}/marea-profile-ui
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Measure reference rendering after the experiment
+        if: runner.os == 'Windows' && inputs.measure_resources && (inputs.retained_mode != 'off' || inputs.performance_comparison == 'idle-chat')
+        working-directory: marea
+        env:
+          MAREA_CI_PROFILE_UI: '1'
+          PLEAMAR_RETAINED_SURFACE: ${{ inputs.performance_comparison == 'idle-chat' && (inputs.retained_mode == 'on' && '1' || inputs.retained_mode == 'off' && '0' || 'auto') || '0' }}
+        run: python windows/test-profile-ui-ci.py --binary ../pleamar/target/release/pleamar.exe --output "${{ runner.temp }}/marea-references/after" --resource-cycles 6 ${{ inputs.performance_comparison == 'idle-chat' && '--idle-tide-baseline' || '' }}
+      - name: Preserve same-run rendering references
+        if: always() && runner.os == 'Windows' && inputs.measure_resources && (inputs.retained_mode != 'off' || inputs.performance_comparison == 'idle-chat')
+        uses: actions/upload-artifact@v4
+        with:
+          name: marea-native-rendering-references
+          path: ${{ runner.temp }}/marea-references
+          if-no-files-found: error
+          retention-days: 14
+      - name: Real native Luau to SQLite transport without a display
+        if: runner.os == 'Windows'
+        working-directory: marea
+        run: python windows/test-deriva-runtime.py --binary ../pleamar/target/release/pleamar.exe --worker deriva/target/debug/deriva-worker.exe
+      - name: Shared chat memory through real native storage (no account or windows)
+        if: runner.os == 'Windows'
+        working-directory: marea
+        run: python windows/test-chat-memory-native.py --binary ../pleamar/target/release/pleamar.exe --output .tools/chat-memory-native
+      - name: Unicode shortcut metadata and native publisher registration
+        if: runner.os == 'Windows'
+        working-directory: marea
+        run: powershell.exe -NoLogo -NoProfile -File windows/test-shortcuts.ps1 -PleamarBinary ../pleamar/target/release/pleamar.exe
+      - name: Runtime packaging rejects incomplete or modified compiler files
+        if: runner.os == 'Windows'
+        working-directory: marea
+        run: powershell.exe -NoLogo -NoProfile -File windows/test-runtime-files.ps1
+      - name: Bounded package updates through transient file locks
+        if: runner.os == 'Windows'
+        working-directory: marea
+        run: powershell.exe -NoLogo -NoProfile -File windows/test-update-files.ps1
+      - name: Optional startup registration in an isolated HKCU subtree
+        if: runner.os == 'Windows'
+        working-directory: marea
+        run: powershell.exe -NoLogo -NoProfile -File windows/test-startup.ps1
+      - name: Software JSON transport, progress and cancellation (owned provider)
+        if: runner.os == 'Windows'
+        working-directory: marea
+        run: python windows/test-software-native.py
+      - name: Reject a native runtime built without Luau
+        if: runner.os == 'Windows'
+        working-directory: pleamar
+        shell: pwsh
+        run: |
+          Copy-Item target/release/pleamar.exe target/release/pleamar-with-luau.exe
+          try {
+            cargo build --release --locked --no-default-features --bin pleamar
+            if ($LASTEXITCODE -ne 0) { throw 'The diagnostic no-Luau build failed.' }
+            python ../marea/windows/test-runtime-probe.py --binary target/release/pleamar-with-luau.exe --without-luau target/release/pleamar.exe
+            if ($LASTEXITCODE -ne 0) { throw 'The native Luau runtime preflight regression failed.' }
+          } finally {
+            Copy-Item target/release/pleamar-with-luau.exe target/release/pleamar.exe -Force
+          }

@@ -1,2 +1,11 @@
+__pycache__/
+*.pyc
+.tools/
+/marea-desktop.plm
+/marea-desktop.luau
 deriva/target/
+/dist/
+/tools/winget/
+/tools/winget-*.zip
 agent/node_modules/
+windows/agent-host/target/

@@ -1,0 +1,242 @@
+name: Windows preview installer
+on:
+  workflow_dispatch:
+    inputs:
+      pleamar_repository:
+        description: Repository containing the native Windows engine
+        default: k4ditano/pleamar
+        required: true
+        type: string
+      pleamar_ref:
+        description: Exact native engine commit
+        required: true
+        type: string
+      wm_repository:
+        description: Repository containing the native window manager
+        default: k4ditano/pleamar-wm
+        required: true
+        type: string
+      wm_ref:
+        description: Exact Windows-capable pleamar-wm commit
+        required: true
+        type: string
+      version:
+        description: Preview package version
+        default: 0.2.16-preview.14
+        required: true
+        type: string
+      create_draft_release:
+        description: Prepare a draft GitHub prerelease after the installer tests pass
+        default: false
+        required: true
+        type: boolean
+permissions:
+  contents: read
+jobs:
+  installer:
+    runs-on: windows-2022
+    env:
+      ENGINE_REF: ${{ inputs.pleamar_ref }}
+      WM_REF: ${{ inputs.wm_ref }}
+      PACKAGE_VERSION: ${{ inputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: marea
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.pleamar_repository }}
+          ref: ${{ inputs.pleamar_ref }}
+          path: pleamar
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.wm_repository }}
+          ref: ${{ inputs.wm_ref }}
+          path: pleamar-wm
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+          cache-workspace-crates: false
+          cache-bin: false
+          workspaces: |
+            pleamar -> target
+            marea/deriva -> target
+            marea/windows/agent-host -> target
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Test release validation
+        working-directory: marea
+        run: python windows/test-release-installer.py
+      - name: Native icon and Unicode shortcut roundtrip
+        working-directory: marea
+        run: |
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File windows/test-icons.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'Native icon validation failed.' }
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File windows/test-shortcuts.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'Shortcut validation failed.' }
+      - name: Build native engine with default Luau
+        working-directory: pleamar
+        run: cargo build --release --locked --features windows-notifications --bin pleamar --bin pleamar-notifications
+      - name: Build bundled Deriva
+        working-directory: marea
+        run: cargo build --release --locked --manifest-path deriva/Cargo.toml
+      - name: Build and test the native window manager
+        working-directory: pleamar-wm
+        env:
+          CARGO_TARGET_DIR: ${{ github.workspace }}/pleamar/target
+        run: |
+          cargo test --release --locked
+          if ($LASTEXITCODE -ne 0) { throw 'Window manager tests failed.' }
+          cargo test --release --locked --example windows-dock-fixture
+          if ($LASTEXITCODE -ne 0) { throw 'Dock fixture guard failed.' }
+          cargo build --release --locked --features windows-host --bins --example windows-dock-fixture
+          if ($LASTEXITCODE -ne 0) { throw 'Window manager build failed.' }
+      - name: Native fullscreen and recovery on the disposable Windows desktop
+        working-directory: pleamar-wm
+        env:
+          CARGO_TARGET_DIR: ${{ github.workspace }}/pleamar/target
+          PLEAMAR_WM_CI_FULLSCREEN: '1'
+          PLEAMAR_WM_TEST_OUTPUT: ${{ runner.temp }}/wm-fullscreen-acceptance
+        run: >-
+          cargo test --release --locked --bin pleamar-wm
+          windows_backend::session::fullscreen_tests::native_fullscreen_and_recovery
+          -- --ignored --exact --nocapture --test-threads=1
+      - name: Keep native fullscreen evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wm-fullscreen-acceptance
+          path: ${{ runner.temp }}/wm-fullscreen-acceptance
+          if-no-files-found: warn
+      - name: Build and test the native AI host
+        working-directory: marea
+        run: |
+          cargo test --release --locked --manifest-path windows/agent-host/Cargo.toml
+          if ($LASTEXITCODE -ne 0) { throw 'Agent host tests failed.' }
+          cargo build --release --locked --manifest-path windows/agent-host/Cargo.toml
+          if ($LASTEXITCODE -ne 0) { throw 'Agent host build failed.' }
+      - name: Window manager package lifetime (no visible surfaces)
+        working-directory: marea
+        run: python windows/test-wm-package.py --engine ../pleamar/target/release/pleamar.exe --wm ../pleamar/target/release/pleamar-wm.exe --wm-host ../pleamar/target/release/pleamar-wm-host.exe --output .tools/wm-package-smoke
+      - name: Prepare app-local shader compiler
+        working-directory: pleamar
+        run: ./scripts/prepare-windows-runtime.ps1
+      - name: Native Marea dock on the disposable Windows desktop
+        working-directory: marea
+        env:
+          PLEAMAR_WM_CI_DOCK: '1'
+        run: |
+          $wm = (Resolve-Path ../pleamar/target/release/pleamar-wm.exe).Path
+          $screens = @(& $wm monitors | ConvertFrom-Json)
+          if ($LASTEXITCODE -ne 0 -or $screens.Count -eq 0) { throw 'No CI monitor.' }
+          python ../pleamar-wm/tests/windows-dock.py --binary $wm --fixture ../pleamar/target/release/examples/windows-dock-fixture.exe --monitor $screens[0].name --scene-file tools/windows-dock.plm --ci-owned-desktop --output .tools/dock-smoke
+          if ($LASTEXITCODE -ne 0) { throw 'Native Marea dock failed.' }
+          python windows/test-dock-owner.py --binary $wm --monitor $screens[0].name --ci-owned-desktop --output .tools/dock-owner-smoke
+          if ($LASTEXITCODE -ne 0) { throw 'Native Marea dock ownership failed.' }
+          python ../pleamar-wm/tests/windows-fullscreen.py --binary $wm --fixture ../pleamar/target/release/examples/windows-dock-fixture.exe --monitor $screens[0].name --ci-owned-desktop --output .tools/fullscreen-process-smoke
+          if ($LASTEXITCODE -ne 0) { throw 'Native cross-process fullscreen failed.' }
+      - name: Keep native dock evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: marea-dock-acceptance
+          path: |
+            marea/.tools/dock-smoke
+            marea/.tools/dock-owner-smoke
+            marea/.tools/fullscreen-process-smoke
+          if-no-files-found: warn
+      - name: Prepare pinned installer and Node tools
+        working-directory: marea
+        run: ./windows/prepare-installer-tools.ps1
+      - name: Install the locked AI SDK and test portable worker logic
+        working-directory: marea
+        run: |
+          $node = (Resolve-Path .tools/installer-tools/node-v22.23.3-win-x64/node.exe).Path
+          $npm = (Resolve-Path .tools/installer-tools/node-v22.23.3-win-x64/node_modules/npm/bin/npm-cli.js).Path
+          Push-Location agent
+          try {
+            & $node $npm ci --ignore-scripts --no-audit --no-fund
+            if ($LASTEXITCODE -ne 0) { throw 'Agent SDK installation failed.' }
+          } finally { Pop-Location }
+          & $node --test agent/state-image.test.mjs agent/auth-interaction.test.mjs agent/desktop-policy.test.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'Agent tests failed.' }
+      - name: Preview fetching and native enrichment storage
+        working-directory: marea
+        run: |
+          & .tools/installer-tools/node-v22.23.3-win-x64/node.exe --test tools/test-deriva-preview.mjs tools/test-deriva-fetch.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'Preview tests failed.' }
+          python windows/test-deriva-native.py --worker deriva/target/release/deriva-worker.exe
+          if ($LASTEXITCODE -ne 0) { throw 'Deriva storage tests failed.' }
+      - name: Package the offline installer
+        working-directory: marea
+        run: |
+          $vs = & "${env:ProgramFiles(x86)}/Microsoft Visual Studio/Installer/vswhere.exe" -latest -products '*' -property installationPath
+          $crt = Get-ChildItem -Path "$vs/VC/Redist/MSVC/*/x64/Microsoft.VC143.CRT" -Directory | Sort-Object FullName -Descending | Select-Object -First 1
+          if (-not $crt) { throw 'Visual Studio x64 C++ redistributable directory is missing.' }
+          python windows/build-installer.py --pleamar-binary ../pleamar/target/release/pleamar.exe --wm-binary ../pleamar/target/release/pleamar-wm.exe --wm-host ../pleamar/target/release/pleamar-wm-host.exe --wm-license ../pleamar-wm/LICENSE --wm-source $env:WM_REF --worker deriva/target/release/deriva-worker.exe --agent-host windows/agent-host/target/release/marea-agent.exe --node-directory .tools/installer-tools/node-v22.23.3-win-x64 --crt-directory $crt.FullName --iscc .tools/installer-tools/inno-6.7.3/ISCC.exe --version $env:PACKAGE_VERSION --engine-source $env:ENGINE_REF --output dist/windows
+          if ($LASTEXITCODE -ne 0) { throw 'Installer build failed.' }
+      - name: Real silent installation, update and uninstall
+        working-directory: marea
+        run: python windows/test-installer.py --setup "dist/windows/Marea-$env:PACKAGE_VERSION-windows-x64-setup.exe" --payload dist/windows/payload --output .tools/installer-smoke
+      - uses: actions/upload-artifact@v4
+        with:
+          name: marea-windows-x64-preview
+          path: |
+            marea/dist/windows/*.exe
+            marea/dist/windows/*.sha256
+            marea/dist/windows/build.json
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: installer-validation
+          path: |
+            marea/.tools/installer-smoke/*.log
+            marea/.tools/installer-smoke/report.json
+            marea/.tools/wm-package-smoke/*.log
+            marea/.tools/wm-package-smoke/report.json
+          if-no-files-found: ignore
+  release:
+    name: Prepare draft download
+    needs: installer
+    if: ${{ inputs.create_draft_release }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Test release validation on Linux
+        run: python windows/test-release-installer.py
+      - uses: actions/download-artifact@v4
+        with:
+          name: marea-windows-x64-preview
+          path: dist/windows
+      - uses: actions/download-artifact@v4
+        with:
+          name: installer-validation
+          path: dist/validation
+      - name: Create a draft with the tested installer
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_REPOSITORY: ${{ github.repository }}
+          MAREA_COMMIT: ${{ github.sha }}
+          ENGINE_REPOSITORY: ${{ inputs.pleamar_repository }}
+          ENGINE_COMMIT: ${{ inputs.pleamar_ref }}
+          WM_REPOSITORY: ${{ inputs.wm_repository }}
+          WM_COMMIT: ${{ inputs.wm_ref }}
+          PACKAGE_VERSION: ${{ inputs.version }}
+          BUILD_RUN_ID: ${{ github.run_id }}
+        run: >-
+          python windows/release-installer.py
+          --directory dist/windows --report dist/validation/report.json
+          --repository "$RELEASE_REPOSITORY" --marea-commit "$MAREA_COMMIT"
+          --engine-repository "$ENGINE_REPOSITORY" --engine-commit "$ENGINE_COMMIT"
+          --wm-repository "$WM_REPOSITORY" --wm-commit "$WM_COMMIT"
+          --version "$PACKAGE_VERSION" --run-id "$BUILD_RUN_ID"

@@ -298,7 +298,7 @@ part Settings {
                 //  The account.
                 box { at: card.x, card.top + 164; size: 456, 60; corner: 16; color: #202021 }
                 text "Her account" { at: card.x - 206, card.top + 155; anchor: left center; size: 13; weight: 600; color: ink }
-                text pick(if(chat.signing, 0, if(chat.signed_in, 1, 2)), "Finish signing in, in your browser", chat.account, "Not signed in: she cannot talk yet") { at: card.x - 206, card.top + 173; anchor: left center; size: 11; width: 280; lines: 1; color: if(chat.signed_in, mint, st.faint) }
+                text pick(if(chat.signing, 0, if(chat.signed_in, 1, 2)), chat.login_hint, chat.account, "Not signed in: she cannot talk yet") { at: card.x - 206, card.top + 176; anchor: left center; size: 10.5; width: 280; lines: 2; color: if(chat.signed_in, mint, st.faint) }
                 prop login.glow = 0 ~140ms
                 box { at: card.x + 160, card.top + 164; size: 112, 32; corner: 16; color: mix(mix(#2a2d30, #33383b, login.glow), #3d6b5c, if(chat.signed_in or chat.signing, 0, 1)) }
                 text pick(if(chat.signing, 0, if(chat.signed_in, 1, 2)), "Cancel", "Sign in again", "Sign in") { at: card.x + 160, card.top + 164; anchor: center; size: 12; weight: 600; color: ink }
@@ -307,14 +307,24 @@ part Settings {
                 on leave login_btn { login.glow: 0 }
                 on press login_btn while chat.signing { emit chat_login_cancel }
                 on press login_btn while not chat.signing { emit chat_login }
-                //  Free hands.
-                box { at: card.x, card.top + 236; size: 456, 64; corner: 16; color: mix(#202021, #2a2519, chat.free) }
-                box { at: card.x, card.top + 236; size: 456, 64; corner: 16; stroke: 1.2; color: amber; opacity: chat.free * 70% }
-                text "Let her use the computer" { at: card.x - 206, card.top + 226; anchor: left center; size: 13; weight: 600; color: ink }
-                text "Without a card for each step. Sending, buying or deleting still asks" { at: card.x - 206, card.top + 245; anchor: left center; size: 11; width: 350; lines: 1; color: st.faint }
-                column { at: card.x + 174, card.top + 224
-                    Switch(chat.free, flip_chat_free, accent: amber)
+                group {
+                    show: not chat.signing
+                    //  Free hands.
+                    box { at: card.x, card.top + 236; size: 456, 64; corner: 16; color: mix(#202021, #2a2519, chat.free) }
+                    box { at: card.x, card.top + 236; size: 456, 64; corner: 16; stroke: 1.2; color: amber; opacity: chat.free * 70% }
+                    text "Let her use the computer" { at: card.x - 206, card.top + 226; anchor: left center; size: 13; weight: 600; color: ink }
+                    text "Without a card for each step. Sending, buying or deleting still asks" { at: card.x - 206, card.top + 245; anchor: left center; size: 11; width: 350; lines: 1; color: st.faint }
+                    column { at: card.x + 174, card.top + 224
+                        Switch(chat.free, flip_chat_free, accent: amber)
+                    }
                 }
+                group {
+                    show: chat.signing and chat.login_link
+                    text "Open sign-in page" { at: card.x, card.top + 220; anchor: center; size: 12; color: mint }
+                    text chat.login_help { at: card.x, card.top + 261; anchor: center; size: 10.5; width: 430; lines: 4; align: center; color: st.faint }
+                }
+                zone box login_open_btn { at: card.x, card.top + 218; size: 220, 30; cursor: pointer; active: chat.signing and chat.login_link }
+                on press login_open_btn { emit chat_login_open }
                 //  Her model.
                 text "HER MODEL" { at: card.x - 228, card.top + 300; anchor: left center; size: 9.5; weight: 700; color: #8b8f95 }
                 component ModelPill(m: record, choose: event) {
@@ -380,21 +390,33 @@ part Settings {
                     line { from: 428, 28; to: 438, 38; width: 1.5; color: mix(#8b8f95, #ef7a66, glow) }
                     line { from: 438, 28; to: 428, 38; width: 1.5; color: mix(#8b8f95, #ef7a66, glow) }
                     zone box drop_zone { from: 422, 19; size: 24, 28; corner: 8; cursor: pointer }
-                    on press flip_zone { emit flip(r.index) }
+                    on press flip_zone { emit flip(r.token) }
                     on enter now_zone { now.glow: 1 }
                     on leave now_zone { now.glow: 0 }
-                    on press now_zone { emit now(r.index) }
+                    on press now_zone { emit now(r.token) }
                     on enter drop_zone { glow: 1 }
                     on leave drop_zone { glow: 0 }
-                    on press drop_zone { emit drop(r.index) }
+                    on press drop_zone { emit drop(r.token) }
                 }
                 column tasks_list ~quick {
                     at: card.x - 228, card.top + 136
-                    view: 456, 300
+                    view: 456, 248
                     gap: 6
                     for r in tasks.rows { TaskRow(r, flip: task_flip, now: task_now, drop: task_drop) }
                 }
-                text "None yet." { at: card.x - 228, card.top + 152; anchor: left center; size: 11.5; color: st.faint; show: tasks.rows.count < 1 }
+                on task_page_changed { tasks_list.scroll: 0 ~0ms }
+                group {
+                    show: tasks.pages > 1
+                    text tasks.page_label { at: card.x, card.top + 400; anchor: center; size: 11; color: st.faint }
+                    text "Previous" { at: card.x - 182, card.top + 400; anchor: center; size: 11; color: mint; show: tasks.page > 1 }
+                    text "Next" { at: card.x + 182, card.top + 400; anchor: center; size: 11; color: mint; show: tasks.page < tasks.pages }
+                    zone box tasks_prev { at: card.x - 182, card.top + 400; size: 92, 24; cursor: pointer; active: tasks.page > 1 }
+                    zone box tasks_next { at: card.x + 182, card.top + 400; size: 92, 24; cursor: pointer; active: tasks.page < tasks.pages }
+                    on press tasks_prev { emit task_page(-1) }
+                    on press tasks_next { emit task_page(1) }
+                }
+                text tasks.status { at: card.x - 228, card.top + 422; size: 10.5; color: #ef7a66; width: 456; lines: 2 }
+                text "None yet." { at: card.x - 228, card.top + 152; anchor: left center; size: 11.5; color: st.faint; show: tasks.rows.count < 1 and tasks.readable }
                 //  The passwords she may type for them, one row away.
                 prop keys.glow = 0 ~140ms
                 box { at: card.x, card.top + 470; size: 456, 40; corner: 14; color: mix(#202021, #262728, keys.glow) }
@@ -477,15 +499,27 @@ part Settings {
                     zone box touch { from: 416, 7; size: 32, 30; corner: 10; cursor: pointer }
                     on enter touch { glow: 1 }
                     on leave touch { glow: 0 }
-                    on press touch { emit drop(r.index) }
+                    on press touch { emit drop(r.token) }
                 }
                 column mem_list ~quick {
                     at: card.x - 228, card.top + 136
-                    view: 456, 250
+                    view: 456, 232
                     gap: 6
                     for r in mem.items { MemoryRow(r, drop: mem_forget) }
                 }
-                text "Nothing yet: she keeps things as you talk." { at: card.x - 228, card.top + 152; anchor: left center; size: 11.5; color: st.faint; show: mem.items.count < 1 }
+                on mem_page_changed { mem_list.scroll: 0 ~0ms }
+                group {
+                    show: mem.pages > 1
+                    text mem.page_label { at: card.x, card.top + 388; anchor: center; size: 11; color: st.faint }
+                    text "Previous" { at: card.x - 182, card.top + 388; anchor: center; size: 11; color: mint; show: mem.page > 1 }
+                    text "Next" { at: card.x + 182, card.top + 388; anchor: center; size: 11; color: mint; show: mem.page < mem.pages }
+                    zone box mem_previous { at: card.x - 182, card.top + 388; size: 92, 24; cursor: pointer; active: mem.page > 1 }
+                    zone box mem_next { at: card.x + 182, card.top + 388; size: 92, 24; cursor: pointer; active: mem.page < mem.pages }
+                    on press mem_previous { emit mem_page(-1) }
+                    on press mem_next { emit mem_page(1) }
+                }
+                text mem.error { at: card.x - 228, card.top + 478; width: 456; lines: 2; size: 10.5; color: #ef7a66 }
+                text "Nothing yet: she keeps things as you talk." { at: card.x - 228, card.top + 152; anchor: left center; size: 11.5; color: st.faint; show: mem.items.count < 1 and mem.readable }
                 //  The conversations before this one.
                 box { at: card.x, card.top + 428; size: 456, 52; corner: 16; color: #202021 }
                 text "Past conversations" { at: card.x - 206, card.top + 420; anchor: left center; size: 13; weight: 600; color: ink }

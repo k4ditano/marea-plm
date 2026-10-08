@@ -12,20 +12,26 @@ use std::io;
 use std::path::PathBuf;
 
 pub fn home() -> PathBuf {
-    PathBuf::from(std::env::var("HOME").unwrap_or_else(|_| "/tmp".into()))
+    let name = if cfg!(windows) { "USERPROFILE" } else { "HOME" };
+    std::env::var_os(name).filter(|s| !s.is_empty()).map(PathBuf::from).unwrap_or_else(std::env::temp_dir)
 }
 
 pub fn base() -> PathBuf {
-    if let Ok(d) = std::env::var("MAREA_DERIVA_DIR") {
+    if let Some(d) = std::env::var_os("MAREA_DERIVA_DIR") {
         if !d.is_empty() {
             return PathBuf::from(d);
         }
     }
+    #[cfg(not(windows))]
     let datos = std::env::var("XDG_DATA_HOME")
         .ok()
         .filter(|s| !s.is_empty())
         .map(PathBuf::from)
         .unwrap_or_else(|| home().join(".local/share"));
+    #[cfg(windows)]
+    let datos = std::env::var_os("LOCALAPPDATA")
+        .filter(|s| !s.is_empty()).map(PathBuf::from)
+        .unwrap_or_else(|| home().join("AppData/Local"));
     datos.join("proyecto-marea/deriva")
 }
 
@@ -55,6 +61,7 @@ pub fn tmp() -> PathBuf {
 //  El socket. En `XDG_RUNTIME_DIR` porque es lo que se borra al cerrar sesión y
 //  ya viene con permisos de solo el usuario; en `/tmp` lo vería cualquiera con
 //  cuenta en la máquina.
+#[cfg(unix)]
 pub fn socket() -> PathBuf {
     if let Ok(s) = std::env::var("MAREA_DERIVA_SOCKET") {
         if !s.is_empty() {
@@ -71,6 +78,7 @@ pub fn socket() -> PathBuf {
 
 //  Sin `libc` como dependencia: es la única llamada que hacía falta y traerse
 //  una caja entera para un `getuid` es pagar de más.
+#[cfg(unix)]
 unsafe fn libc_getuid() -> u32 {
     extern "C" {
         fn getuid() -> u32;
@@ -78,16 +86,28 @@ unsafe fn libc_getuid() -> u32 {
     getuid()
 }
 
+pub fn socket_description() -> Option<String> {
+    #[cfg(unix)]
+    { Some(socket().to_string_lossy().into_owned()) }
+    #[cfg(not(unix))]
+    { None }
+}
+
 //  Todo lo que tiene que existir antes de escribir nada, con los permisos que
 //  toca. 0700 en la carpeta: la biblioteca es lo que has ido guardando durante
 //  meses y no tiene por qué leerla otro usuario de la máquina.
 pub fn preparar() -> io::Result<()> {
-    use std::os::unix::fs::PermissionsExt;
     for d in [base(), blobs(), previews(), exports(), backups(), tmp()] {
         std::fs::create_dir_all(&d)?;
-        let mut p = std::fs::metadata(&d)?.permissions();
-        p.set_mode(0o700);
-        let _ = std::fs::set_permissions(&d, p);
+        // Windows inherits the user's LocalAppData ACL. Unix retains its
+        // private mode; no read-only attribute is used as an ACL substitute.
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut p = std::fs::metadata(&d)?.permissions();
+            p.set_mode(0o700);
+            let _ = std::fs::set_permissions(&d, p);
+        }
     }
     Ok(())
 }

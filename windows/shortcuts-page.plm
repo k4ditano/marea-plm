@@ -1,0 +1,16 @@
+                    page windows_shortcuts "Keyboard shortcuts" {
+                        box { from: card.x - 228, card.top + 112; size: 456, 76; corner: 16; color: #242628 }
+                        text "Use the Windows key for Marea" { at: card.x - 210, card.top + 135; anchor: left center; size: 13; weight: 600; color: ink }
+                        text "Replaces Start and Windows-key shortcuts while Marea runs" { at: card.x - 210, card.top + 161; width: 342; lines: 2; size: 10; color: st.faint }
+                        box { at: card.x + 191, card.top + 147; size: 38, 22; corner: 11; color: if(windows_key_enabled, mint, #363839) }
+                        ellipse { at: card.x + 191 + if(windows_key_enabled, 8, -8), card.top + 147; radius: 8; color: ink; opacity: if(windows_key_busy, 0.4, 1) }
+                        zone box windows_key_switch { from: card.x - 228, card.top + 112; size: 456, 76; corner: 16; cursor: pointer; active: page == settings and section == windows_shortcuts and paging > 0.9 and windows_key_available and not windows_key_busy; label: "Use the Windows key for Marea"; role: toggle; checked: windows_key_enabled }
+                        on press windows_key_switch { emit windows_toggle_key }
+                        text windows_key_status { at: card.x - 228, card.top + 210; width: 456; lines: 2; size: 11; color: mint }
+                        repeat k in 0..13 {
+                            let y = card.top + 244 + k * 15
+                            text pick(k, "Win / Win + Space", "Win + Shift + A", "Win + A", "Win + I", "Win + Tab", "Win + N", "Win + W", "Win + M", "Win + Shift + M", "Win + ← ↑ / → ↓", "Win + Q", "Win + D", "Win + F") { at: card.x - 220, y; anchor: left center; size: 12; color: ink }
+                            text pick(k, "Search", "Chat", "Control center", "Settings", "Window overview", "Notifications", "Tiled or free windows", "Minimize active window", "Restore last window", "Previous / next window", "Close active window", "Application dock", "Full screen") { at: card.x + 14, y; anchor: left center; size: 12; color: st.faint }
+                        }
+                        text windows_search_hint { at: card.x - 228, card.top + 446; width: 456; lines: 2; size: 11; color: st.faint }
+                    }

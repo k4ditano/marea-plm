@@ -22,20 +22,9 @@ pub fn nuevo_id() -> String {
 }
 
 pub fn azar(dest: &mut [u8]) {
-    use std::io::Read;
-    //  `/dev/urandom` y no un generador propio sembrado con la hora: dos
-    //  procesos que arrancan en el mismo milisegundo sacarían la misma
-    //  secuencia, y aquí eso son dos capturas con el mismo id.
-    if let Ok(mut f) = std::fs::File::open("/dev/urandom") {
-        if f.read_exact(dest).is_ok() {
-            return;
-        }
-    }
-    //  Si ni eso, algo va muy mal; al menos que no sean ceros.
-    let t = ahora_ms() as u64;
-    for (i, d) in dest.iter_mut().enumerate() {
-        *d = ((t >> (i % 8 * 8)) as u8) ^ (i as u8).wrapping_mul(31);
-    }
+    // Time alone collides across concurrent CLI processes, especially on
+    // Windows where /dev/urandom does not exist. Fail rather than reuse IDs.
+    getrandom::fill(dest).expect("the operating system random source is unavailable");
 }
 
 pub fn hex(bytes: &[u8]) -> String {
@@ -283,4 +272,34 @@ pub fn plegar(t: &str) -> String {
             otro => otro,
         })
         .collect()
+}
+// Windows canonical paths use a Win32 verbatim prefix, not a URI host. Escape
+// literal #, %, spaces and UTF-8 bytes so ShellExecute and external drops agree.
+pub fn file_url(path: &std::path::Path) -> String {
+    #[cfg(not(windows))]
+    { format!("file://{}", path.display()) }
+    #[cfg(windows)]
+    {
+        let text = path.to_string_lossy();
+        let plain = if let Some(unc) = text.strip_prefix(r"\\?\UNC\") { format!("//{unc}") }
+            else { text.strip_prefix(r"\\?\").unwrap_or(&text).to_owned() }.replace('\\', "/");
+        let escaped: String = plain.bytes().map(|byte| {
+            if byte.is_ascii_alphanumeric() || b"/-._~:".contains(&byte) { (byte as char).to_string() }
+            else { format!("%{byte:02X}") }
+        }).collect();
+        if escaped.starts_with("//") { format!("file:{escaped}") }
+        else { format!("file:///{escaped}") }
+    }
+}
+
+#[cfg(all(test, windows))]
+mod windows_file_url_tests {
+    use super::file_url;
+    #[test]
+    fn canonical_drive_and_unc_paths_are_valid_uris() {
+        assert_eq!(file_url(std::path::Path::new(r"\\?\C:\Photos ñ\海 #1%.png")),
+            "file:///C:/Photos%20%C3%B1/%E6%B5%B7%20%231%25.png");
+        assert_eq!(file_url(std::path::Path::new(r"\\?\UNC\server\share\a b.txt")), "file://server/share/a%20b.txt");
+        assert_eq!(file_url(std::path::Path::new(r"C:\a\b.txt")), "file:///C:/a/b.txt");
+    }
 }

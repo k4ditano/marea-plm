@@ -18,8 +18,11 @@
 //  Marea says, never what the model says.
 
 import { createInterface } from "node:readline";
-import { mkdirSync, readFileSync, statSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { mkdirSync } from "node:fs";
+import { join } from "node:path";
+import { stateImage } from "./state-image.mjs";
+import { authInteraction } from "./auth-interaction.mjs";
+import { desktopPolicy, describeDesktopTool, scheduledDesktopPolicy } from "./desktop-policy.mjs";
 import {
     createAgentSession,
     createExtensionRuntime,
@@ -46,7 +49,7 @@ const LIMITS = {
 
 const PROMPT = `You are Marea, a little ball of water with a face who lives at the top of the user's screen: their desktop companion. Calm, warm and brief.
 
-You talk, and you can use the user's desktop with tools: a pointer and a keyboard of your own, apart from theirs (they keep working while you do; they see your mint cursor and the glow on the monitor you work on). You PROPOSE each action; Marea's side shows it to the user when it has to, does it, and tells you what happened. Never say you did something the result does not say happened.
+You talk, and you can use the user's desktop with tools. ${desktopPolicy()} You PROPOSE each action; Marea's side shows it to the user when it has to, does it, and tells you what happened. Never say you did something the result does not say happened.
 
 Using the desktop, always the same loop: desktop_windows to find the window (its pid), desktop_look to see it, then act with the coordinates of that picture, then look again after anything that changes the page —pages move, a banner or a dialog appears—. A click on the wrong thing is worse than one more look. A menu (right click, a dropdown) opens over the window: look, then click its item. A dialog (save as, open, a confirmation) is a window of its own: looking at and acting on the program's pid reach the dialog while it is open, and desktop_windows lists it. When the user names a monitor, desktop_windows says where each window is, and desktop_to_monitor moves one. Prefer the keyboard where there is a shortcut: in a browser desktop_hotkey ctrl+l, desktop_type the address, desktop_key enter. Click a field before typing in it.
 
@@ -54,7 +57,7 @@ You act as the user, in their accounts. Before anything that publishes, sends, b
 
 You have a memory of your own, kept on this computer, that lasts between conversations. What you remember about the user and the titles of your notes come below, when there are any. Keep with memory_save what is worth knowing next time —what they tell you about themselves, a lasting preference, something they ask you to remember—, without asking and without making a fuss of it: the user sees it in the chat and can make you forget it. Forget what turns out wrong. When a task on the desktop took you several tries, write down how with memory_learn. When they take something as known, look for it (memory_recall, memory_search) before saying you do not remember.
 
-You can also do things on your own at a time (task_schedule): when the user asks for something «every day at 8», «on Mondays», «tomorrow at 7», keep it as a task instead of doing it now; task_list and task_cancel for the ones there are. When a message starts with «[Task]», it is one of those running on its own: the user is probably not there, so do all of it without stopping to ask, and end by saying in a sentence or two what you did, what you found, or where and why you stopped. In a task, do not use desktop_focus (it takes the keyboard of whoever may be at the computer): open_app puts what you open on your monitor, and the other tools work on any window that is seen. A message may start with «[Now: …]»: that is the date and time it is.
+You can also do things on your own at a time (task_schedule): when the user asks for something «every day at 8», «on Mondays», «tomorrow at 7», keep it as a task instead of doing it now; task_list and task_cancel for the ones there are. When a message starts with «[Task]», it is one of those running on its own: the user is probably not there, so do all of it without stopping to ask, and end by saying in a sentence or two what you did, what you found, or where and why you stopped. ${scheduledDesktopPolicy()} A message may start with «[Now: …]»: that is the date and time it is.
 
 To sign in to a page, use what the browser keeps: click the user name or password field and pick the browser's suggestion. If the browser has nothing for it and the user saved one in Marea under a name, desktop_type_secret types it for you without you seeing it. Never type a password you were told in the chat, and never invent one.
 
@@ -90,11 +93,7 @@ function log(...what) {
 
 //  A picture Marea left in the state folder, as Pi wants it. Only from there.
 function picture(image) {
-    if (!image || typeof image.path !== "string") return null;
-    const path = resolve(image.path);
-    if (!path.startsWith(STATE + "/")) throw new Error("image_outside_state");
-    if (statSync(path).size > LIMITS.image) throw new Error("image_too_big");
-    return { type: "image", data: readFileSync(path).toString("base64"), mimeType: "image/png" };
+    return stateImage(STATE, image, LIMITS.image);
 }
 
 //  Her memory, as it goes in the system prompt: data she kept, never
@@ -175,7 +174,7 @@ function toolsForPi() {
     return TOOLS.map((t) => defineTool({
         name: t.name,
         label: t.name,
-        description: t.description,
+        description: describeDesktopTool(t),
         parameters: t.parameters,
         execute: async (_callId, args, signal) => {
             const r = await propose(t.name, args ?? {}, signal);
@@ -243,10 +242,8 @@ async function start(m) {
     send({ type: "ready", usable, model: ok ? `${session.model.provider}/${session.model.id}` : null, reason: ok ? null : (available.length === 0 ? "signed_out" : "model_unavailable"), models });
 }
 
-//  Signing in (OpenAI's ChatGPT account, as the Marea before did): Pi opens
-//  a little server on 127.0.0.1:1455 inside here —the sandbox shares the
-//  network, so the browser's redirect reaches it— and hands out the page to
-//  open, which Marea opens in the browser. Nothing is typed here.
+// Linux keeps Pi's browser callback. Windows uses device-code OAuth because
+// the agent has no permission to listen for a browser callback on loopback.
 async function signIn(m) {
     if (login) return;
     const provider = typeof m.provider === "string" ? m.provider : "openai-codex";
@@ -264,23 +261,7 @@ async function signIn(m) {
                 refreshOnCreate: false,
             });
         }
-        await runtime.login(provider, "oauth", {
-            signal,
-            //  Asked which way: the browser. Asked to paste the code by hand:
-            //  never answered (the browser brings it), only let go.
-            prompt: (p) => p.type === "select"
-                ? Promise.resolve(p.options?.find((o) => /browser/i.test(o.id + " " + o.label))?.id ?? p.options?.[0]?.id ?? "")
-                : new Promise((_, fail) => {
-                    const stop = () => fail(new Error("cancelled"));
-                    if (p.signal?.aborted || signal.aborted) return stop();
-                    p.signal?.addEventListener("abort", stop, { once: true });
-                    signal.addEventListener("abort", stop, { once: true });
-                }),
-            notify: (e) => {
-                if (e.type === "auth_url" && typeof e.url === "string") send({ type: "login_url", url: e.url });
-                else if (e.type === "device_code") send({ type: "login_url", url: e.verificationUri, code: e.userCode });
-            },
-        });
+        await runtime.login(provider, "oauth", authInteraction(signal, send));
         send({ type: "login_done", ok: true });
         session = null;
         if (started) await start(started);

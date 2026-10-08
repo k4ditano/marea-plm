@@ -107,6 +107,8 @@ part Chat {
         shader chat_tide { at: chat.x, ky0 + 45 + (chat.h - 45) / 2; size: chat.w, chat.h - 45; values: chat.stir; colors: mint }
         //  The thread. It scrolls with the wheel and by dragging, and follows
         //  what arrives while you are at the bottom of it.
+        // Keep drag capture behind the row actions and sign-in controls.
+        zone box chat_area { from: kx0, ky0 + 56; size: 556, 404; active: chatting and chat.signed_in }
         column chat_list ~quick {
             at: kx0, ky0 + 56
             view: 556, 404
@@ -119,12 +121,14 @@ part Chat {
         follow chat.from_end = chat_list.content - chat_list.scroll
         //  Following the end: while you are at the bottom, whatever grows the
         //  thread (a row, a letter, a measure that arrives a frame later) keeps
-        //  it there. Only you let go of it —the wheel up, or dragging the
-        //  thread down—, never a jump of the thread's own; back at the bottom,
-        //  it follows again. Sending something goes back to the end.
-        on scroll chat_area while wheel > 0 { chat.stuck = false }
-        on drag chat_area while drag.dy > 12 { chat.stuck = false }
-        on change chat_list.scroll while chat_list.content - chat_list.scroll < 420 { chat.stuck = true }
+        //  it there. Scrolling up yourself lets go; back at the bottom, it
+        //  follows again. Its own jumps are instant, so they never look like
+        //  yours.
+        // Reflow can move the scroll position while row heights settle. Only
+        // a user's gesture releases the tail; a settled return reattaches it.
+        on scroll chat_area while wheel > 0 and chat_list.content > 404 { chat.stuck = false }
+        on drag chat_area while drag.dy > 12 and chat_list.content > 404 { chat.stuck = false }
+        on still chat_list.scroll for 180ms while chat_list.content - chat_list.scroll < 420 { chat.stuck = true }
         on change chat.length while chat.stuck { chat_list.scroll: max(0, chat.length - 404) ~0ms }
         on change chat.rows.count while chat.rows.count == 0 { chat.stuck = true }
         on chat_send { chat.stuck = true; chat_list.scroll: max(0, chat.length - 404) ~0ms }
@@ -139,7 +143,7 @@ part Chat {
         group {
             show: not chat.signed_in
             text "To talk, she needs an account" { at: chat.x, ky0 + 186; anchor: center; size: 18; weight: 500; color: ink; opacity: 85% }
-            text pick(if(chat.signing, 1, 0), "Your ChatGPT account: the browser opens to sign in, and she remembers it.", "Finish signing in, in your browser") { at: chat.x, ky0 + 220; anchor: center; size: 12; color: #8b8f95; width: 420; lines: 2; align: center }
+            text pick(if(chat.signing, 1, 0), "Your ChatGPT account: the browser opens to sign in, and she remembers it.", chat.login_hint) { at: chat.x, ky0 + 220; anchor: center; size: 12; color: #8b8f95; width: 420; lines: 2; align: center }
             box { at: chat.x, ky0 + 272; size: 168, 38; corner: 19; color: mix(mix(#3d6b5c, #4a8270, chat.login.glow), #2a2d30, chat.signing) }
             text pick(if(chat.signing, 1, 0), "Sign in", "Cancel") { at: chat.x, ky0 + 272; anchor: center; size: 13; weight: 600; color: ink }
         }
@@ -148,6 +152,13 @@ part Chat {
         on leave chat_login_btn { chat.login.glow: 0 }
         on press chat_login_btn while chat.signing { emit chat_login_cancel }
         on press chat_login_btn while not chat.signing { emit chat_login }
+        group {
+            show: not chat.signed_in and chat.signing and chat.login_link
+            text "Open sign-in page" { at: chat.x, ky0 + 316; anchor: center; size: 12; color: mint }
+            text chat.login_help { at: chat.x, ky0 + 370; anchor: center; size: 11.5; color: #8b8f95; width: 420; lines: 5; align: center }
+        }
+        zone box chat_login_open_btn { at: chat.x, ky0 + 316; size: 220, 32; cursor: pointer; active: chatting and not chat.signed_in and chat.signing and chat.login_link }
+        on press chat_login_open_btn { emit chat_login_open }
         //  Working: the water at the foot of the thread breathes —three waves,
         //  out of phase— and says what she is on.
         group {
@@ -177,7 +188,6 @@ part Chat {
                move 1, 6; line 6, 1; line 11, 6 }
         box { at: kx0 + 532, ky0 + 518; size: 10, 10; corner: 2; color: #0c0f12; show: busy }
         zone ellipse send_btn { at: kx0 + 532, ky0 + 518; radius: 16; cursor: pointer; active: chatting }
-        zone box chat_area { from: kx0, ky0 + 56; size: 556, 404; active: chatting }
     }
     }
     on enter new_chat { new.glow: 1 }

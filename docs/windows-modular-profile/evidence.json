@@ -1,0 +1,57 @@
+{
+  "complete": true,
+  "scope": "Native classic UI and signed-out SDK; quota reader excluded; focus/mouse input/reservation disabled; fresh Spanish state. Process resources, not display FPS or interaction latency.",
+  "binary_sha256": "55ac5ce26add09ed0881331fd37a5b19ae584873776e002f4ac45038807f9b4d",
+  "host_sha256": "6745ed69c0e83e792431b70bbd791592058efdeeffbcef611f6b3bac480693ea",
+  "worker_sha256": "3f16afcef541a2d804044c0a4dba02d8ff7b67eafc733b763421a9fac55d6761",
+  "scene_sha256": "185f2d70d5c3184864b85dc46ebe8846a92aab790ead367c80b603230e4a9464",
+  "logic_sha256": "64ba449c25ea89caec894c6e6db3aa0568bb0a57aa7b7bc254cc20986c314c4f",
+  "profile_prepare_seconds": 11.188,
+  "sdk_ready_seconds": [
+    10.406
+  ],
+  "sdk_retirement_seconds": [
+    30.125
+  ],
+  "owned_family_exited": true,
+  "profile_cleanup_exit": 0,
+  "native": {
+    "captures": 3,
+    "exit": 0,
+    "foreground_unchanged": true,
+    "passive_input": true,
+    "physical_input_sent": false,
+    "screen": "\\\\.\\DISPLAY2"
+  },
+  "samples": [
+    {
+      "state": "closed-initial",
+      "seconds": 35.797,
+      "working_mib": 224.899,
+      "private_mib": 269.262,
+      "handles": 1007,
+      "cpu_one_core_percent": 23.789
+    },
+    {
+      "state": "chat-open-0",
+      "seconds": 35.907,
+      "working_mib": 331.125,
+      "private_mib": 367.387,
+      "handles": 1262,
+      "cpu_one_core_percent": 29.721
+    },
+    {
+      "state": "closed-retired-0",
+      "seconds": 36.781,
+      "working_mib": 230.824,
+      "private_mib": 275.328,
+      "handles": 1155,
+      "cpu_one_core_percent": 24.512
+    }
+  ],
+  "limits": [
+    "One signed-out SDK cycle; no model/account/physical input or package supervisor.",
+    "Resource samples taken while a background two-job Rust build was active; not interaction latency or sustained performance acceptance.",
+    "First setup timed out after180s before scene startup; cleanup succeeded. Diagnostic retry completed34.484s; this run11.188s. Cause of the first timeout remains unconfirmed."
+  ]
+}

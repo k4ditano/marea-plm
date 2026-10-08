@@ -166,7 +166,7 @@ fn una_de_fichero(db: &Connection, p: &Peticion, ruta: &str) -> Result<Resultado
         db,
         Nueva {
             tipo: &p.tipo,
-            source_url: Some(&format!("file://{}", real.display())),
+            source_url: Some(&crate::util::file_url(&real)),
             canonical: None,
             title: &titulo,
             author: p.author.as_deref().unwrap_or(""),
@@ -218,7 +218,9 @@ fn resolver(ruta: &str) -> Result<std::path::PathBuf, &'static str> {
         }
     }
     //  Y la biblioteca no se copia a sí misma.
-    if real.starts_with(crate::paths::base()) {
+    // Canonical paths on Windows have a verbatim prefix; compare both sides
+    // in the same form. This also catches a library reached through a symlink.
+    if std::fs::canonicalize(crate::paths::base()).is_ok_and(|base| real.starts_with(base)) {
         return Err("ya_es_de_la_biblioteca");
     }
     Ok(real)

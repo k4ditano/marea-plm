@@ -6,6 +6,9 @@
 // «History»— is already in es.plm, and the logic uses those same English words.
 library SpanishLogic {
     translations es {
+        "Her engine did not respond. Try signing in again." = "El asistente no respondió. Vuelve a intentar iniciar sesión."
+        "Could not open the browser. Use Open sign-in page to try again." = "No se pudo abrir el navegador. Pulsa «Abrir página de acceso» para reintentarlo."
+        "Enable device code login in ChatGPT Settings > Security (or ask your workspace administrator), then enter the code in your browser. Keep this sign-in open until it finishes." = "Activa el acceso con código de dispositivo en ChatGPT → Ajustes → Seguridad (o consulta al administrador). Introduce el código en el navegador y mantén este acceso abierto hasta terminar."
         // the finder
         // what is hers, in the finder («Agents», «Settings»… are in es.plm)
         "Lock the screen" = "Bloquear la pantalla"
@@ -198,12 +201,16 @@ library SpanishLogic {
         "Signed in with %s" = "Con la sesión de %s"
         "That model cannot be used with her account: choose another in Settings" = "Ese modelo no se puede usar con su cuenta: elige otro en Ajustes"
         "The sign-in did not finish: " = "El inicio de sesión no terminó: "
+        "Preparing sign-in…" = "Preparando el inicio de sesión…"
+        "Enter this code in your browser: " = "Introduce este código en el navegador: "
+        "The sign-in address was not recognized." = "No se ha reconocido la dirección de inicio de sesión."
         "She could not hear it: she is not signed in (Settings › Talking with her)." = "No pudo oírlo: no tiene sesión (Ajustes › Hablar con ella)."
         "You stopped her from the monitor." = "La paraste desde el monitor."
         "Something went wrong: " = "Algo salió mal: "
         "Her engine stopped." = "Su motor se paró."
         "Her engine cannot start: " = "Su motor no puede arrancar: "
         "Waking up…" = "Despertando…"
+        "Closing the previous conversation…" = "Cerrando la conversación anterior…"
         "Her engine could not start: " = "Su motor no pudo arrancar: "
         // her memory
         "Remembered: " = "Recordado: "
@@ -215,6 +222,14 @@ library SpanishLogic {
         "None kept yet" = "Ninguna guardada aún"
         "%d kept on this computer" = "%d guardadas en este equipo"
         "%d things, %d notes" = "%d cosas, %d notas"
+        "%d / %d" = "%d / %d"
+        "Memory unavailable" = "Memoria no disponible"
+        "Could not read memory. Existing data has been left untouched." = "No se ha podido leer la memoria. Los datos guardados se conservan."
+        "Could not read saved conversations." = "No se han podido leer las conversaciones guardadas."
+        "Could not save memory. Your previous memories are still kept." = "No se ha podido guardar la memoria. Se conservan los recuerdos anteriores."
+        "Could not save this conversation. It is still open." = "No se ha podido guardar esta conversación. Sigue abierta."
+        "Conversation saved, but some older conversations could not be removed." = "Conversación guardada, pero no se han podido eliminar algunas anteriores."
+        "Some conversations could not be deleted. You can try again." = "No se han podido borrar algunas conversaciones. Puedes volver a intentarlo."
         // her tasks
         "A task of her own" = "Una tarea suya"
         "%s, at %s" = "%s, a las %s"
@@ -253,6 +268,13 @@ library SpanishLogic {
         "The keyring did not take it" = "El llavero no la aceptó"
         "Kept as «%s»" = "Guardada como «%s»"
         "Type a saved password in %s" = "Escribir una contraseña guardada en %s"
+        "Windows could not update the saved passwords. Try again." = "Windows no ha podido actualizar las contraseñas guardadas. Inténtalo de nuevo."
+        "Could not save tasks. The previous schedule is still kept." = "No se han podido guardar las tareas. Se conserva la programación anterior."
+        "Could not read tasks. The saved schedule has been left untouched." = "No se han podido leer las tareas. Se conserva la programación guardada."
+        "Her engine could not start." = "Su motor no ha podido arrancar."
+        "Open Settings > Talking with her > Her tasks for the task controls." = "Abre Ajustes > Hablar con ella > Sus tareas para controlar la tarea."
+        "Windows could not show the task notification." = "Windows no ha podido mostrar el aviso de la tarea."
+        "Scheduled chat and reading; unattended desktop control is pending." = "Chat y lectura programados. Control del escritorio desatendido: pendiente."
             // the system pages
         "Excellent signal" = "Señal excelente"
         "Good signal" = "Buena señal"

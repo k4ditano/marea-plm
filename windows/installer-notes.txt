@@ -1,0 +1,20 @@
+Marea for Windows - preview
+
+This package includes pleamar with Luau, Deriva, Node.js for the Agents page,
+the shader compiler and the Microsoft C++ runtime beside the application.
+No Rust, Python, Node installation, WSL or repository checkout is required.
+
+A DirectX 12 driver is required. Windows N editions need Microsoft's Media
+Feature Pack. Setup verifies native execution before replacing an installation;
+it cannot validate rendering or physical devices on another PC.
+
+Your settings and Deriva library are stored separately from the application.
+Uninstall removes packaged files and shortcuts, and keeps your data and logs.
+Startup is off by default. Enable "Start with Windows" in Marea Settings to
+launch at user sign-in. Uninstall removes that entry. Global PATH and execution
+policy are not changed.
+
+This preview does not have a publisher signing certificate. The current UI,
+performance, device and semantic-model limitations are listed in README.md.
+Source-script installations in Documents are preserved separately: close the
+old Marea before starting this package. Only one desktop instance can run.

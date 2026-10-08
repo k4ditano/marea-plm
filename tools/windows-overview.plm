@@ -1,0 +1,84 @@
+// Opened on Marea's monitor by the native window-manager adapter.
+scene WindowOverview {
+    permissions { services: "env"; run: "pleamar-wm" }
+    surface { size: full, full; level: overlay; keyboard: on_demand; rate: 30 }
+    translations es {
+        "MAREA" = "MAREA"
+        "Windows" = "Ventanas"
+        "Select a window to use it" = "Selecciona una ventana para usarla"
+        "Close view" = "Cerrar vista"
+        "Select" = "Seleccionar"
+        "Minimize" = "Minimizar"
+        "Restore" = "Restaurar"
+        "Close" = "Cerrar"
+        "Previous" = "Anterior"
+        "Next" = "Siguiente"
+        "No windows on this screen" = "No hay ventanas en esta pantalla"
+        "Preview unavailable" = "Vista previa no disponible"
+        "Minimized" = "Minimizada"
+        "Windows did not activate this window. Try selecting it again." = "Windows no ha activado esta ventana. Prueba a seleccionarla de nuevo."
+        "The window view could not close." = "No se ha podido cerrar la vista de ventanas."
+        "Shows up to 32 windows on this screen" = "Muestra hasta 32 ventanas de esta pantalla"
+    }
+    windows win max 32
+    fact requested_page = 0
+    let pages = max(1, ceil(win.count / 4))
+    let page = clamp(requested_page, 0, pages - 1)
+    text overview_status = ""
+    event overview_close ->
+    event overview_select ->
+    event overview_next
+    event overview_previous
+    on overview_next { requested_page = min(page + 1, pages - 1) }
+    on overview_previous { requested_page = max(page - 1, 0) }
+    on key Escape { emit overview_close }
+    box { from: 0, 0; size: screen.width, screen.height; color: #141817 }
+    text "MAREA" { at: 32, 24; size: 11; color: #9ed6bd }
+    text "Windows" { at: 32, 46; size: 28; color: #f2f3f0 }
+    text "Select a window to use it" { at: 32, 86; size: 13; color: #959b98 }
+    text "Close view" { at: screen.width - 32, 48; anchor: right center; size: 15; color: #f2f3f0 }
+    zone box leave { from: screen.width - 170, 24; size: 154, 52 }
+    on press leave { emit overview_close }
+    let cw = (screen.width - 88) / 2
+    let ch = (screen.height - 216) / 2
+    repeat i in 0..32 {
+        let p = win.$i.place
+        let present = win.$i.open and p >= page * 4 and p < page * 4 + 4
+        let x = 32 + mod(p, 2) * (cw + 24)
+        let y = 120 + mod(floor(p / 2), 2) * (ch + 20)
+        let iw = max(1, win.$i.width)
+        let ih = max(1, win.$i.height)
+        let fit = min((cw - 32) / iw, (ch - 102) / ih)
+        group {
+            show: present
+            box { from: x, y; size: cw, ch; color: #242a27; corner: 14 }
+            text win.$i.title { at: x + 16, y + 16; width: cw - 32; lines: 1; size: 15; color: #f2f3f0 }
+            text "Preview unavailable" { at: x + cw / 2, y + ch / 2; anchor: center; size: 13; color: #959b98; show: win.$i.width < 1 and not win.$i.minimized }
+            text "Minimized" { at: x + cw / 2, y + ch / 2; anchor: center; size: 13; color: #959b98; show: win.$i.width < 1 and win.$i.minimized }
+            window win.$i { at: x + cw / 2 - iw * fit / 2, y + 48 + (ch - 102 - ih * fit) / 2; size: iw * fit, ih * fit; ask: -1, -1 }
+            text "Select" { at: x + 16, y + ch - 30; size: 14; color: #9ed6bd }
+            text "Minimize" { at: x + cw / 2, y + ch - 30; anchor: top center; size: 14; color: #f2f3f0; show: not win.$i.minimized }
+            text "Restore" { at: x + cw / 2, y + ch - 30; anchor: top center; size: 14; color: #f2f3f0; show: win.$i.minimized }
+            text "Close" { at: x + cw - 16, y + ch - 30; anchor: top right; size: 14; color: #e8a18d }
+        }
+        zone box select.$i { from: x, y; size: cw, ch - 46; active: present }
+        zone box select_label.$i { from: x + 8, y + ch - 44; size: cw / 3 - 8, 40; active: present }
+        zone box minimize.$i { from: x + cw / 3, y + ch - 44; size: cw / 3, 40; active: present and not win.$i.minimized }
+        zone box restore.$i { from: x + cw / 3, y + ch - 44; size: cw / 3, 40; active: present and win.$i.minimized }
+        zone box close.$i { from: x + cw * 2 / 3, y + ch - 44; size: cw / 3 - 8, 40; active: present }
+        on press select.$i { focus win.$i; emit overview_select(i) }
+        on press select_label.$i { focus win.$i; emit overview_select(i) }
+        on press minimize.$i { minimize win.$i }
+        on press restore.$i { restore win.$i }
+        on press close.$i { close win.$i }
+    }
+    text "No windows on this screen" { at: screen.width / 2, screen.height / 2; anchor: center; size: 20; color: #959b98; show: win.count < 1 }
+    text overview_status { at: 32, screen.height - 76; width: screen.width - 64; lines: 1; size: 13; color: #e8a18d }
+    text "Previous" { at: 32, screen.height - 38; size: 14; color: #9ed6bd; show: page > 0 }
+    text "{page + 1, 0} / {pages, 0}" { at: screen.width / 2, screen.height - 38; anchor: top center; size: 14; color: #f2f3f0 }
+    text "Next" { at: screen.width - 32, screen.height - 38; anchor: top right; size: 14; color: #9ed6bd; show: page < pages - 1 }
+    zone box previous { from: 16, screen.height - 54; size: 180, 48; active: page > 0 }
+    zone box next { from: screen.width - 196, screen.height - 54; size: 180, 48; active: page < pages - 1 }
+    on press previous { emit overview_previous }
+    on press next { emit overview_next }
+}

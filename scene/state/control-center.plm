@@ -65,7 +65,7 @@ part ControlCenter {
     fact joining = -1
     text wifi_pw = ""
     event join ->                      // the password is written: join
-    event forget_ask                   // not now
+    event forget_ask ->                // not now: clear the password in Lua too
     //  The Bluetooth radio looking for new gadgets: its radar turns meanwhile.
     fact bt_scanning = false
     event bt_scan ->

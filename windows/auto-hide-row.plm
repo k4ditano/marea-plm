@@ -1,0 +1,14 @@
+                            group {
+                                size: cell.w, 90
+                                box { from: 0, 0; size: cell.w, 90; corner: 18; color: #242628 }
+                                ellipse { at: 32, 29; radius: 15; color: coal }
+                                line { from: 20, 15; to: 44, 15; width: 1.6; color: mint }
+                                box { at: 28, 28; size: 3, 7; corner: 1.5; color: ink }
+                                box { at: 36, 28; size: 3, 7; corner: 1.5; color: ink }
+                                text "Hide automatically" { at: 16, 59; anchor: left center; size: 12; weight: 600; color: ink; width: cell.w - 32; lines: 1 }
+                                text pick(hidden, "Always visible", "Tucks into the top edge") { at: 16, 76; anchor: left center; size: 10; color: st.faint; width: cell.w - 32; lines: 1 }
+                                box { at: cell.w - 32, 28; size: 38, 22; corner: 11; color: if(hidden, mint, #363839) }
+                                ellipse { at: cell.w - 32 + if(hidden, 8, -8), 28; radius: 8; color: ink }
+                                zone box windows_autohide_switch { from: 0, 0; size: cell.w, 90; corner: 18; cursor: pointer; active: page == settings and section == menu and paging > 0.9; label: "Hide automatically"; role: toggle; checked: hidden }
+                                on press windows_autohide_switch { emit windows_toggle_autohide }
+                            }

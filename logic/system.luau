@@ -361,7 +361,7 @@ return function(shared)
     --  model) and each application given the icon the system knows it by.
     local function shorten(name)
         local clean = tostring(name):gsub("%s+", " ")
-        if #clean > 42 then clean = clean:sub(1, 41) .. "…" end
+        if (utf8.len(clean) or 0) > 42 then clean = clean:sub(1, utf8.offset(clean, 42) - 1) .. "…" end
         return clean
     end
     local shown_apps = {}
@@ -408,8 +408,9 @@ return function(shared)
             local icon = icon_of(a)
             local title = a.title or ""
             if title == a.name then title = "" end
-            rows[#rows + 1] = { name = a.name or "?", title = title, icon = icon or "", has_icon = icon ~= nil,
-                                letter = utf8.char(utf8.codepoint((a.name or "?") .. "", 1)):upper(),
+            local name = a.name ~= nil and a.name ~= "" and a.name or "?"
+            rows[#rows + 1] = { name = name, title = title, icon = icon or "", has_icon = icon ~= nil,
+                                letter = utf8.char(utf8.codepoint(name, 1)):upper(),
                                 volume = math.clamp(a.volume or 0, 0, 1), muted = a.muted == true, playing = a.playing ~= false }
         end
         model.sound_apps = rows

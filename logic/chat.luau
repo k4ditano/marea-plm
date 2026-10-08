@@ -6,6 +6,8 @@
 --  hands (`pleamar-wm agent …`): her own pointer and keyboard, never yours.
 --  What happened is what this says happened, never what the model says.
 --  marea.luau loads it, and hands it what it uses of its own.
+-- A platform may supply native desktop tools; the compositor path stays here.
+local chat_desktop = nil
 return function(shared)
     local hooks, settings, save_settings, home_dir = shared.hooks, shared.settings, shared.save_settings, shared.home_dir
     local base = sys.ask("env", "XDG_STATE_HOME")
@@ -32,6 +34,10 @@ return function(shared)
     local history = {}       -- what is handed back to a fresh worker: { role, text }
     local worker = nil
     local ready = false
+    local startup_timer = nil
+    local function stop_startup_timer()
+        if startup_timer then cancel(startup_timer); startup_timer = nil end
+    end
     local queue = {}         -- lines for the worker until it is ready
     local live = nil         -- the row of her answer arriving
     --  What is seen of it: the model hands the whole answer over in about a
@@ -54,6 +60,11 @@ return function(shared)
     local task_days           -- «every day», «Mon, Wed»… (below)
     local secrets, secret_named -- the passwords you saved for her (below)
     local usable = false
+    local generation = 0
+    local worker_serial = 0
+    local closing = false
+    local close_timer = nil
+    local close_worker
 
     local function letters(s)
         local ok, n = pcall(utf8.len, s)
@@ -130,6 +141,26 @@ return function(shared)
     local function status(words)
         text["chat.status"] = words or ""
     end
+    local login_url, login_attempt = nil, 0
+    local function clear_login_link()
+        login_attempt += 1
+        login_url = nil
+        fact["chat.login_link"] = false
+        text["chat.login_help"] = ""
+    end
+    local function open_login_link()
+        if not login_url or fact["chat.signing"] ~= true then return end
+        local attempt = login_attempt
+        run("xdg-open", { login_url }, function(_, code)
+            if attempt ~= login_attempt or fact["chat.signing"] ~= true then return end
+            if code ~= 0 then
+                status(tr("Could not open the browser. Use Open sign-in page to try again."))
+            else
+                status("")
+            end
+        end)
+    end
+    on("chat_login_open", open_login_link)
 
     local function save()
         local keep = {}
@@ -154,6 +185,14 @@ return function(shared)
         else
             queue[#queue + 1] = line
         end
+    end
+    local function forget_login()
+        local pending = {}
+        for _, line in ipairs(queue) do
+            local ok, message = pcall(json.decode, line)
+            if not ok or message.type ~= "login" then pending[#pending + 1] = line end
+        end
+        queue = pending
     end
 
     -- ── doing what she proposes ──
@@ -255,15 +294,39 @@ return function(shared)
             task_do(id, tool, args, row)
             return
         end
+        local turn = generation
+        local function complete(ok, words, extra)
+            if turn ~= generation then return end
+            if extra and type(extra.programs) == "table" then programs = extra.programs end
+            finish_row(row, ok)
+            answer(id, ok, words, extra)
+        end
         fact["chat.state"] = "acting"
         status(said(tool, args))
+        if chat_desktop and chat_desktop(tool, args, complete) then return end
         if tool == "open_app" then
             local found = find_app(tostring(args.name or ""))
             if found then
-                --  Opened by her hands (`pleamar-wm agent open`): the monitor
-                --  she works on lights first, and the window opens there
-                --  without taking your keyboard. A session without that:
-                --  as any program is opened.
+                local function ordinary()
+                    local function launched(error, code)
+                        complete(code == 0, code == 0 and ("Launch requested for " .. found.name .. ". Use desktop_windows to check whether its window appeared.") or tostring(error))
+                    end
+                    if type(sys.call_async) == "function" then
+                        local ok, error = pcall(sys.call_async, "apps.launch", { found.exec }, launched)
+                        if not ok then complete(false, tostring(error)) end
+                    else
+                        local ok, error = pcall(sys.call, "apps.launch", found.exec)
+                        launched(error, ok and 0 or -1)
+                    end
+                end
+                if chat_desktop then
+                    -- Windows does not yet provide compositor-controlled
+                    -- startup placement or an independent keyboard.
+                    if args.monitor ~= nil then
+                        complete(false, "Opening directly on a selected monitor is not available on Windows yet. No program was launched.")
+                    else ordinary() end
+                    return
+                end
                 local exec = tostring(found.exec):gsub("%%%a", ""):gsub("%s+$", "")
                 local argv = { "agent", "open" }
                 local m = tonumber(args.monitor)
@@ -274,10 +337,16 @@ return function(shared)
                 argv[#argv + 1] = "--"
                 argv[#argv + 1] = exec
                 run("pleamar-wm", argv, function(out, code)
+                    if turn ~= generation then return end
+                    out = tostring(out)
                     local where = code == 0 and tostring(out):match("on monitor (%d+)")
-                    if not where then pcall(sys.call, "apps.launch", found.exec) end
-                    finish_row(row, true)
-                    answer(id, true, "Opened " .. found.name .. (where and (" on monitor " .. where .. ", where you work, without the user's keyboard") or ", on the monitor where the user is") .. ". Its window may take a moment to show: desktop_windows to find it.")
+                    if where then
+                        complete(true, "Launch requested for " .. found.name .. " on monitor " .. where .. ", without taking the user's keyboard. Use desktop_windows to check whether its window appeared.")
+                    elseif code ~= 0 and args.monitor == nil and (code == 127 or out:find("no agent socket here", 1, true)) then
+                        -- No WM session: preserve the ordinary launcher, but
+                        -- never retry a stopped or failed WM action this way.
+                        ordinary()
+                    else complete(false, out ~= "" and out or "The window manager did not confirm the launch.") end
                 end, HANDS)
                 return
             end
@@ -316,6 +385,7 @@ return function(shared)
             fact["chat.looking"] = true
             local name = "look-" .. (looks % 3) .. ".png"
             run("pleamar-wm", { "agent", "look", window_name(args.pid), STATE .. "/" .. name }, function(out, code)
+                if turn ~= generation then return end
                 --  The glass stays on her face a moment: the look is seen.
                 after(600, function() fact["chat.looking"] = false end)
                 if code == 0 then
@@ -337,6 +407,7 @@ return function(shared)
         end
         if tool == "desktop_windows" then
             run("pleamar-wm", argv, function(out, code)
+                if turn ~= generation then return end
                 if code ~= 0 then
                     finish_row(row, false)
                     answer(id, false, tostring(out))
@@ -353,6 +424,7 @@ return function(shared)
                     end
                 end
                 run("pleamar-wm", { "agent", "monitors" }, function(screens)
+                    if turn ~= generation then return end
                     finish_row(row, true)
                     answer(id, true, tostring(out) .. "\n\nMonitors:\n" .. tostring(screens))
                 end, HANDS)
@@ -360,6 +432,7 @@ return function(shared)
             return
         end
         run("pleamar-wm", argv, function(out, code)
+            if turn ~= generation then return end
             --  Stopped from the monitor's pill: the whole turn ends, not
             --  only this step.
             if code ~= 0 and tostring(out):find("stopped the agent", 1, true) then
@@ -382,50 +455,124 @@ return function(shared)
     --  is kept, and Settings › What she remembers forgets any of it.
     local MAX_FACTS, MAX_NOTES, MAX_TALKS = 200, 100, 300
     local memory = { facts = {}, notes = {}, next = 1 }
+    local memory_ready, memory_problem = true, ""
     do
         local ok, saved = pcall(sys.ask, "files.read", "memory.json", "json")
-        if ok and type(saved) == "table" then
-            memory.facts = type(saved.facts) == "table" and saved.facts or {}
-            memory.notes = type(saved.notes) == "table" and saved.notes or {}
-            memory.next = tonumber(saved.next) or (#memory.facts + #memory.notes + 1)
+        if not ok or (saved ~= nil and type(saved) ~= "table") then
+            memory_ready = false
+            memory_problem = "Could not read memory. Existing data has been left untouched."
+        elseif type(saved) == "table" then
+            local ids, next_id = {}, 1
+            local function valid(list, note)
+                if list == nil then return true end
+                if type(list) ~= "table" then return false end
+                local count = 0
+                for k, item in pairs(list) do
+                    if type(k) ~= "number" or k % 1 ~= 0 or k < 1 or k > #list or type(item) ~= "table"
+                        or type(item.id) ~= "string" or ids[item.id]
+                        or (note and type(item.title) ~= "string") or (not note and type(item.text) ~= "string")
+                        or (note and (type(item.when) ~= "string" or type(item.how) ~= "string")) then return false end
+                    ids[item.id] = true
+                    local number = tonumber(item.id:match("^[fn](%d+)$")) or 0
+                    if number >= 9e15 then return false end
+                    next_id = math.max(next_id, number + 1)
+                    count += 1
+                end
+                return count == #list
+            end
+            if valid(saved.facts, false) and valid(saved.notes, true) then
+                memory.facts, memory.notes = saved.facts or {}, saved.notes or {}
+                local stored_next = tonumber(saved.next)
+                memory.next = stored_next and stored_next >= next_id and stored_next < 9e15 and math.floor(stored_next) or next_id
+            else
+                memory_ready = false
+                memory_problem = "Could not read memory. Existing data has been left untouched."
+            end
         end
     end
-    local shelf = {}         -- what Settings lists, in its order: { kind, id }
+    local shelf = {}         -- current row tokens: { kind, id }
+    local memory_page, PAGE_SIZE = 0, 24
+    local memory_token = 0
+    local function memory_error(message, reason)
+        memory_problem = message or ""
+        text["mem.error"] = tr(memory_problem)
+        if reason then log("memory: " .. tostring(reason)) end
+    end
+    local function talk_order(name)
+        local stamp, suffix = name:match("^(chat%-%d+%-%d+)%-(%d+)%.json$")
+        return stamp or name:match("^(chat%-%d+%-%d+)%.json$"), tonumber(suffix) or 0
+    end
+    local function newer_talk(a, b)
+        local stamp_a, index_a = talk_order(a)
+        local stamp_b, index_b = talk_order(b)
+        return stamp_a == stamp_b and index_a > index_b or stamp_a > stamp_b
+    end
     local function talks()
         local ok, names = pcall(sys.ask, "files.list")
         local out = {}
         if ok and type(names) == "table" then
             for _, n in ipairs(names) do
-                if type(n) == "string" and n:match("^chat%-%d+%-%d+%.json$") then out[#out + 1] = n end
+                if type(n) == "string" and talk_order(n) then out[#out + 1] = n end
             end
+        else
+            return out, tostring(names or "No file list was returned")
         end
-        table.sort(out, function(a, b) return a > b end)
+        table.sort(out, newer_talk)
         return out
     end
     local function show_memory()
         local out = {}
         shelf = {}
+        local pages = math.max(1, math.ceil((#memory.facts + #memory.notes) / PAGE_SIZE))
+        local previous_page = memory_page
+        memory_page = math.clamp(memory_page, 0, pages - 1)
+        local index = 0
+        local function entry(kind, item)
+            if index >= memory_page * PAGE_SIZE and #out < PAGE_SIZE then
+                memory_token += 1
+                out[#out + 1] = { kind = kind, token = memory_token,
+                    text = tostring((kind == 1 and item.text or item.title) or ""),
+                    detail = kind == 2 and tostring(item.when or "") or "" }
+                shelf[memory_token] = { kind = kind, id = item.id }
+            end
+            index += 1
+        end
         for k = #memory.facts, 1, -1 do
-            local f = memory.facts[k]
-            out[#out + 1] = { kind = 1, text = tostring(f.text or ""), detail = "" }
-            shelf[#shelf + 1] = { kind = 1, id = f.id }
+            entry(1, memory.facts[k])
         end
         for k = #memory.notes, 1, -1 do
-            local n = memory.notes[k]
-            out[#out + 1] = { kind = 2, text = tostring(n.title or ""), detail = tostring(n.when or "") }
-            shelf[#shelf + 1] = { kind = 2, id = n.id }
+            entry(2, memory.notes[k])
         end
-        while #out > 24 do table.remove(out); table.remove(shelf) end
         model["mem.items"] = out
-        local n = #talks()
-        text["mem.talks"] = n == 0 and tr("None kept yet") or string.format(tr("%d kept on this computer"), n)
-        text["mem.summary"] = string.format(tr("%d things, %d notes"), #memory.facts, #memory.notes)
+        fact["mem.page"], fact["mem.pages"] = memory_page + 1, pages
+        text["mem.page_label"] = string.format(tr("%d / %d"), memory_page + 1, pages)
+        local all, problem = talks()
+        local n = #all
+        text["mem.talks"] = problem and tr("Could not read saved conversations.") or n == 0 and tr("None kept yet") or string.format(tr("%d kept on this computer"), n)
+        text["mem.summary"] = memory_ready and string.format(tr("%d things, %d notes"), #memory.facts, #memory.notes) or tr("Memory unavailable")
+        fact["mem.readable"] = memory_ready
         fact["mem.kept"] = n
+        text["mem.error"] = tr(memory_problem)
+        if previous_page ~= memory_page then emit("mem_page_changed") end
+    end
+    local function changed_memory()
+        return { facts = table.clone(memory.facts), notes = table.clone(memory.notes), next = memory.next }
     end
     table.insert(hooks.language, show_memory)
-    local function keep_memory()
-        pcall(sys.call, "files.write", "memory.json", memory)
+    local function keep_memory(candidate)
+        if not memory_ready then
+            memory_error("Could not read memory. Existing data has been left untouched.")
+            return false, memory_problem
+        end
+        local ok, problem = pcall(sys.call, "files.write", "memory.json", candidate)
+        if not ok then
+            memory_error("Could not save memory. Your previous memories are still kept.", problem)
+            return false, problem
+        end
+        memory = candidate
+        memory_error(nil)
         show_memory()
+        return true
     end
     --  The passwords you saved for her tasks (Settings › Her tasks ›
     --  Passwords): their names here (secrets.json), the passwords in your
@@ -492,10 +639,28 @@ return function(shared)
         for _, r in ipairs(rows) do
             if r.kind == 1 or r.kind == 2 then said[#said + 1] = { kind = r.kind, text = r.text } end
         end
-        if #said == 0 then return end
-        pcall(sys.call, "files.write", "chat-" .. os.date("%Y%m%d-%H%M%S") .. ".json", { at = os.time(), rows = said })
-        local all = talks()
-        for k = MAX_TALKS + 1, #all do pcall(sys.call, "files.remove", all[k]) end
+        if #said == 0 then return true end
+        local all, problem = talks()
+        if problem then memory_error("Could not save this conversation. It is still open.", problem); return false end
+        local used = {}
+        for _, name in ipairs(all) do used[name] = true end
+        local base = "chat-" .. os.date("%Y%m%d-%H%M%S")
+        local name, suffix = base .. ".json", 0
+        while used[name] do suffix += 1; name = base .. string.format("-%04d.json", suffix) end
+        local ok, problem = pcall(sys.call, "files.write", name, { at = os.time(), rows = said })
+        if not ok then memory_error("Could not save this conversation. It is still open.", problem); return false end
+        -- Only prune after the new archive is safely written. A failed save
+        -- must neither discard the current conversation nor remove old ones.
+        all[#all + 1] = name
+        table.sort(all, newer_talk)
+        local failed = false
+        for k = MAX_TALKS + 1, #all do
+            local removed, reason = pcall(sys.call, "files.remove", all[k])
+            if not removed then failed = true; log("memory: " .. tostring(reason)) end
+        end
+        memory_error(failed and "Conversation saved, but some older conversations could not be removed." or nil)
+        show_memory()
+        return true
     end
 
     local function trimmed(v, n)
@@ -533,6 +698,11 @@ return function(shared)
 
     local function remember(id, tool, args)
         local function row(words) return add(3, words, "", 0) end
+        if not memory_ready and tool ~= "memory_search" then
+            memory_error("Could not read memory. Existing data has been left untouched.")
+            answer(id, false, "Could not read memory. Existing data has been left untouched.")
+            return
+        end
         if tool == "memory_save" then
             local t = trimmed(args.text, 300)
             if t == "" then answer(id, false, "Nothing to keep."); return end
@@ -540,21 +710,23 @@ return function(shared)
                 if string.lower(tostring(f.text)) == string.lower(t) then answer(id, true, "Already kept, as [" .. f.id .. "]."); return end
             end
             local r = row(tr("Remembered: ") .. t)
-            local fid = "f" .. memory.next
-            memory.next += 1
-            memory.facts[#memory.facts + 1] = { id = fid, text = t, at = os.time() }
-            while #memory.facts > MAX_FACTS do table.remove(memory.facts, 1) end
-            keep_memory()
-            finish_row(r, true)
-            answer(id, true, "Kept, as [" .. fid .. "].")
+            local candidate = changed_memory()
+            local fid = "f" .. candidate.next
+            candidate.next += 1
+            candidate.facts[#candidate.facts + 1] = { id = fid, text = t, at = os.time() }
+            while #candidate.facts > MAX_FACTS do table.remove(candidate.facts, 1) end
+            local ok, problem = keep_memory(candidate)
+            finish_row(r, ok)
+            answer(id, ok, ok and ("Kept, as [" .. fid .. "].") or ("Could not save memory: " .. tostring(problem)))
         elseif tool == "memory_forget" then
             local want = trimmed(args.id, 16):gsub("[%[%]]", "")
             for k, f in ipairs(memory.facts) do
                 if f.id == want then
-                    table.remove(memory.facts, k)
-                    keep_memory()
-                    finish_row(row(tr("Forgot: ") .. tostring(f.text)), true)
-                    answer(id, true, "Forgotten.")
+                    local candidate = changed_memory()
+                    table.remove(candidate.facts, k)
+                    local ok, problem = keep_memory(candidate)
+                    finish_row(row(tr("Forgot: ") .. tostring(f.text)), ok)
+                    answer(id, ok, ok and "Forgotten." or ("Could not save memory: " .. tostring(problem)))
                     return
                 end
             end
@@ -564,16 +736,17 @@ return function(shared)
             if title == "" or how == "" then answer(id, false, "A note needs a title and the steps."); return end
             local r = row(tr("Noted how to: ") .. title)
             local k = note_named(title)
-            local note = { id = "n" .. memory.next, title = title, when = when, how = how, at = os.time() }
-            memory.next += 1
+            local candidate = changed_memory()
+            local note = { id = "n" .. candidate.next, title = title, when = when, how = how, at = os.time() }
+            candidate.next += 1
             if k and string.lower(tostring(memory.notes[k].title)) == string.lower(title) then
-                table.remove(memory.notes, k)
+                table.remove(candidate.notes, k)
             end
-            memory.notes[#memory.notes + 1] = note
-            while #memory.notes > MAX_NOTES do table.remove(memory.notes, 1) end
-            keep_memory()
-            finish_row(r, true)
-            answer(id, true, "Written down.")
+            candidate.notes[#candidate.notes + 1] = note
+            while #candidate.notes > MAX_NOTES do table.remove(candidate.notes, 1) end
+            local ok, problem = keep_memory(candidate)
+            finish_row(r, ok)
+            answer(id, ok, ok and "Written down." or ("Could not save memory: " .. tostring(problem)))
         elseif tool == "memory_recall" then
             local words = words_of(tostring(args.query or ""))
             local found = {}
@@ -619,28 +792,43 @@ return function(shared)
                 end
             end
             look(rows, "this conversation")
-            for _, name in ipairs(talks()) do
+            local archives, problem = talks()
+            if problem then finish_row(r, false); answer(id, false, "Could not read saved conversations: " .. problem); return end
+            local unreadable = 0
+            for _, name in ipairs(archives) do
                 if #found >= 8 then break end
                 local ok, talk = pcall(sys.ask, "files.read", name, "json")
                 if ok and type(talk) == "table" and type(talk.rows) == "table" then
                     local y, mo, d = name:match("^chat%-(%d%d%d%d)(%d%d)(%d%d)")
                     look(talk.rows, string.format("%s-%s-%s", y or "?", mo or "?", d or "?"))
+                else
+                    unreadable += 1
                 end
             end
-            finish_row(r, true)
-            answer(id, true, #found > 0 and table.concat(found, "\n\n") or "Nothing said about that, in this conversation or the ones kept.")
+            finish_row(r, unreadable == 0)
+            local result = #found > 0 and table.concat(found, "\n\n") or "Nothing said about that, in this conversation or the ones kept."
+            if unreadable > 0 then result = "Search incomplete: some saved conversations could not be read.\n" .. (#found > 0 and table.concat(found, "\n\n") or "No matches in the readable conversations.") end
+            answer(id, unreadable == 0, result)
         else
             answer(id, false, "Marea does not know that tool.")
         end
     end
-    on("mem_forget", function(i)
-        local it = shelf[(tonumber(i) or -1) + 1]
+    on("mem_forget", function(token)
+        -- A click from a superseded page must never delete its replacement row.
+        local it = shelf[tonumber(token) or -1]
         if not it then return end
-        local list = it.kind == 1 and memory.facts or memory.notes
+        local candidate = changed_memory()
+        local list = it.kind == 1 and candidate.facts or candidate.notes
         for k, x in ipairs(list) do
             if x.id == it.id then table.remove(list, k); break end
         end
-        keep_memory()
+        keep_memory(candidate)
+    end)
+    on("mem_page", function(delta)
+        if delta ~= -1 and delta ~= 1 then return end
+        memory_page += delta
+        show_memory()
+        emit("mem_page_changed")
     end)
     --  Pressed once, it asks to be sure; again within four seconds, it deletes.
     local sure, sure_timer = false, nil
@@ -655,12 +843,19 @@ return function(shared)
         if sure_timer then cancel(sure_timer); sure_timer = nil end
         sure = false
         fact["mem.sure"] = false
-        for _, name in ipairs(talks()) do pcall(sys.call, "files.remove", name) end
+        local all, problem = talks()
+        local failed = problem ~= nil
+        for _, name in ipairs(all) do
+            local ok, reason = pcall(sys.call, "files.remove", name)
+            if not ok then failed = true; log("memory: " .. tostring(reason)) end
+        end
+        memory_error(failed and "Some conversations could not be deleted. You can try again." or nil, problem)
         show_memory()
     end)
     on("fact:section", function(v)
         if v == "memory" then show_memory() end
     end)
+    on("fact:locale", show_memory)
     show_memory()
 
     -- ── the worker ──
@@ -669,12 +864,16 @@ return function(shared)
     end
     local function rest_later()
         stop_idle()
-        --  Three minutes without a word, and the worker goes (a hundred MB
-        --  of Node): the next message starts it again with the thread.
-        idle_timer = after(3 * 60 * 1000, function()
+        if not worker or not ready or closing or fact["chat.signing"] == true then return end
+        if fact["chat.state"] ~= "idle" and fact["chat.state"] ~= "offline" then return end
+        local visible = fact.chatting == true or (fact.open == true and fact.page == "settings" and fact.section == "talk")
+        -- The bundled Windows SDK can retire sooner when both chat surfaces
+        -- are closed. The next message restores the saved thread.
+        local delay = chat_desktop and not visible and 30000 or (3 * 60 * 1000)
+        idle_timer = after(delay, function()
             idle_timer = nil
             if worker and (fact["chat.state"] == "idle" or fact["chat.state"] == "offline") and fact["chat.signing"] ~= true then
-                write(worker, json.encode({ type = "shutdown" }) .. "\n")
+                close_worker()
             end
         end)
     end
@@ -683,7 +882,8 @@ return function(shared)
         status("")
         live = nil
         paint()
-        run("pleamar-wm", { "agent", "done" }, function() end, HANDS)
+        if chat_desktop then chat_desktop("done", {}, function() end)
+        else run("pleamar-wm", { "agent", "done" }, function() end, HANDS) end
         save()
         rest_later()
         local how = ending or { ok = false, said = "" }
@@ -693,6 +893,7 @@ return function(shared)
     local function on_event(m)
         local kind = m.type
         if kind == "ready" then
+            stop_startup_timer()
             ready = true
             usable = m.usable == true
             text["chat.model"] = m.model or ""
@@ -713,14 +914,34 @@ return function(shared)
             end
             for _, line in ipairs(queue) do write(worker, line) end
             queue = {}
+            rest_later()
         elseif kind == "login_url" then
-            fact["chat.signing"] = true
-            run("xdg-open", { tostring(m.url) }, function() end)
+            if fact["chat.signing"] ~= true then return end
+            local url = type(m.url) == "string" and m.url or ""
+            local code = type(m.code) == "string" and m.code or ""
+            if not url:match("^https://auth%.openai%.com/") or (#code > 0 and (#code > 32 or not code:match("^[%w%-]+$"))) then
+                send({ type = "login_cancel" })
+                fact["chat.signing"] = false
+                clear_login_link()
+                status(tr("The sign-in address was not recognized."))
+                rest_later()
+                return
+            end
+            text["chat.login_hint"] = code ~= "" and (tr("Enter this code in your browser: ") .. code) or tr("Finish signing in, in your browser")
+            login_url = url
+            fact["chat.login_link"] = true
+            text["chat.login_help"] = code ~= "" and tr("Enable device code login in ChatGPT Settings > Security (or ask your workspace administrator), then enter the code in your browser. Keep this sign-in open until it finishes.") or ""
+            open_login_link()
         elseif kind == "login_done" then
             fact["chat.signing"] = false
+            text["chat.login_hint"] = ""
+            clear_login_link()
             if not m.ok and m.reason ~= "cancelled" then
                 status(tr("The sign-in did not finish: ") .. tostring(m.reason or "?"))
+            else
+                status("")
             end
+            rest_later()
         elseif kind == "delta" then
             if live == nil then
                 live = add(2, "")
@@ -795,12 +1016,15 @@ return function(shared)
     end
     local function start_worker()
         if worker then return end
+        worker_serial += 1
+        local serial = worker_serial
         ready = false
         fact["chat.state"] = "starting"
         status(tr("Waking up…"))
         local partial = ""
         local said_why = nil
         local ok, id = pcall(spawn, "agent/sandbox", {}, function(line)
+            if serial ~= worker_serial or closing then return end
             if line:sub(1, 1) ~= "{" then
                 log("chat · " .. line)
                 --  The sandbox's own words when something it needs is not
@@ -811,14 +1035,30 @@ return function(shared)
             local good, m = pcall(json.decode, line)
             if good and type(m) == "table" then on_event(m) end
         end, function(_, code)
+            if serial ~= worker_serial then return end
+            stop_startup_timer()
+            worker_serial += 1
+            generation += 1
+            if chat_desktop then chat_desktop("cancel", {}, function() end) end
             log("chat · the worker ended", code)
             worker = nil
             ready = false
+            stop_idle()
+            queue = {}
+            fact["chat.signing"] = false
+            text["chat.login_hint"] = ""
+            clear_login_link()
+            if closing then
+                closing = false
+                if close_timer then cancel(close_timer); close_timer = nil end
+                fact["chat.state"] = "idle"
+                status("")
+                return
+            end
             if said_why then
                 fact["chat.state"] = "offline"
                 status(tr("Her engine cannot start: ") .. said_why)
                 if #rows > 0 and rows[#rows].kind == 1 then add(5, tr("Her engine cannot start: ") .. said_why) end
-                queue = {}
                 return
             end
             if fact["chat.state"] ~= "idle" and fact["chat.state"] ~= "offline" then
@@ -837,6 +1077,46 @@ return function(shared)
         for k = math.max(1, #history - 40), #history do recent[#recent + 1] = history[k] end
         local line = json.encode({ type = "start", model = chosen(), locale = fact.locale, history = recent, memory = for_her() }) .. "\n"
         write(worker, line)
+        startup_timer = after(60000, function()
+            if serial ~= worker_serial or ready or closing then return end
+            startup_timer = nil
+            pcall(kill, id)
+            worker_serial += 1
+            generation += 1
+            worker, ready, queue = nil, false, {}
+            stop_idle()
+            fact["chat.signing"] = false
+            text["chat.login_hint"] = ""
+            clear_login_link()
+            fact["chat.state"] = "offline"
+            status(tr("Her engine did not respond. Try signing in again."))
+        end)
+    end
+    close_worker = function()
+        if not worker or closing then return end
+        stop_startup_timer()
+        stop_idle()
+        closing = true
+        ready = false
+        queue = {}
+        generation += 1
+        fact["chat.signing"] = false
+        text["chat.login_hint"] = ""
+        clear_login_link()
+        fact["chat.state"] = "starting"
+        status(tr("Closing the previous conversation…"))
+        local id, serial = worker, worker_serial
+        write(id, json.encode({ type = "shutdown" }) .. "\n")
+        close_timer = after(2000, function()
+            if serial ~= worker_serial or not closing then return end
+            -- kill forgets this owned helper, so its exit callback is not
+            -- required to make the next conversation usable again.
+            pcall(kill, id)
+            worker_serial += 1
+            worker, ready, closing, close_timer = nil, false, false, nil
+            fact["chat.state"] = "idle"
+            status("")
+        end)
     end
 
     -- ── her tasks: what she does on her own, at a time ──
@@ -849,14 +1129,46 @@ return function(shared)
     --  its time —the screen locked, the computer off, her account out—, a
     --  notice says why and asks whether to do it now.
     local tasks, task_next = {}, 1
+    local tasks_ready = true
+    local function task_copy(value)
+        if type(value) ~= "table" then return value end
+        local copy = {}
+        for k, v in pairs(value) do copy[k] = task_copy(v) end
+        return copy
+    end
+    local function task_error()
+        text["tasks.status"] = tr("Could not save tasks. The previous schedule is still kept.")
+    end
     do
         local ok, saved = pcall(sys.ask, "files.read", "tasks.json", "json")
-        if ok and type(saved) == "table" then
-            tasks = type(saved.tasks) == "table" and saved.tasks or {}
-            task_next = tonumber(saved.next) or (#tasks + 1)
-        end
+        if ok and saved == nil then
+            -- No schedule has been saved yet.
+        elseif ok and type(saved) == "table" and type(saved.tasks) == "table" then
+            local ids, count = {}, 0
+            for k, item in pairs(saved.tasks) do
+                local h, m
+                if type(item) == "table" then h, m = tostring(item.time):match("^(%d%d?):(%d%d)$") end
+                if type(k) ~= "number" or k < 1 or k > #saved.tasks or k % 1 ~= 0 or type(item) ~= "table"
+                    or type(item.id) ~= "string" or not item.id:match("^t%d+$") or ids[item.id]
+                    or type(item.what) ~= "string" or type(item.days) ~= "string" or not h or tonumber(h) > 23 or tonumber(m) > 59
+                    or (item.last ~= nil and (type(item.last) ~= "table" or type(item.last.day) ~= "string"
+                        or type(item.last.at) ~= "number" or type(item.last.said) ~= "string")) then
+                    tasks_ready = false; break
+                end
+                local id = tonumber(item.id:sub(2))
+                if not id or id >= 9e15 then tasks_ready = false; break end
+                ids[item.id] = true
+                task_next = math.max(task_next, id + 1)
+                count += 1
+            end
+            if count ~= #saved.tasks or count > 120 then tasks_ready = false end
+            if saved.next ~= nil and (type(saved.next) ~= "number" or saved.next < 1 or saved.next >= 9e15 or saved.next % 1 ~= 0) then tasks_ready = false end
+            if tasks_ready then tasks = saved.tasks; task_next = math.max(task_next, saved.next or 1) end
+        else tasks_ready = false end
+        if not tasks_ready then text["tasks.status"] = tr("Could not read tasks. The saved schedule has been left untouched.") end
     end
-    local task_shelf = {}     -- Settings' rows, in order: the task's id
+    local saved_tasks, saved_next = task_copy(tasks), task_next
+    local task_shelf, task_page, task_token = {}, 0, 0
     local waiting_tasks = {}  -- due while she was busy with you: after
     local today = function() return os.date("%Y-%m-%d") end
     --  When Marea started today: what was due before then, she was not there for.
@@ -905,16 +1217,22 @@ return function(shared)
     local function show_tasks()
         local out = {}
         task_shelf = {}
-        for _, t in ipairs(tasks) do
+        local pages = math.max(1, math.ceil(#tasks / 12))
+        task_page = math.clamp(task_page, 0, pages - 1)
+        fact["tasks.page"], fact["tasks.pages"] = task_page + 1, pages
+        fact["tasks.readable"] = tasks_ready
+        text["tasks.page_label"] = string.format("%d / %d", task_page + 1, pages)
+        for i = task_page * 12 + 1, math.min(#tasks, (task_page + 1) * 12) do
+            local t = tasks[i]
             local last, state = tr("Not done yet"), 0
             if t.last then
                 last = (t.last.ok and tr("Done ") or tr("Not done ")) .. os.date("%d/%m %H:%M", t.last.at or 0) .. (t.last.said ~= "" and (" · " .. short(t.last.said, 80)) or "")
                 state = t.last.ok and 1 or 2
             end
             if running_task == t.id then last, state = tr("Doing it now…"), 3 end
-            out[#out + 1] = { when = tostring(t.time), days = task_days(t.days), what = short(t.what, 120), last = last, state = state, on = t.on == false and 0 or 1 }
-            task_shelf[#task_shelf + 1] = t.id
-            if #out >= 12 then break end
+            task_token += 1
+            out[#out + 1] = { token = task_token, when = tostring(t.time), days = task_days(t.days), what = short(t.what, 120), last = last, state = state, on = t.on == false and 0 or 1 }
+            task_shelf[task_token] = t.id
         end
         model["tasks.rows"] = out
         local n = 0
@@ -923,8 +1241,18 @@ return function(shared)
     end
     table.insert(hooks.language, show_tasks)
     local function keep_tasks()
-        pcall(sys.call, "files.write", "tasks.json", { tasks = tasks, next = task_next })
+        if not tasks_ready then return false end
+        local ok = pcall(sys.call, "files.write", "tasks.json", { tasks = tasks, next = task_next })
+        if not ok then
+            tasks, task_next = task_copy(saved_tasks), saved_next
+            task_error()
+            show_tasks()
+            return false
+        end
+        saved_tasks, saved_next = task_copy(tasks), task_next
+        text["tasks.status"] = ""
         show_tasks()
+        return true
     end
     local function task_by_id(id)
         for k, t in ipairs(tasks) do
@@ -946,7 +1274,7 @@ return function(shared)
     local function missed(t, why)
         if t.missed == today() then return end
         t.missed = today()
-        keep_tasks()
+        if not keep_tasks() then return end
         log("tasks · «" .. short(t.what, 40) .. "» not done at " .. tostring(t.time) .. ": " .. why)
         notice(tr("Marea could not do a task"),
             string.format(tr("«%s», at %s: %s. Shall she do it now?"), short(t.what, 90), tostring(t.time), why),
@@ -957,8 +1285,11 @@ return function(shared)
             end)
     end
     run_task = function(t)
+        if not tasks_ready then return end
+        t = task_by_id(t.id)
+        if not t then return end
         if running_task then
-            waiting_tasks[#waiting_tasks + 1] = t.id
+            if running_task ~= t.id and not table.find(waiting_tasks, t.id) then waiting_tasks[#waiting_tasks + 1] = t.id end
             return
         end
         if fact.locked == true then missed(t, tr("the screen was locked")); return end
@@ -970,12 +1301,15 @@ return function(shared)
             return
         end
         if fact["chat.signed_in"] == false then missed(t, tr("she is not signed in")); return end
-        running_task = t.id
+        -- Archive first: a failed write must leave the current chat intact.
+        if not keep_talk() then
+            text["tasks.status"] = tr("Could not save this conversation. It is still open.")
+            return
+        end
         t.last = { day = today(), at = os.time(), ok = false, said = "" }
-        keep_tasks()
+        if not keep_tasks() then return end
+        running_task = t.id
         log("tasks · doing «" .. short(t.what, 40) .. "»")
-        --  A conversation of its own: the one there was, kept to look back on.
-        keep_talk()
         rows, history, asks, live = {}, {}, {}, nil
         shown_row, shown = nil, 0
         if worker and ready then send({ type = "reset" }) end
@@ -983,6 +1317,10 @@ return function(shared)
         history[#history + 1] = { role = "user", text = tostring(t.what) }
         stop_idle()
         start_worker()
+        if not worker then
+            turn_over({ok = false, said = tr("Her engine could not start.")})
+            return
+        end
         fact["chat.state"] = "thinking"
         status(tr("Doing one of her tasks…"))
         send({ type = "prompt", text = "[Task] " .. tostring(t.what), now = os.date("%Y-%m-%d %H:%M, %A") })
@@ -992,7 +1330,10 @@ return function(shared)
             --  One that waited for you to finish.
             local id = table.remove(waiting_tasks, 1)
             local t = id and task_by_id(id)
-            if t then after(1500, function() run_task(t) end) end
+            if t then after(1500, function()
+                local current = task_by_id(id)
+                if current and current.on ~= false then run_task(current) end
+            end) end
             return
         end
         local t = task_by_id(running_task)
@@ -1008,7 +1349,10 @@ return function(shared)
         end
         local id = table.remove(waiting_tasks, 1)
         local next_t = id and task_by_id(id)
-        if next_t then after(1500, function() run_task(next_t) end) end
+        if next_t then after(1500, function()
+            local current = task_by_id(id)
+            if current and current.on ~= false then run_task(current) end
+        end) end
     end
     --  Every half minute: the ones due now.
     every(30000, function()
@@ -1032,7 +1376,24 @@ return function(shared)
             if row then finish_row(row, ok) end
             answer(id, ok, words)
         end
+        if not tasks_ready then return done(false, "The saved schedule could not be read and has been left untouched.") end
         if tool == "task_schedule" then
+            if #tasks >= 120 then return done(false, "There are already 120 tasks. Remove one before adding another.") end
+            local days = string.lower(tostring(args.days or "daily"))
+            local valid_days = days == "daily" or days == "weekdays" or days == "weekends"
+            local year, month, day = days:match("^once:(%d%d%d%d)%-(%d%d)%-(%d%d)$")
+            if year then
+                local y, m, d = tonumber(year), tonumber(month), tonumber(day)
+                local leap = y % 4 == 0 and (y % 100 ~= 0 or y % 400 == 0)
+                local lengths = {31, leap and 29 or 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31}
+                valid_days = m >= 1 and m <= 12 and d >= 1 and d <= lengths[m] and days:sub(6) >= today()
+            elseif not valid_days then
+                local words = 0
+                valid_days = true
+                for word in days:gmatch("[^%s,;/]+") do words += 1; if not day_of(word) then valid_days = false end end
+                valid_days = valid_days and words > 0
+            end
+            if not valid_days then return done(false, "Use daily, weekdays, weekends, named weekdays or once:YYYY-MM-DD on a valid date from today.") end
             local time = tostring(args.time or "")
             local h, m = time:match("^(%d%d?):(%d%d)$")
             if not h or tonumber(h) > 23 or tonumber(m) > 59 then return done(false, "The time must be HH:MM, 24-hour.") end
@@ -1044,7 +1405,7 @@ return function(shared)
             local d = os.date("*t")
             if minutes_of(t.time) <= d.hour * 60 + d.min and not t.days:match("^once:") then t.last = { day = today(), at = 0, ok = true, said = "" } end
             tasks[#tasks + 1] = t
-            keep_tasks()
+            if not keep_tasks() then return done(false, "Could not save the task. The previous schedule is still kept.") end
             done(true, string.format("Kept as [%s]: %s at %s.", t.id, task_days(t.days), t.time))
         elseif tool == "task_list" then
             local lines = {}
@@ -1059,24 +1420,30 @@ return function(shared)
             local t, k = task_by_id(want)
             if not t then return done(false, "There is no task [" .. want .. "].") end
             table.remove(tasks, k)
-            keep_tasks()
+            if not keep_tasks() then return done(false, "Could not remove the task. It is still scheduled.") end
             if not row then finish_row(add(3, tr("Forgot the task: ") .. short(t.what, 60), "", 0), true) end
             done(true, "Removed.")
         end
     end
     on("task_flip", function(i)
-        local t = task_by_id(task_shelf[(tonumber(i) or -1) + 1] or "")
+        local t = task_by_id(task_shelf[tonumber(i)] or "")
         if not t then return end
         t.on = t.on == false
         keep_tasks()
     end)
     on("task_drop", function(i)
-        local _, k = task_by_id(task_shelf[(tonumber(i) or -1) + 1] or "")
+        local _, k = task_by_id(task_shelf[tonumber(i)] or "")
         if k then table.remove(tasks, k); keep_tasks() end
     end)
     on("task_now", function(i)
-        local t = task_by_id(task_shelf[(tonumber(i) or -1) + 1] or "")
+        local t = task_by_id(task_shelf[tonumber(i)] or "")
         if t then run_task(t) end
+    end)
+    on("task_page", function(delta)
+        if delta ~= -1 and delta ~= 1 then return end
+        task_page += delta
+        show_tasks()
+        emit("task_page_changed")
     end)
     on("fact:section", function(v)
         if v == "tasks" then show_tasks() end
@@ -1121,21 +1488,26 @@ return function(shared)
     on("chat_allow", function(i) decide(i, true) end)
     on("chat_deny", function(i) decide(i, false) end)
     on("chat_stop", function()
+        if closing then return end
+        generation += 1
+        if chat_desktop then chat_desktop("cancel", {}, function() end) end
         for id, a in pairs(asks) do
             asks[id] = nil
             if rows[a.row] then rows[a.row].state = 2 end
         end
         send({ type = "cancel" })
         status(tr("Stopping…"))
-        run("pleamar-wm", { "agent", "done" }, function() end, HANDS)
+        if not chat_desktop then run("pleamar-wm", { "agent", "done" }, function() end, HANDS) end
     end)
     on("chat_new", function()
-        if worker then write(worker, json.encode({ type = "shutdown" }) .. "\n") end
-        keep_talk()
+        if not keep_talk() then status(tr("Could not save this conversation. It is still open.")); return end
+        generation += 1
+        queue = {}
+        if chat_desktop then chat_desktop("cancel", {}, function() end) end
+        close_worker()
         rows, history, asks, live = {}, {}, {}, nil
         shown_row, shown = nil, 0
-        fact["chat.state"] = "idle"
-        status("")
+        if not closing then fact["chat.state"] = "idle"; status("") end
         paint()
         save()
     end)
@@ -1144,18 +1516,33 @@ return function(shared)
     --  before the first word, and the first answer comes sooner.
     on("fact:chatting", function(v)
         if v == true and not worker then start_worker(); rest_later() end
+        if chat_desktop then rest_later() end
     end)
     --  Settings › Talking with her: her engine wakes to say how she is.
     on("fact:section", function(v)
         if v == "talk" and not worker then start_worker(); rest_later() end
+        if chat_desktop then rest_later() end
     end)
+    on("fact:open", function() if chat_desktop then rest_later() end end)
+    on("fact:page", function() if chat_desktop then rest_later() end end)
     on("chat_login", function()
+        if closing or fact["chat.signing"] == true then return end
+        clear_login_link()
+        status("")
         start_worker()
+        if not worker then return end
+        stop_idle()
+        fact["chat.signing"] = true
+        text["chat.login_hint"] = tr("Preparing sign-in…")
         send({ type = "login", provider = (chosen():match("^([^/]+)/") or "openai-codex") })
     end)
     on("chat_login_cancel", function()
+        forget_login()
         if worker then write(worker, json.encode({ type = "login_cancel" }) .. "\n") end
         fact["chat.signing"] = false
+        text["chat.login_hint"] = ""
+        clear_login_link()
+        rest_later()
     end)
     on("chat_pick", function(i)
         local name = models[(tonumber(i) or -1) + 1]
@@ -1165,7 +1552,7 @@ return function(shared)
         text["chat.model"] = name
         show_models()
         --  The next word starts her with it (the thread goes along).
-        if worker and fact["chat.state"] == "idle" then write(worker, json.encode({ type = "shutdown" }) .. "\n") end
+        if worker and fact["chat.state"] == "idle" then close_worker() end
     end)
     paint()
     hooks.chat = function() fact.chatting = true; paint() end

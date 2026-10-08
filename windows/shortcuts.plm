@@ -1,0 +1,10 @@
+    fact windows_key_available = false
+    fact windows_key_enabled = false
+    fact windows_key_busy = true
+    text windows_key_status = "Checking…"
+    text windows_search_hint = ""
+    event windows_toggle_key ->
+    event windows_to_shortcuts
+    on windows_to_shortcuts { section = windows_shortcuts }
+    event windows_controls
+    on windows_controls { open = true; page = none; menu_open = false }

@@ -1,0 +1,112 @@
+// Native application dock on Marea's chosen monitor. Transparent space passes clicks through.
+scene ApplicationDock {
+    permissions { services: "env"; run: "pleamar-wm" }
+    surface { size: full, 360; anchor: bottom; level: overlay; keyboard: on_demand; reserve: 0; rate: 60 }
+    translations es {
+        "Application dock" = "Barra de aplicaciones"
+        "Pin application" = "Anclar aplicación"
+        "Unpin application" = "Desanclar aplicación"
+        "Close windows" = "Cerrar ventanas"
+        "Hide dock" = "Ocultar barra"
+        "No applications on this screen" = "No hay aplicaciones en esta pantalla"
+        "The dock could not read this screen." = "No se ha podido leer esta pantalla."
+        "The dock could not close." = "No se ha podido cerrar la barra."
+    }
+    windows win max 32
+    fact dock_ready = false
+    fact dock_failed = false
+    fact dock_left = 0
+    fact dock_width = 0
+    fact dock_bottom = 0
+    fact dock_menu = -1
+    text dock_status = ""
+    event dock_close ->
+    on key Escape { dock_menu = -1 }
+    let n = min(12, win.docks.0)
+    let step = min(60, max(32, (dock_width - 80) / max(1, n)))
+    let w = max(270, n * step + 64)
+    let x0 = dock_left + (dock_width - w) / 2
+    let cy = screen.height - dock_bottom - 44
+    group {
+        show: dock_ready
+        box { from: x0, cy - 34; size: w, 68; corner: 24; color: #151616 }
+        box { from: x0, cy - 34; size: w, 68; corner: 24; stroke: 1; color: #393e3b }
+        text "No applications on this screen" { at: x0 + 16, cy; anchor: left center; width: w - 68; lines: 2; size: 12; color: #969c98; show: n < 1 }
+        text "×" { at: x0 + w - 22, cy; anchor: center; size: 24; color: #969c98 }
+    }
+    zone box leave { from: x0 + w - 42, cy - 28; size: 38, 56; active: dock_ready; cursor: pointer; label: "Hide dock" }
+    on press leave { emit dock_close }
+    image icon.0 = from win.dock.0.0.icon, 64, 64
+    prop buoy.0 = 0 ~lively
+    image icon.1 = from win.dock.0.1.icon, 64, 64
+    prop buoy.1 = 0 ~lively
+    image icon.2 = from win.dock.0.2.icon, 64, 64
+    prop buoy.2 = 0 ~lively
+    image icon.3 = from win.dock.0.3.icon, 64, 64
+    prop buoy.3 = 0 ~lively
+    image icon.4 = from win.dock.0.4.icon, 64, 64
+    prop buoy.4 = 0 ~lively
+    image icon.5 = from win.dock.0.5.icon, 64, 64
+    prop buoy.5 = 0 ~lively
+    image icon.6 = from win.dock.0.6.icon, 64, 64
+    prop buoy.6 = 0 ~lively
+    image icon.7 = from win.dock.0.7.icon, 64, 64
+    prop buoy.7 = 0 ~lively
+    image icon.8 = from win.dock.0.8.icon, 64, 64
+    prop buoy.8 = 0 ~lively
+    image icon.9 = from win.dock.0.9.icon, 64, 64
+    prop buoy.9 = 0 ~lively
+    image icon.10 = from win.dock.0.10.icon, 64, 64
+    prop buoy.10 = 0 ~lively
+    image icon.11 = from win.dock.0.11.icon, 64, 64
+    prop buoy.11 = 0 ~lively
+    repeat i in 0..12 {
+        let x = x0 + 12 + i * step + step / 2
+        let present = dock_ready and i < n
+        let lift = buoy.$i
+        group {
+            show: present
+            box { from: x - step / 2 + 2, cy - 30; size: step - 4, 58; corner: 17; color: #2d3531; opacity: lift * 65% }
+            image icon.$i { at: x - 21 * (1 + 0.12 * lift), cy - 25 - 10 * lift; size: 42 * (1 + 0.12 * lift), 42 * (1 + 0.12 * lift) }
+            repeat dot in 0..3 {
+                let dots = min(3, win.dock.0.$i.windows)
+                ellipse { at: x + (dot - (dots - 1) / 2) * 7, cy + 24; radius: 2; color: if(win.dock.0.$i.focused, #9ed6bd, #969c98); show: dot < dots }
+            }
+            group {
+                show: lift > 0.5 and dock_menu < 0
+                box { from: clamp(x - 112, 8, screen.width - 232), cy - 94; size: 224, 32; corner: 10; color: #242a27 }
+                text win.dock.0.$i.name { at: clamp(x - 100, 20, screen.width - 220), cy - 78; anchor: left center; width: 200; lines: 1; size: 12; color: #f5f7f5 }
+            }
+        }
+        zone box open.$i { from: x - step / 2, cy - 38; size: step, 70; active: present; cursor: pointer; label: "{win.dock.0.$i.name}" }
+        on enter open.$i { buoy.$i: 1 ~quick }
+        on leave open.$i { buoy.$i: 0 ~quick }
+        on press open.$i { dock_menu = -1; dock i on 0 }
+        on drop open.$i { dock_menu = -1; dock i on 0 with drop }
+        on press right open.$i { dock_menu = if(dock_menu == i, -1, i) }
+        let mx = clamp(x - 112, 8, screen.width - 232)
+        let my = max(8, cy - 222)
+        let menu = present and dock_menu == i
+        group {
+            show: menu
+            box { from: mx, my; size: 224, 176; corner: 16; color: #242a27 }
+            text win.dock.0.$i.name { at: mx + 14, my + 22; anchor: left center; width: 196; lines: 1; size: 12; color: #969c98 }
+            text "Pin application" { at: mx + 14, my + 62; anchor: left center; size: 14; color: #9ed6bd; show: not win.dock.0.$i.pinned }
+            text "Unpin application" { at: mx + 14, my + 62; anchor: left center; size: 14; color: #9ed6bd; show: win.dock.0.$i.pinned }
+            text "Close windows" { at: mx + 14, my + 104; anchor: left center; size: 14; color: if(win.dock.0.$i.windows > 0, #f5f7f5, #707772) }
+            text "Hide dock" { at: mx + 14, my + 146; anchor: left center; size: 14; color: #f5f7f5 }
+        }
+        zone box keep.$i { from: mx, my + 40; size: 224, 42; active: menu and not win.dock.0.$i.pinned; cursor: pointer; label: "Pin application" }
+        zone box unkeep.$i { from: mx, my + 40; size: 224, 42; active: menu and win.dock.0.$i.pinned; cursor: pointer; label: "Unpin application" }
+        zone box close.$i { from: mx, my + 82; size: 224, 42; active: menu and win.dock.0.$i.windows > 0; cursor: pointer; label: "Close windows" }
+        zone box hide.$i { from: mx, my + 124; size: 224, 42; active: menu; cursor: pointer; label: "Hide dock" }
+        on press keep.$i { dock i on 0 pin; dock_menu = -1 }
+        on press unkeep.$i { dock i on 0 unpin; dock_menu = -1 }
+        on press close.$i { dock i on 0 close; dock_menu = -1 }
+        on press hide.$i { emit dock_close }
+    }
+    text dock_status { at: screen.width / 2, 16; anchor: top center; width: 440; lines: 2; size: 13; color: #e8a18d }
+    text "Hide dock" { at: screen.width / 2, 66; anchor: center; size: 14; color: #f5f7f5; show: dock_failed }
+    zone box failed_close { from: screen.width / 2 - 90, 46; size: 180, 40; active: dock_failed; label: "Hide dock" }
+    on press failed_close { emit dock_close }
+}

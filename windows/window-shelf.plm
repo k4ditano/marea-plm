@@ -1,0 +1,6 @@
+    // The context menu folds the shelf into Marea; no extra floating control.
+    fact windows_shelf_folded = false
+    event windows_toggle_shelf
+    on windows_toggle_shelf { toggle windows_shelf_folded }
+    prop windows_shelf_unfold = 1 ~220ms
+    follow windows_shelf_unfold = if(windows_shelf_folded, 0, 1)

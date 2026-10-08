@@ -227,3 +227,27 @@ cuántas copias hay y si la biblioteca está entera.
 
 Los permisos, la privacidad y cómo llevarte tus cosas están en
 [`design/deriva/PRIVACIDAD.md`](../design/deriva/PRIVACIDAD.md).
+
+## Windows (MSVC)
+
+From the Marea checkout in PowerShell:
+
+```powershell
+cargo build --release --locked --manifest-path deriva/Cargo.toml
+cargo test --locked --manifest-path deriva/Cargo.toml
+python windows/test-deriva-native.py --worker deriva/target/release/deriva-worker.exe
+.\deriva\target\release\deriva-worker.exe where
+```
+
+SQLite is bundled. Marea's Windows installer packages this executable and uses
+the same JSON CLI dispatcher. Data defaults to
+`%LOCALAPPDATA%/proyecto-marea/deriva`; `MAREA_DERIVA_DIR` overrides it. Paths with
+spaces and Unicode are supported. The default directory inherits the profile's
+ACL; custom directories inherit their parent's ACL. The worker uses the OS
+random source for IDs and temporary names on both platforms.
+
+The Unix socket `serve` command is unavailable on Windows and fails explicitly;
+`where` reports `socket: null`. CLI ingestion, FTS search, backup and export/import
+do not need the server, a shell, WSL or an external SQLite installation. Semantic
+search is optional, requires separately supplied local model files and has not
+been validated with those files on Windows. The worker makes no network request.

@@ -9,14 +9,18 @@ part Chat {
     //  Let her use the computer: no cards (Settings). Off unless chosen.
     fact chat.free = false
     //  Her account and her model (Settings › Talking with her).
-    event chat_login                   // sign in: the browser opens
-    event chat_login_cancel
+    event chat_login ->                // sign in: the browser opens
+    event chat_login_cancel ->
+    event chat_login_open ->
+    fact chat.login_link = false
+    text chat.login_help = ""
     event chat_pick ->                 // `emit chat_pick(2)`: the third model
     event flip_chat_free
     on flip_chat_free { toggle chat.free }
     fact chat.signed_in = true         // until her engine says otherwise
     fact chat.signing = false          // the browser is open to sign in
     text chat.account = ""
+    text chat.login_hint = ""
     model chat.models max 8 { name: text; on: number }
     event chat ->                      // `marea chat`, Super+Shift+A, her menu, the finder
     text chat.input = ""
@@ -74,13 +78,27 @@ part Chat {
     //  Her memory (Settings › What she remembers): what she knows about you
     //  (kind 1) and her notes on how to do things (2, with when they apply),
     //  newest first; and the conversations she can look back on.
-    model mem.items max 24 { kind: number; text: text; detail: text }
+    model mem.items max 24 { kind: number; token: number; text: text; detail: text }
     text mem.talks = ""
     text mem.summary = ""
+    text mem.error = ""
+    text mem.page_label = ""
+    fact mem.page = 1
+    fact mem.pages = 1
+    fact mem.readable = true
+    event mem_page ->
+    event mem_page_changed
     //  Her tasks (Settings › Her tasks): what she does on her own at a time.
     //  `state`: 0 not done yet, 1 done last time, 2 not done, 3 doing it now.
-    model tasks.rows max 12 { when: text; days: text; what: text; last: text; state: number; on: number }
+    model tasks.rows max 12 { token: number; when: text; days: text; what: text; last: text; state: number; on: number }
     text tasks.summary = ""
+    text tasks.status = ""
+    text tasks.page_label = ""
+    fact tasks.page = 1
+    fact tasks.pages = 1
+    fact tasks.readable = true
+    event task_page ->
+    event task_page_changed
     //  The passwords saved for her tasks, by name (the passwords themselves
     //  are in your keyring); the field to save another.
     model keys.rows max 12 { name: text }

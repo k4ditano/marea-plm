@@ -4,6 +4,7 @@
 // uses these same English words for them.
 library SpanishUi {
     translations es {
+        "Open sign-in page" = "Abrir página de acceso"
         "Networks" = "Redes"
         "Apps" = "Apps"
         "Previous month" = "Mes anterior"

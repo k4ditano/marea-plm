@@ -261,11 +261,14 @@ fn un_lote_da_un_resultado_por_fichero() {
 #[test]
 fn lo_que_no_se_deja_copiar() {
     banco(|db| {
+        let missing = paths::base().join("not present.txt").to_string_lossy().into_owned();
+        let directory = std::env::temp_dir().to_string_lossy().into_owned();
         let casos = [
             ("relativa.txt", "ruta_relativa"),
-            ("/no/existe/de/verdad.txt", "no_existe"),
+            (missing.as_str(), "no_existe"),
+            #[cfg(unix)]
             ("/proc/self/status", "ruta_del_sistema"),
-            ("/tmp", "no_es_un_fichero"),
+            (directory.as_str(), "no_es_un_fichero"),
         ];
         for (ruta, motivo) in casos {
             let p = ingest::Peticion {

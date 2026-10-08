@@ -1,0 +1,14 @@
+                            // Windows startup shares the scrollable settings grid.
+                            group {
+                                size: cell.w, 90
+                                box { from: 0, 0; size: cell.w, 90; corner: 18; color: #242628 }
+                                repeat k in 0..4 {
+                                    box { from: 19 + mod(k, 2) * 12, 17 + floor(k / 2) * 12; size: 9, 9; color: mint }
+                                }
+                                text "Start with Windows" { at: 16, 59; anchor: left center; size: 12; weight: 600; color: ink }
+                                text windows_startup_status { at: 16, 76; anchor: left center; size: 10; color: st.faint; width: cell.w - 32; lines: 1 }
+                                box { at: cell.w - 32, 28; size: 38, 22; corner: 11; color: if(windows_startup_enabled, mint, #363839) }
+                                ellipse { at: cell.w - 32 + if(windows_startup_enabled, 8, -8), 28; radius: 8; color: ink; opacity: if(windows_startup_busy, 0.4, 1) }
+                                zone box windows_startup_switch { from: 0, 0; size: cell.w, 90; corner: 18; cursor: pointer; active: page == settings and section == menu and paging > 0.9 and windows_startup_available and not windows_startup_busy; label: "Start with Windows"; role: toggle; checked: windows_startup_enabled }
+                                on press windows_startup_switch { emit windows_toggle_startup }
+                            }
