@@ -124,16 +124,16 @@ part Software {
             show: sw.state == unlocking
             opacity: clamp(sw.in * 1.4, 0, 1)
             move: sin(sw.shake * 40) * sw.shake * 0.6, (1 - sw.in) * 8
-            let ay = card.top + 404
-            box { from: sw.x0, ay; size: 456, 86; corner: 12; color: #1d1f20 }
-            box { from: sw.x0, ay; size: 456, 86; corner: 12; stroke: 1.2; color: mint; opacity: 35% }
-            text sw.asking { at: sw.x0 + 16, ay + 18; anchor: left center; size: 11.5; color: #8b8f95; width: 420; lines: 1 }
-            box { from: sw.x0 + 16, ay + 32; size: 320, 32; corner: 9; color: #141415 }
-            input sw.pw { at: sw.x0 + 26, ay + 48; width: 300; size: 13; color: ink; placeholder: "Your password"; secret: true; selection: #2f5f52 }
-            box { from: sw.x0 + 346, ay + 32; size: 94, 32; corner: 9; color: mint; opacity: if(sw.verifying, 50%, 85% + 15% * sw.go.glow) }
-            text pick(sw.verifying, "Go", "…") { at: sw.x0 + 393, ay + 48; anchor: center; size: 12; weight: 600; color: #0c0f12 }
-            text "Esc, not now" { at: sw.x0 + 16, ay + 76; anchor: left center; size: 9.5; color: #8b8f95 }
-            zone box sw_auth_btn { from: sw.x0 + 346, ay + 32; size: 94, 32; corner: 9; cursor: pointer; active: page == software and sw.state == unlocking and not sw.verifying }
+            let software.ay = card.top + 404
+            box { from: sw.x0, software.ay; size: 456, 86; corner: 12; color: #1d1f20 }
+            box { from: sw.x0, software.ay; size: 456, 86; corner: 12; stroke: 1.2; color: mint; opacity: 35% }
+            text sw.asking { at: sw.x0 + 16, software.ay + 18; anchor: left center; size: 11.5; color: #8b8f95; width: 420; lines: 1 }
+            box { from: sw.x0 + 16, software.ay + 32; size: 320, 32; corner: 9; color: #141415 }
+            input sw.pw { at: sw.x0 + 26, software.ay + 48; width: 300; size: 13; color: ink; placeholder: "Your password"; secret: true; selection: #2f5f52 }
+            box { from: sw.x0 + 346, software.ay + 32; size: 94, 32; corner: 9; color: mint; opacity: if(sw.verifying, 50%, 85% + 15% * sw.go.glow) }
+            text pick(sw.verifying, "Go", "…") { at: sw.x0 + 393, software.ay + 48; anchor: center; size: 12; weight: 600; color: #0c0f12 }
+            text "Esc, not now" { at: sw.x0 + 16, software.ay + 76; anchor: left center; size: 9.5; color: #8b8f95 }
+            zone box sw_auth_btn { from: sw.x0 + 346, software.ay + 32; size: 94, 32; corner: 9; cursor: pointer; active: page == software and sw.state == unlocking and not sw.verifying }
         }
 
         // ── at work ──

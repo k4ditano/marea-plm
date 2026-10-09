@@ -254,12 +254,12 @@ part Settings {
                 //  How long «later» is: three drops to choose from.
                 text "LATER BRINGS IT BACK IN" { at: card.x - 228, card.top + 288; anchor: left center; size: 9.5; weight: 700; color: #8b8f95 }
                 repeat k in 0..3 {
-                    let lx = card.x - 228 + 76 + k * 152
+                    let settings.lx = card.x - 228 + 76 + k * 152
                     prop later_pick.glow.$k = 0 ~140ms
-                    box { at: lx, card.top + 318; size: 144, 34; corner: 17; color: mix(mix(#202021, #262728, later_pick.glow.$k), #1a2a25, snooze_k == k) }
-                    box { at: lx, card.top + 318; size: 144, 34; corner: 17; stroke: 1.2; color: mint; opacity: if(snooze_k == k, 70%, 0) }
-                    text pick(k, "15 minutes", "An hour", "Three hours") { at: lx, card.top + 318; anchor: center; size: 12; weight: 500; color: mix(#a9adb3, ink, snooze_k == k) }
-                    zone box later_pick.$k { at: lx, card.top + 318; size: 144, 34; corner: 17; cursor: pointer }
+                    box { at: settings.lx, card.top + 318; size: 144, 34; corner: 17; color: mix(mix(#202021, #262728, later_pick.glow.$k), #1a2a25, snooze_k == k) }
+                    box { at: settings.lx, card.top + 318; size: 144, 34; corner: 17; stroke: 1.2; color: mint; opacity: if(snooze_k == k, 70%, 0) }
+                    text pick(k, "15 minutes", "An hour", "Three hours") { at: settings.lx, card.top + 318; anchor: center; size: 12; weight: 500; color: mix(#a9adb3, ink, snooze_k == k) }
+                    zone box later_pick.$k { at: settings.lx, card.top + 318; size: 144, 34; corner: 17; cursor: pointer }
                     on enter later_pick.$k { later_pick.glow.$k: 1 }
                     on leave later_pick.$k { later_pick.glow.$k: 0 }
                     on press later_pick.$k { snooze_k = k }

@@ -9,9 +9,9 @@ part History {
     group {
         show: page == history
         let hx = card.x - 228
-        let hy = card.top + 104
+        let history.hy = card.top + 104
         column history_list {
-            at: hx, hy
+            at: hx, history.hy
             gap: 3
             for h in past {
                 group {
@@ -41,7 +41,7 @@ part History {
         text "Clear" { at: card.x + 150, card.top + 45; anchor: right center; size: 11.5; weight: 600
                        color: mix(#8b8f95, #ef7a66, clear.glow); show: past.count > 0 }
         zone box clear_btn { at: card.x + 128, card.top + 45; size: 70, 30; corner: 15; cursor: pointer; active: page == history and paging > 0.9 and past.count > 0 }
-        zone box history_area { from: hx, hy; size: 456, 300; active: page == history and paging > 0.9 }
+        zone box history_area { from: hx, history.hy; size: 456, 300; active: page == history and paging > 0.9 }
     }
     on enter clear_btn { clear.glow: 1 }
     on leave clear_btn { clear.glow: 0 }

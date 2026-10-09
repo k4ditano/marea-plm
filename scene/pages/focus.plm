@@ -43,26 +43,26 @@ part Focus {
         on scroll dial { focus.mins = clamp(focus.mins + wheel * 5, 5, 120) }
 
         //  The right column: the usual lengths, the button, and what it does.
-        let rx = card.x + 18
-        text pick(haven, "How long?", "Focusing") { at: rx, card.top + 128; anchor: left center; size: 14; weight: 600; color: ink }
+        let focus.rx = card.x + 18
+        text pick(haven, "How long?", "Focusing") { at: focus.rx, card.top + 128; anchor: left center; size: 14; weight: 600; color: ink }
         repeat m in 0..3 {
             let mins = 25 + m * 20
             let chosen = if(focus.mins == mins and not haven, 1, 0)
             prop len.glow.$m = 0 ~140ms
-            box { from: rx + m * 70, card.top + 146; size: 64, 32; corner: 10
+            box { from: focus.rx + m * 70, card.top + 146; size: 64, 32; corner: 10
                   color: mix(mix(#202021, #2a2b2c, len.glow.$m), #1a241f, chosen); opacity: if(haven, 40%, 100%) }
-            box { from: rx + m * 70, card.top + 146; size: 64, 32; corner: 10; stroke: 1.2; color: mint; opacity: chosen * 60% }
-            text "{mins} min" { at: rx + m * 70 + 32, card.top + 162; anchor: center; size: 11.5; weight: 500; color: mix(ink, mint, chosen); opacity: if(haven, 40%, 100%) }
-            zone box len.$m { from: rx + m * 70, card.top + 146; size: 64, 32; corner: 10; cursor: pointer; active: page == concentration and paging > 0.9 and not haven }
+            box { from: focus.rx + m * 70, card.top + 146; size: 64, 32; corner: 10; stroke: 1.2; color: mint; opacity: chosen * 60% }
+            text "{mins} min" { at: focus.rx + m * 70 + 32, card.top + 162; anchor: center; size: 11.5; weight: 500; color: mix(ink, mint, chosen); opacity: if(haven, 40%, 100%) }
+            zone box len.$m { from: focus.rx + m * 70, card.top + 146; size: 64, 32; corner: 10; cursor: pointer; active: page == concentration and paging > 0.9 and not haven }
             on enter len.$m { len.glow.$m: 1 }
             on leave len.$m { len.glow.$m: 0 }
             on press len.$m { focus.mins = mins }
         }
         prop go.glow = 0 ~140ms
-        box { from: rx, card.top + 192; size: 204, 38; corner: 12
+        box { from: focus.rx, card.top + 192; size: 204, 38; corner: 12
               color: mix(mix(mint, #8ff0cc, go.glow), mix(#3a2626, #4a2d2d, go.glow), on) }
-        text pick(haven, "Start", "End now") { at: rx + 102, card.top + 211; anchor: center; size: 13; weight: 600; color: mix(#0c0f12, #f0b0a8, on) }
-        zone box go { from: rx, card.top + 192; size: 204, 38; corner: 12; cursor: pointer; active: page == concentration and paging > 0.9 }
+        text pick(haven, "Start", "End now") { at: focus.rx + 102, card.top + 211; anchor: center; size: 13; weight: 600; color: mix(#0c0f12, #f0b0a8, on) }
+        zone box go { from: focus.rx, card.top + 192; size: 204, 38; corner: 12; cursor: pointer; active: page == concentration and paging > 0.9 }
         on enter go { go.glow: 1 }
         on leave go { go.glow: 0 }
         //  And here is where the Haven is entered: the first thing it does
@@ -73,9 +73,9 @@ part Focus {
         //  What it does, three lines with their marks.
         repeat w in 0..3 {
             let wy = card.top + 256 + w * 24
-            ellipse { at: rx + 8, wy; radius: 3; color: mint; opacity: 70% }
-            text pick(w, "Notices are kept, not shown", "She curls up in her haven", "She comes back when time is up") { at: rx + 20, wy; anchor: left center; size: 11; width: 200; lines: 1; color: #b9bcc0 }
+            ellipse { at: focus.rx + 8, wy; radius: 3; color: mint; opacity: 70% }
+            text pick(w, "Notices are kept, not shown", "She curls up in her haven", "She comes back when time is up") { at: focus.rx + 20, wy; anchor: left center; size: 11; width: 200; lines: 1; color: #b9bcc0 }
         }
-        text focus.today { at: rx, card.top + 338; anchor: left center; size: 11; weight: 500; color: mint; width: 210; lines: 1 }
+        text focus.today { at: focus.rx, card.top + 338; anchor: left center; size: 11; weight: 500; color: mint; width: 210; lines: 1 }
     }
 }

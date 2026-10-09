@@ -66,16 +66,16 @@ part Desktop {
             //  The drop, from her to where it lands: long as it falls, round when it lands.
             let fall = tide.fall * tide.fall
             let dx = tw / 2 - 50 + (tw / 2 - (tw / 2 - 50)) * tide.fall
-            let dy = 30 + (t.oy - 30) * fall
+            let desktop.dy = 30 + (t.oy - 30) * fall
             let tide.stretch = clamp(vel(tide.fall) * 0.25, 0, 1.2)
             body {
                 show: here and tide.fall > 0.01 and tide.p < 0.02
                 color: #151616
                 rim: 30%
                 shadow: 0, 6, 14, 40%
-                ellipse { at: dx, dy; radius: 11; scale: 1 - tide.stretch * 0.25, 1 + tide.stretch }
+                ellipse { at: dx, desktop.dy; radius: 11; scale: 1 - tide.stretch * 0.25, 1 + tide.stretch }
             }
-            ellipse { at: dx - 3, dy - 4 - tide.stretch * 5; radius: 2.6; color: #fff; opacity: 70%; show: here and tide.fall > 0.01 and tide.p < 0.02 }
+            ellipse { at: dx - 3, desktop.dy - 4 - tide.stretch * 5; radius: 2.6; color: #fff; opacity: 70%; show: here and tide.fall > 0.01 and tide.p < 0.02 }
             //  And the splash: drops thrown up and out, falling back.
             particles {
                 at: tw / 2, t.oy; area: 20, 4; count: 140
@@ -106,7 +106,7 @@ part Desktop {
         let hop.h = 4 * hop.f * (1 - hop.f) * hop.amp * hopping
         let hop.ground = (1 - smooth(0, 0.14, min(hop.f, 1 - hop.f))) * hopping
         let hop.speed = abs(1 - 2 * hop.f) * (1 - hop.ground) * hopping
-        let ay = home.y + adv.fy * (floor.y - home.y) - hop.h + 5 * hop.ground
+        let desktop.ay = home.y + adv.fy * (floor.y - home.y) - hop.h + 5 * hop.ground
         //  The wings, flapping while they are out.
         prop flap = 0
         //  Slow, broad strokes: fast ones looked like a hummingbird.
@@ -114,15 +114,15 @@ part Desktop {
         repeat w in 0..2 {
             let s.w = w * 2 - 1
             group {
-                pivot: ax + 16 * s.w, ay - 6
+                pivot: ax + 16 * s.w, desktop.ay - 6
                 rotate: s.w * (0.55 + 0.5 * flap) * wing
                 scale: wing, wing
                 body {
                     color: #eef3f6
                     rim: 20%
-                    ellipse { at: ax + 34 * s.w, ay - 14; radius: 16; scale: 1.5, 0.6; rotate: s.w * -0.4 }
-                    ellipse { at: ax + 46 * s.w, ay - 8; radius: 10; scale: 1.4, 0.5; rotate: s.w * -0.15; blend: 6 }
-                    ellipse { at: ax + 50 * s.w, ay; radius: 8; scale: 1.4, 0.45; rotate: s.w * 0.15; blend: 6 }
+                    ellipse { at: ax + 34 * s.w, desktop.ay - 14; radius: 16; scale: 1.5, 0.6; rotate: s.w * -0.4 }
+                    ellipse { at: ax + 46 * s.w, desktop.ay - 8; radius: 10; scale: 1.4, 0.5; rotate: s.w * -0.15; blend: 6 }
+                    ellipse { at: ax + 50 * s.w, desktop.ay; radius: 8; scale: 1.4, 0.45; rotate: s.w * 0.15; blend: 6 }
                 }
             }
         }
@@ -131,10 +131,10 @@ part Desktop {
             color: skin
             rim: 14%
             ellipse { at: home.x, -30; radius: 40 * clamp(1 - adv.fy * 6, 0, 1); blend: 18 * clamp(1 - adv.fy * 8, 0, 1) }
-            ellipse { at: ax, ay; radius: 23; rotate: tilt; blend: 18 * clamp(1 - adv.fy * 8, 0, 1)
+            ellipse { at: ax, desktop.ay; radius: 23; rotate: tilt; blend: 18 * clamp(1 - adv.fy * 8, 0, 1)
                       scale: sx * (1 + 0.2 * hop.ground - 0.07 * hop.speed), sy * (1 - 0.24 * hop.ground + 0.1 * hop.speed) }
         }
-        Face(ax, ay, gaze.x * 0.5, gaze.y * 0.5, 0)
+        Face(ax, desktop.ay, gaze.x * 0.5, gaze.y * 0.5, 0)
         //  A little dust where she lands and hops.
         particles { at: ax, floor.y + 18; area: 30, 0; count: 40; life: 0.3s .. 0.6s; speed: 20 .. 70; direction: -90deg; spread: 120deg
                     gravity: 0, 200; size: 3, 0; colors: #cfd3d8; opacity: 50%, 0%; emit: adventuring and adv.fy > 0.98 and (hop.ground > 0.6 or sx > 1.1) }
@@ -164,20 +164,20 @@ part Desktop {
         //  the corner, not a fixed direction.
         let wing.r = if(nook == top_right or nook == bottom_right, 1, 0)
         let wing.b = if(nook == bottom_right or nook == bottom_left, 1, 0)
-        let rx = 14.7 + wing.r * (260 - 29.4) + (1 - tuck) * 44 * (wing.r * 2 - 1)
-        let ry = 14.7 + wing.b * (120 - 29.4) + (1 - tuck) * 44 * (wing.b * 2 - 1)
+        let desktop.rx = 14.7 + wing.r * (260 - 29.4) + (1 - tuck) * 44 * (wing.r * 2 - 1)
+        let desktop.ry = 14.7 + wing.b * (120 - 29.4) + (1 - tuck) * 44 * (wing.b * 2 - 1)
 
         //  The gaze, folded onto her visible side: looking towards her own hidden
         //  half is looking nowhere. Stuck to the right she only looks inwards, and
         //  at the top only downwards.
         prop rgaze.x = 0 ~gentle
         prop rgaze.y = 0 ~gentle
-        look rgaze.x, rgaze.y at rx, ry reach 6, 3.5 within 260
+        look rgaze.x, rgaze.y at desktop.rx, desktop.ry reach 6, 3.5 within 260
         prop cam.hold = 0 ~lively
         let cam.sx = 1 - 2 * wing.r
         let cam.sy = 1 - 2 * wing.b
-        let cam.dx = nook.cursor.x - rx
-        let cam.dy = nook.cursor.y - ry
+        let cam.dx = nook.cursor.x - desktop.rx
+        let cam.dy = nook.cursor.y - desktop.ry
         let cam.base = atan2(cam.sy, cam.sx)
         prop cam.rel = 0 ~gentle
         follow cam.rel = clamp(atan2(cam.sx * cam.dy - cam.sy * cam.dx, cam.sx * cam.dx + cam.sy * cam.dy), -100, 100)
@@ -198,8 +198,8 @@ part Desktop {
         let p.w = 124 * near
         //  And the panel comes out on the inner side of the screen, not always to
         //  the left.
-        let p.x = rx + (23 + 8 + 62) * near * (1 - wing.r * 2)
-        let p.y = ry
+        let p.x = desktop.rx + (23 + 8 + 62) * near * (1 - wing.r * 2)
+        let p.y = desktop.ry
         //  How long it has been going. The renderer counts it: a second is a
         //  second even if the logic is busy starting a recorder.
         fact secs = 0
@@ -209,7 +209,7 @@ part Desktop {
         //  The grace zone goes BELOW everything else: the press belongs to the
         //  topmost zone, and declared at the end it kept the click on «Stop» and
         //  the one on her.
-        zone box around { at: (p.x + rx) / 2, ry; size: abs(rx - p.x) + 140, 100; active: nearby }
+        zone box around { at: (p.x + desktop.rx) / 2, desktop.ry; size: abs(desktop.rx - p.x) + 140, 100; active: nearby }
 
         body {
             color: coal
@@ -219,7 +219,7 @@ part Desktop {
             //  panel comes out of her, it becomes a shadow again.
             shadow: 0, 0, 13, 45%, mix(ink, #05070a, clamp(near * 2, 0, 1))
             box { at: p.x, p.y; size: p.w, 42 * clamp(near * 3, 0, 1); corner: 13 }
-            ellipse her { at: rx, ry; radius: 23; scale: sx + press * 0.04, sy - press * 0.05; blend: 16 * 4 * near * (1 - near) }
+            ellipse her { at: desktop.rx, desktop.ry; radius: 23; scale: sx + press * 0.04, sy - press * 0.05; blend: 16 * 4 * near * (1 - near) }
         }
         group {
             //  It comes in late: until the panel has come loose from her, the
@@ -236,7 +236,7 @@ part Desktop {
             on press stop_btn { emit stop }
         }
         //  The face goes a little inwards, so the disc stays in sight.
-        Face(rx - 5 * (wing.r * 2 - 1), ry + 4 * (1 - wing.b * 2), aim.x, aim.y)
+        Face(desktop.rx - 5 * (wing.r * 2 - 1), desktop.ry + 4 * (1 - wing.b * 2), aim.x, aim.y)
 
         //  The camera. Recording, she holds one out on her inner side and points
         //  it at the mouse wherever it is —`nook.cursor`, the mouse in this
@@ -249,8 +249,8 @@ part Desktop {
         //  eye on the side it points to, which the eyepiece covers. The same
         //  place the Face puts that eye —its centre, 6.5 to the side, and where
         //  it is looking—, so camera and eye move as one.
-        let cam.ex = rx - 5 * (wing.r * 2 - 1) + 6.5 * cam.flip + aim.x
-        let cam.ey = ry + 4 * (1 - wing.b * 2) + aim.y
+        let cam.ex = desktop.rx - 5 * (wing.r * 2 - 1) + 6.5 * cam.flip + aim.x
+        let cam.ey = desktop.ry + 4 * (1 - wing.b * 2) + aim.y
         group {
             show: cam.hold > 0.01
             pivot: cam.ex, cam.ey
@@ -284,7 +284,7 @@ part Desktop {
         }
 
         //  Pressing her stops it.
-        zone box her_zone { at: rx, ry; size: 46, 46; corner: 23; cursor: pointer }
+        zone box her_zone { at: desktop.rx, desktop.ry; size: 46, 46; corner: 23; cursor: pointer }
         on press her_zone { press: 1; emit stop }
         on release her_zone { press: 0 }
         //  Coming near brings it out; and it folds away with 320 ms of grace,

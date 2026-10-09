@@ -67,33 +67,33 @@ part Agents {
                                       show: ag.kind.1 < 1 and ag.kind.2 < 1 }
 
         repeat a in 1..3 {
-            let ay = card.top + 120 + (a - 1) * 186
+            let agents.ay = card.top + 120 + (a - 1) * 186
             let ax0 = card.x - 228
             group {
                 show: ag.kind.$a > 0
                 //  Each agent comes in a moment after the one before.
                 opacity: clamp((reveal - (a - 1) * 0.12) * 3, 0, 1)
                 move: 0, (1 - clamp((reveal - (a - 1) * 0.12) * 3, 0, 1)) * 12
-                box { at: card.x, ay + 88; size: 456, 178; corner: 16; color: mix(#202122, ink, glassiness); opacity: mix(1, veil, glassiness) }
+                box { at: card.x, agents.ay + 88; size: 456, 178; corner: 16; color: mix(#202122, ink, glassiness); opacity: mix(1, veil, glassiness) }
                 //  Who it is. Claude: its burst of rays, turning very
                 //  slowly. Codex: a hexagon with its prompt.
                 group {
                     show: ag.kind.$a == 1
                     repeat r in 0..10 {
-                        line { from: ax0 + 26 + 3 * cos(r * 36 + rays), ay + 24 + 3 * sin(r * 36 + rays)
-                               to: ax0 + 26 + 10 * cos(r * 36 + rays), ay + 24 + 10 * sin(r * 36 + rays)
+                        line { from: ax0 + 26 + 3 * cos(r * 36 + rays), agents.ay + 24 + 3 * sin(r * 36 + rays)
+                               to: ax0 + 26 + 10 * cos(r * 36 + rays), agents.ay + 24 + 10 * sin(r * 36 + rays)
                                width: 2.4; color: #d97757 }
                     }
                 }
                 group {
                     show: ag.kind.$a == 2
-                    path { at: ax0 + 26, ay + 24; stroke: 1.8; color: ink
+                    path { at: ax0 + 26, agents.ay + 24; stroke: 1.8; color: ink
                            move 0, -11; line 9.5, -5.5; line 9.5, 5.5; line 0, 11; line -9.5, 5.5; line -9.5, -5.5; close }
-                    path { at: ax0 + 22, ay + 24; stroke: 1.6; color: ink; move 0, -3.5; line 3.5, 0; line 0, 3.5 }
-                    line { from: ax0 + 27, ay + 27.5; to: ax0 + 31, ay + 27.5; width: 1.6; color: ink }
+                    path { at: ax0 + 22, agents.ay + 24; stroke: 1.6; color: ink; move 0, -3.5; line 3.5, 0; line 0, 3.5 }
+                    line { from: ax0 + 27, agents.ay + 27.5; to: ax0 + 31, agents.ay + 27.5; width: 1.6; color: ink }
                 }
-                text ag.name.$a { at: ax0 + 46, ay + 17; anchor: left center; size: 15; weight: 600; color: ink }
-                text ag.sub.$a { at: ax0 + 46, ay + 35; anchor: left center; size: 11; width: 380; lines: 1; color: faint; opacity: 75% }
+                text ag.name.$a { at: ax0 + 46, agents.ay + 17; anchor: left center; size: 15; weight: 600; color: ink }
+                text ag.sub.$a { at: ax0 + 46, agents.ay + 35; anchor: left center; size: 11; width: 380; lines: 1; color: faint; opacity: 75% }
 
                 repeat l in 1..4 {
                     let sx = ax0 + 16 + (l - 1) * 146
@@ -121,13 +121,13 @@ part Agents {
                         //  without a notice.
                         group {
                             glow: 10, if(avail < 15 and known > 0.5, 70%, 0), #ef7a66
-                            shader reservoir { at: sx, ay + 52; size: 46, 112; corner: 13
+                            shader reservoir { at: sx, agents.ay + 52; size: 46, 112; corner: 13
                                                values: if(known > 0.5, lvl.$a.$l * eased, -1), sway.$a.$l + clamp(vel(lvl.$a.$l) * 0.3 + vel(reveal) * 0.5 * (1 - eased), -0.6, 0.6), a * 3.7 + l * 1.3, if(ag.pending.$a.$l, 1, 0), hover.$a.$l, if(avail < 15 and known > 0.5, 1, 0)
                                                colors: tone, mix(tone, #0b1a22, 0.62) }
                         }
                         //  A reading splashes: drops jump off the surface of
                         //  each tube and fall back into it.
-                        particles { at: sx + 23, ay + 56 + 104 * (1 - lvl.$a.$l * eased); area: 30, 0; count: 14
+                        particles { at: sx + 23, agents.ay + 56 + 104 * (1 - lvl.$a.$l * eased); area: 30, 0; count: 14
                                     life: 0.35s .. 0.7s; speed: 40 .. 110; direction: -90deg; spread: 70deg
                                     gravity: 0, 520; size: 2.6, 1.2; colors: tone, #ffffff; opacity: 90%, 0%
                                     burst: agents_read }
@@ -140,7 +140,7 @@ part Agents {
                         let jet.x0 = cx + 9
                         let jet.y0 = cy_actual + 10
                         let jet.dx = sx + 23 - jet.x0
-                        let jet.dy = ay + 56 - jet.y0
+                        let jet.dy = agents.ay + 56 - jet.y0
                         let jet.t = 0.55 + jet.dy / 900
                         let jet.vx = jet.dx / jet.t
                         let jet.vy = jet.dy / jet.t - 450 * jet.t
@@ -185,23 +185,23 @@ part Agents {
                                     gravity: 0, 500; size: 2.4, 1; colors: mix(tone, #ffffff, 0.4); opacity: 80%, 0%
                                     emit: jon and jh < 0.98 }
                         //  And where it lands, the water jumps while it pours.
-                        particles { at: sx + 23, ay + 56 + 104 * (1 - lvl.$a.$l * eased); area: 14, 0; count: 60
+                        particles { at: sx + 23, agents.ay + 56 + 104 * (1 - lvl.$a.$l * eased); area: 14, 0; count: 60
                                     life: 0.2s .. 0.45s; speed: 30 .. 90; direction: -90deg; spread: 100deg
                                     gravity: 0, 600; size: 2.2, 0.8; colors: #ffffff, tone; opacity: 85%, 0%
                                     emit: pour.$a.$l > 0.01 and pour.$a.$l < 0.45 }
-                        text ag.lname.$a.$l { at: sx + 58, ay + 62; anchor: left center; size: 11; weight: 500; width: 76; lines: 1; color: faint }
-                        text number(avail * eased, 0, "%") { at: sx + 58, ay + 90; anchor: left center; size: 26; weight: 700; color: tone; show: known > 0.5 }
-                        text "—" { at: sx + 58, ay + 90; anchor: left center; size: 26; weight: 700; color: #8b8f95; show: known < 0.5 }
-                        text "left" { at: sx + 58, ay + 112; anchor: left center; size: 10.5; color: faint; opacity: 70% }
-                        text ag.lrenew.$a.$l { at: sx + 58, ay + 134; anchor: left center; size: 10.5; width: 76; lines: 1; color: faint; opacity: 80% }
+                        text ag.lname.$a.$l { at: sx + 58, agents.ay + 62; anchor: left center; size: 11; weight: 500; width: 76; lines: 1; color: faint }
+                        text number(avail * eased, 0, "%") { at: sx + 58, agents.ay + 90; anchor: left center; size: 26; weight: 700; color: tone; show: known > 0.5 }
+                        text "—" { at: sx + 58, agents.ay + 90; anchor: left center; size: 26; weight: 700; color: #8b8f95; show: known < 0.5 }
+                        text "left" { at: sx + 58, agents.ay + 112; anchor: left center; size: 10.5; color: faint; opacity: 70% }
+                        text ag.lrenew.$a.$l { at: sx + 58, agents.ay + 134; anchor: left center; size: 10.5; width: 76; lines: 1; color: faint; opacity: 80% }
                         //  How far into its window it is, and a dot at
                         //  how much it has used: a dot ahead of the bar
                         //  is spending faster than time goes.
-                        box { from: sx + 58, ay + 150; size: 72, 3; corner: 1.5; color: ink; opacity: 14% }
-                        box { from: sx + 58, ay + 150; size: 72 * ag.elapsed.$a.$l * eased, 3; corner: 1.5; color: ink; opacity: 45% }
-                        ellipse { at: sx + 58 + 72 * clamp(used / 100, 0, 1) * eased, ay + 151.5; radius: 3; color: tone; show: known > 0.5 }
+                        box { from: sx + 58, agents.ay + 150; size: 72, 3; corner: 1.5; color: ink; opacity: 14% }
+                        box { from: sx + 58, agents.ay + 150; size: 72 * ag.elapsed.$a.$l * eased, 3; corner: 1.5; color: ink; opacity: 45% }
+                        ellipse { at: sx + 58 + 72 * clamp(used / 100, 0, 1) * eased, agents.ay + 151.5; radius: 3; color: tone; show: known > 0.5 }
                     }
-                    zone box tank.$a.$l { at: sx + 23, ay + 108; size: 46, 112; corner: 13; active: page == agents and paging > 0.9 and ag.on.$a.$l; label: "{ag.name.$a} · {ag.lname.$a.$l}"; value: "{avail, 0}%" }
+                    zone box tank.$a.$l { at: sx + 23, agents.ay + 108; size: 46, 112; corner: 13; active: page == agents and paging > 0.9 and ag.on.$a.$l; label: "{ag.name.$a} · {ag.lname.$a.$l}"; value: "{avail, 0}%" }
                     on enter tank.$a.$l { hover.$a.$l: 1; impulse sway.$a.$l 1.5 }
                     on leave tank.$a.$l { hover.$a.$l: 0 }
                     //  A new reading makes every tube sway, a little

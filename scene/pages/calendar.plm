@@ -108,7 +108,7 @@ part Calendar {
             let row = floor(k / 7)
             let wave = cal.shift * 80 * (1 + row * 0.22)
             let dx = cal.gx + mod(k, 7) * cal.cw + wave
-            let dy = cal.gy + row * cal.ch
+            let calendar.dy = cal.gy + row * cal.ch
             prop cal.pick.$k = 0 ~lively
             follow cal.pick.$k = if(cal.sel == k, 1, 0)
             prop cal.lvl.$k = 0 ~calm
@@ -116,24 +116,24 @@ part Calendar {
             let grow = 1 + 0.12 * cal.pick.$k + cal.jig * 0.02 * cal.pick.$k
             group {
                 opacity: (35% + 65% * if(cal.in.$k, 1, 0)) * clamp(1 - abs(cal.shift) * 1.3, 0, 1)
-                pivot: dx, dy
+                pivot: dx, calendar.dy
                 scale: grow, grow
-                ellipse { at: dx, dy; radius: 13; color: mix(#24282c, #2f3a37, cal.pick.$k) }
+                ellipse { at: dx, calendar.dy; radius: 13; color: mix(#24282c, #2f3a37, cal.pick.$k) }
                 //  Its water: a level inside the drop, with a lighter surface.
                 group {
-                    clip inset 0 ellipse { at: dx, dy; radius: 13 }
-                    box { from: dx - 13, dy + 13 - 26 * cal.lvl.$k; size: 26, 26 * cal.lvl.$k; color: mint; opacity: 50% }
-                    box { from: dx - 13, dy + 13 - 26 * cal.lvl.$k; size: 26, 1.5; color: #ffffff; opacity: 45% * if(cal.lvl.$k > 0.02, 1, 0) }
+                    clip inset 0 ellipse { at: dx, calendar.dy; radius: 13 }
+                    box { from: dx - 13, calendar.dy + 13 - 26 * cal.lvl.$k; size: 26, 26 * cal.lvl.$k; color: mint; opacity: 50% }
+                    box { from: dx - 13, calendar.dy + 13 - 26 * cal.lvl.$k; size: 26, 1.5; color: #ffffff; opacity: 45% * if(cal.lvl.$k > 0.02, 1, 0) }
                 }
                 //  Today: a ring of light.
                 group {
                     glow: 6, 70%, mint
-                    ellipse { at: dx, dy; radius: 14.5; stroke: 1.6; color: mint; show: cal.today.$k }
+                    ellipse { at: dx, calendar.dy; radius: 14.5; stroke: 1.6; color: mint; show: cal.today.$k }
                 }
-                ellipse { at: dx, dy; radius: 13.5; stroke: 1.6; color: ink; opacity: cal.pick.$k * 90% }
-                text number(cal.day.$k, 0) { at: dx, dy; anchor: center; size: 12; weight: 500 + 200 * if(cal.today.$k, 1, 0); color: ink }
+                ellipse { at: dx, calendar.dy; radius: 13.5; stroke: 1.6; color: ink; opacity: cal.pick.$k * 90% }
+                text number(cal.day.$k, 0) { at: dx, calendar.dy; anchor: center; size: 12; weight: 500 + 200 * if(cal.today.$k, 1, 0); color: ink }
             }
-            zone box cal_cell.$k { at: dx, dy; size: 30, 30; corner: 15; cursor: pointer; active: page == calendar and paging > 0.9 }
+            zone box cal_cell.$k { at: dx, calendar.dy; size: 30, 30; corner: 15; cursor: pointer; active: page == calendar and paging > 0.9 }
             on press cal_cell.$k { emit cal_pick(k) }
         }
         //  The ripple from the chosen day.

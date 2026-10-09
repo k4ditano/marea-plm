@@ -89,18 +89,18 @@ part Bluetooth {
 
     group {
         show: page == bluetooth
-        let lx = card.x - 228
-        let ty = card.top + 104
+        let bluetooth.lx = card.x - 228
+        let bluetooth.ty = card.top + 104
         //  Off, or there is none: why, and the way to turn it on.
         group {
             show: not bt.on
-            ellipse { at: card.x, ty + 70; radius: 34; color: #202021 }
-            path { at: card.x - 7, ty + 57; color: #8b8f95; stroke: 2
+            ellipse { at: card.x, bluetooth.ty + 70; radius: 34; color: #202021 }
+            path { at: card.x - 7, bluetooth.ty + 57; color: #8b8f95; stroke: 2
                    move 0, 6; line 14, 18; line 7, 25; line 7, 0; line 14, 6; line 0, 18 }
-            text pick(bt.present, "This computer has no Bluetooth", "Bluetooth is off") { at: card.x, ty + 128; anchor: center; size: 13; weight: 500; color: ink }
-            text "Turn it on to use your headphones and the rest." { at: card.x, ty + 148; anchor: center; size: 11; color: #8b8f95; show: bt.present }
+            text pick(bt.present, "This computer has no Bluetooth", "Bluetooth is off") { at: card.x, bluetooth.ty + 128; anchor: center; size: 13; weight: 500; color: ink }
+            text "Turn it on to use your headphones and the rest." { at: card.x, bluetooth.ty + 148; anchor: center; size: 11; color: #8b8f95; show: bt.present }
             row {
-                at: card.x, ty + 186
+                at: card.x, bluetooth.ty + 186
                 anchor: center middle
                 show: bt.present
                 Pill("Turn on", bt_power, w: 96, strong: 1)
@@ -108,21 +108,21 @@ part Bluetooth {
         }
         group {
             show: bt.on
-            text "YOURS" { at: lx, ty + 4; anchor: left center; size: 9.5; weight: 700; color: #8b8f95; show: bt_mine.count > 0 }
+            text "YOURS" { at: bluetooth.lx, bluetooth.ty + 4; anchor: left center; size: 9.5; weight: 700; color: #8b8f95; show: bt_mine.count > 0 }
             column bt_mine_list {
-                at: lx, ty + 16
+                at: bluetooth.lx, bluetooth.ty + 16
                 gap: 4
                 for d in bt_mine { BtRow(d) }
             }
-            let ny = ty + if(bt_mine.count > 0, 26 + bt_mine_list.height, 0)
-            text "NEAR" { at: lx, ny + 4; anchor: left center; size: 9.5; weight: 700; color: #8b8f95; show: bt_near.count > 0 }
+            let ny = bluetooth.ty + if(bt_mine.count > 0, 26 + bt_mine_list.height, 0)
+            text "NEAR" { at: bluetooth.lx, ny + 4; anchor: left center; size: 9.5; weight: 700; color: #8b8f95; show: bt_near.count > 0 }
             column bt_near_list {
-                at: lx, ny + 16
+                at: bluetooth.lx, ny + 16
                 gap: 4
                 for d in bt_near { BtRow(d) }
             }
             text pick(bt_scanning, "Nothing paired yet. Press Search to find what is near.", "Looking around…") {
-                at: card.x, ty + 80; anchor: center; size: 11.5; color: #8b8f95; width: 380; align: center
+                at: card.x, bluetooth.ty + 80; anchor: center; size: 11.5; color: #8b8f95; width: 380; align: center
                 show: bt_mine.count < 1 and bt_near.count < 1 }
         }
     }
@@ -131,17 +131,17 @@ part Bluetooth {
     //  starts or stops listening.
     group {
         show: page == bluetooth and bt.on
-        let rx = card.x + 150
-        let ry = card.top + 45
+        let bluetooth.rx = card.x + 150
+        let bluetooth.ry = card.top + 45
         repeat w in 0..3 {
             let t = fract(radar.t + w / 3)
-            ellipse { at: rx, ry; radius: 6 + 16 * t; stroke: 1.4; color: mint; opacity: if(bt_scanning, (1 - t) * 70%, 0) }
+            ellipse { at: bluetooth.rx, bluetooth.ry; radius: 6 + 16 * t; stroke: 1.4; color: mint; opacity: if(bt_scanning, (1 - t) * 70%, 0) }
         }
-        ellipse { at: rx, ry; radius: 13; color: mix(#202021, #1a241f, if(bt_scanning, 1, 0)) }
-        path { at: rx - 4, ry - 7; color: mix(ink, mint, if(bt_scanning, 1, 0)); stroke: 1.5
+        ellipse { at: bluetooth.rx, bluetooth.ry; radius: 13; color: mix(#202021, #1a241f, if(bt_scanning, 1, 0)) }
+        path { at: bluetooth.rx - 4, bluetooth.ry - 7; color: mix(ink, mint, if(bt_scanning, 1, 0)); stroke: 1.5
                move 0, 3.5; line 8, 10.5; line 4, 14; line 4, 0; line 8, 3.5; line 0, 10.5 }
-        text pick(bt_scanning, "Search", "Searching…") { at: rx - 22, ry; anchor: right center; size: 11.5; color: mix(#8b8f95, mint, if(bt_scanning, 1, 0)) }
-        zone box radar_btn { at: rx - 30, ry; size: 110, 32; corner: 16; cursor: pointer; active: page == bluetooth and paging > 0.9 and bt.on }
+        text pick(bt_scanning, "Search", "Searching…") { at: bluetooth.rx - 22, bluetooth.ry; anchor: right center; size: 11.5; color: mix(#8b8f95, mint, if(bt_scanning, 1, 0)) }
+        zone box radar_btn { at: bluetooth.rx - 30, bluetooth.ry; size: 110, 32; corner: 16; cursor: pointer; active: page == bluetooth and paging > 0.9 and bt.on }
     }
     on press radar_btn { emit bt_scan }
 

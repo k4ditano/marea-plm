@@ -169,12 +169,12 @@ part Wifi {
             box { from: lx, ly - 8; size: 456, 196; corner: 14; color: #1f2021 }
             box { from: lx + 14, ly + 6; size: 152, 152; corner: 12; color: #f6f6f5; show: wifi.has_qr }
             for q in wifi_qr { image q.pic { at: lx + 20, ly + 12; size: 140, 140; show: wifi.has_qr } }
-            let tx = if(wifi.has_qr, lx + 184, lx + 18)
-            text wifi.share_hint { at: tx, ly + 22; anchor: left center; size: 12; color: ink; width: 250; lines: 2 }
-            text "PASSWORD" { at: tx, ly + 64; anchor: left center; size: 9.5; weight: 700; color: #8b8f95 }
-            text wifi.password { at: tx, ly + 88; anchor: left center; size: 16; weight: 600; color: mint; width: 250; lines: 1; selectable: true; selection: #2f5f52 }
+            let wifi.tx = if(wifi.has_qr, lx + 184, lx + 18)
+            text wifi.share_hint { at: wifi.tx, ly + 22; anchor: left center; size: 12; color: ink; width: 250; lines: 2 }
+            text "PASSWORD" { at: wifi.tx, ly + 64; anchor: left center; size: 9.5; weight: 700; color: #8b8f95 }
+            text wifi.password { at: wifi.tx, ly + 88; anchor: left center; size: 16; weight: 600; color: mint; width: 250; lines: 1; selectable: true; selection: #2f5f52 }
             row {
-                at: tx, ly + 136
+                at: wifi.tx, ly + 136
                 anchor: left middle
                 gap: 8
                 Pill("Copy", wifi_copy, w: 84, strong: 1)
