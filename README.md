@@ -32,6 +32,13 @@ screenshots, lock screen — written in [pleamar], on any Wayland compositor.
 
 <br>
 
+<img src="assets/liquid.webp" width="560" alt="Marea opening her settings and changing her skin to liquid glass">
+
+<sub>Her settings, and her skin going from dark to liquid glass.</sub>
+
+<br>
+<br>
+
 </div>
 
 # Features
@@ -98,6 +105,20 @@ screenshots, lock screen — written in [pleamar], on any Wayland compositor.
 
 # Gallery
 
+<br>
+
+<img src="assets/finder.webp" width="560" alt="Marea's finder: typing, and what she finds">
+
+<sub>Her finder, as you type: apps, files, folders, and things she does herself.</sub>
+
+<br>
+<br>
+
+<img src="assets/agents.webp" width="560" alt="Marea's Agents page: how much of each AI subscription is left">
+
+<sub>Her Agents page: what is left of your Claude Code and Codex limits, as tanks.</sub>
+
+<br>
 <br>
 
 ![Preview Finder]
