@@ -21,6 +21,9 @@ part Stones {
             due.$k: 1 after 420ms
         }
     }
+    //  The stones' own clock: it goes only while the mouse is on one of them.
+    //  (The scene's `time` never stops, and with it she never rested.)
+    prop stir.t = 0
     repeat k in 0..6 {
         let landed.$k = stones.$k.present and due.$k > 0.5
         //  Its place: how many landed ones are newer than it.
@@ -36,7 +39,7 @@ part Stones {
         //  they must stay reachable. That is also where the drops fall.)
         let sy.$k = cy_actual + rise * 0.6
         //  The water stirring while the mouse is on it: a slow wobble.
-        let stir.$k = near.stone.$k * sin(time * 300 + k * 60)
+        let stir.$k = near.stone.$k * sin(stir.t * 300 + k * 60)
         group {
             show: stone.$k > 0.01
             opacity: clamp(stone.$k * 2, 0, 1)
@@ -59,8 +62,8 @@ part Stones {
         group {
             show: near.stone.$k > 0.01 and stone.$k > 0.5
             opacity: near.stone.$k
-            ellipse { at: sx.$k, sy.$k; radius: 15 + 10 * fract(time * 0.9); stroke: 1.2; color: mint; opacity: 50% * (1 - fract(time * 0.9)) }
-            ellipse { at: sx.$k, sy.$k; radius: 15 + 10 * fract(time * 0.9 + 0.5); stroke: 1.2; color: mint; opacity: 50% * (1 - fract(time * 0.9 + 0.5)) }
+            ellipse { at: sx.$k, sy.$k; radius: 15 + 10 * fract(stir.t * 0.9); stroke: 1.2; color: mint; opacity: 50% * (1 - fract(stir.t * 0.9)) }
+            ellipse { at: sx.$k, sy.$k; radius: 15 + 10 * fract(stir.t * 0.9 + 0.5); stroke: 1.2; color: mint; opacity: 50% * (1 - fract(stir.t * 0.9 + 0.5)) }
         }
         //  Its window's title, under it, while the mouse is on it.
         group {
@@ -107,4 +110,5 @@ part Stones {
     //  The whole —her, the fan and the preview— for the grace on leaving: the gap
     //  between the three is real and must not be lost while crossing it.
 
+    spin stir.t by if(near.stone.0 > 0.01 or near.stone.1 > 0.01 or near.stone.2 > 0.01 or near.stone.3 > 0.01 or near.stone.4 > 0.01 or near.stone.5 > 0.01, 1, 0)
 }

@@ -28,10 +28,12 @@ part Wardrobe {
     prop on_air = 0 ~180ms
     follow on_air = if(sharing, 1, 0)
     prop air_glow = 0
-    wave air_glow = 1 at 0.6
+    wave air_glow = if(on_air > 0.01, 1, 0) at 0.6
     //  The sway of what keeps her company: it floats even if she keeps still.
+    //  While something that sways is seen: the mug, the clouds on her note, or
+    //  her card open (the wardrobe's and the settings' pictures of her).
     prop sway = 0
-    wave sway = 1 at 0.9
+    wave sway = if(worn.3 > 0.01 or nc.c > 0.001 or open, 1, 0) at 0.9
 
     //  On top: it rests on her head, arrives late and tilts from the lag.
     Perched(cx, cy_actual, gaze.x, worn.1, lift: 30) {

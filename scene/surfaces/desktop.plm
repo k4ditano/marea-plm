@@ -110,7 +110,7 @@ part Desktop {
         //  The wings, flapping while they are out.
         prop flap = 0
         //  Slow, broad strokes: fast ones looked like a hummingbird.
-        wave flap = 1 at 11
+        wave flap = if(wing > 0.01, 1, 0) at 11
         repeat w in 0..2 {
             let s.w = w * 2 - 1
             group {

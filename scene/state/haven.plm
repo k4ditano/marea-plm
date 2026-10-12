@@ -20,8 +20,10 @@ part Haven {
     prop summary = 0 ~500ms            // on coming back, a single summary
     //  The tide: there and back in 7.6 s. No nervous loops; this is the only
     //  thing that moves, and it moves like water.
+    //  (Only in the Haven: outside it nothing of it is drawn, and a wave that
+    //  goes on keeps her making frames nobody sees.)
     pose tide = 0
-    wave tide = 1 at 0.827
+    wave tide = if(calmness > 0.01, 1, 0) at 0.827
     //  Entering takes 320 ms and waking 500: it is not the same journey, so it is
     //  not the same spring. And the wave the membrane drew is undone on leaving,
     //  in the same time she takes to wake up.

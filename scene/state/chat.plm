@@ -45,7 +45,9 @@ part Chat {
     prop chat = 0 ~300ms               // the panel's geometry
     prop chat_content = 0 ~200ms       // and what is read in it
     prop chat.t = 0                    // what turns and ripples while she works
-    spin chat.t by if(chat.state == thinking or chat.state == acting or chat.state == starting, 1, 0.15)
+    //  At rest it still turns, slowly, while the chat is open; closed, it stops:
+    //  a turn nobody sees kept her from ever resting.
+    spin chat.t by if(chat.state == thinking or chat.state == acting or chat.state == starting, 1, if(chat > 0.01, 0.15, 0))
     prop chat.length = 0 ~0ms
     prop chat.from_end = 0 ~0ms
     fact chat.stuck = true             // following the end of the thread
