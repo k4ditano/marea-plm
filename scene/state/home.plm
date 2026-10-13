@@ -64,7 +64,7 @@ part Home {
     //  open: with the tray pulling her directly, on closing she came back at the
     //  same time as it folded, and two things on top of each other cannot be seen.
     let aside = offset
-    let cx = 120 + (1 - aside) * 240
+    let cx = 220 + (1 - aside) * 240
     //  Open, she drops to the height of the card's header, as on the sheet.
     //  And the path bows: the height goes by the square, so she leaves and comes
     //  in from above instead of crossing in a straight line. Something with

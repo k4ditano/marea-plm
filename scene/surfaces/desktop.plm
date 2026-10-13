@@ -24,7 +24,7 @@ part Desktop {
         //  around it instead, three strips —left, right and below— and the
         //  finder and Marea herself in the hole. (Her surface is centred at
         //  the top: `ox` is where it starts on this one.)
-        let ox = (catcher.width - 820) / 2
+        let ox = (catcher.width - 920) / 2
         let hole.x0 = ox + cx - r - 12
         //  (The chat the same: whichever of the two is out.)
         let hole.x1 = ox + max(finder.x + finder.w / 2, chat.x + chat.w / 2) + 8

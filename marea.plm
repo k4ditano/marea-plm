@@ -60,7 +60,7 @@ scene Marea {
         //  make 610, plus the shadow's 62. When it falls short, pleamar says so
         //  —«a drawing is cut: it needs 36 px below»— as soon as it has been like
         //  that for three seconds, which is what used to have to be seen by eye.
-        size: 820, 680
+        size: 920, 680
         anchor: top
         margin: 0
         //  Her strip, if you want windows to leave it to her: as tall as she is
