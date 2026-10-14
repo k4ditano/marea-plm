@@ -36,8 +36,16 @@ library Accessories {
         //  overshoots and settles. The two numbers are the piece's character.
         prop px = 0 ~perch
         prop py = 0 ~perch
-        follow px = mx
-        follow py = my
+        //  Only while it is worn: not worn, it is not seen, and its spring
+        //  chasing her gaze all day kept the whole scene going round with
+        //  every move of the mouse. Put on, it starts from where it should be
+        //  (it drops onto her from above anyway).
+        follow px = if(worn > 0.001, mx, px)
+        follow py = if(worn > 0.001, my, py)
+        on change worn > 0.001 while worn > 0.001 {
+            px: mx ~0ms
+            py: my ~0ms
+        }
         //  The lag is what gives it life, but with a cap: a hat drags a little
         //  over her head, it does not stay a hundred pixels away from it when
         //  she crosses half the screen. The spring is still the spring; what is
@@ -56,7 +64,7 @@ library Accessories {
         //  7 px —it only happens if it came flying—, the piece gives a start.
         //  Nothing to program: it was already there, it only had to be looked at.
         prop aha = 0 ~lively
-        on change dx > 7 while dx > 7 { impulse aha 7 }
+        on change dx > 7 while dx > 7 and worn > 0.001 { impulse aha 7 }
         group {
             opacity: worn
             pivot: gx, gy
