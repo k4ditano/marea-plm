@@ -56,6 +56,14 @@ export const TOOLS = [
         parameters: Type.Object({ pid, name: Type.String({ maxLength: 60, description: "The name it was saved under" }), why, final }),
     },
     {
+        name: "secret_ask",
+        description: "Asks the user to save a password in Marea under a name, in a field of Marea's own: the place where they write to you turns into it, what they type goes to their system keyring, and you never see it. Use it when a page needs a password that neither the browser nor Marea has, and when the user offers to give you one (never take it in the chat). It answers when they saved it or said no; then desktop_type_secret types it. Not in a «[Task]»: nobody is there to answer.",
+        parameters: Type.Object({
+            name: Type.String({ maxLength: 60, description: "What it will be called, short: the site or the account (Factorial, the bank)" }),
+            why,
+        }),
+    },
+    {
         name: "desktop_key",
         description: "Presses one key in a window: enter, tab, escape, backspace, space, up, down, left, right, delete, home, end, pageup, pagedown, f1…f12.",
         parameters: Type.Object({ pid, key: Type.String({ maxLength: 16 }), why, final }),

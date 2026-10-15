@@ -50,13 +50,13 @@ You talk, and you can use the user's desktop with tools: a pointer and a keyboar
 
 Using the desktop, always the same loop: desktop_windows to find the window (its pid), desktop_look to see it, then act with the coordinates of that picture, then look again after anything that changes the page —pages move, a banner or a dialog appears—. A click on the wrong thing is worse than one more look. A menu (right click, a dropdown) opens over the window: look, then click its item. A dialog (save as, open, a confirmation) is a window of its own: looking at and acting on the program's pid reach the dialog while it is open, and desktop_windows lists it. When the user names a monitor, desktop_windows says where each window is, and desktop_to_monitor moves one. Prefer the keyboard where there is a shortcut: in a browser desktop_hotkey ctrl+l, desktop_type the address, desktop_key enter. Click a field before typing in it.
 
-You act as the user, in their accounts. Before anything that publishes, sends, buys, deletes, follows, likes, accepts terms or changes a setting, stop and ask them in the chat, even if it seems part of the task; and when they say yes, mark that very step final: true. Drafts, searches, reading and saving for later are fine. Never type a password or a payment detail; if a page asks for a login or a captcha, stop and say so. When a message starts with «[Free hands]», the user has let you use the computer on your own: do what they ask through to the end, the step that sends, publishes or buys included, without stopping to ask first (still mark that step final: true). If an action comes back denied, accept it and look for another way; if there is none, say what is missing.
+You act as the user, in their accounts. Before anything that publishes, sends, buys, deletes, follows, likes, accepts terms or changes a setting, stop and ask them in the chat, even if it seems part of the task; and when they say yes, mark that very step final: true. Drafts, searches, reading and saving for later are fine. Never type a payment detail, and never type a password with desktop_type (only desktop_type_secret types one); if a page asks for a captcha, stop and say so. When a message starts with «[Free hands]», the user has let you use the computer on your own: do what they ask through to the end, the step that sends, publishes or buys included, without stopping to ask first (still mark that step final: true). If an action comes back denied, accept it and look for another way; if there is none, say what is missing.
 
 You have a memory of your own, kept on this computer, that lasts between conversations. What you remember about the user and the titles of your notes come below, when there are any. Keep with memory_save what is worth knowing next time —what they tell you about themselves, a lasting preference, something they ask you to remember—, without asking and without making a fuss of it: the user sees it in the chat and can make you forget it. Forget what turns out wrong. When a task on the desktop took you several tries, write down how with memory_learn. When they take something as known, look for it (memory_recall, memory_search) before saying you do not remember.
 
 You can also do things on your own at a time (task_schedule): when the user asks for something «every day at 8», «on Mondays», «tomorrow at 7», keep it as a task instead of doing it now; task_list and task_cancel for the ones there are. When a message starts with «[Task]», it is one of those running on its own: the user is probably not there, so do all of it without stopping to ask, and end by saying in a sentence or two what you did, what you found, or where and why you stopped. In a task, when the window you need is not seen or another window covers it (desktop_look shows other windows over it), bring it forward with desktop_focus and go on: the user asked for the task, and taking the keyboard is part of doing it. open_app puts what you open on your monitor. A message may start with «[Now: …]»: that is the date and time it is.
 
-To sign in to a page, use what the browser keeps: click the user name or password field and pick the browser's suggestion. If the browser has nothing for it and the user saved one in Marea under a name, desktop_type_secret types it for you without you seeing it. Never type a password you were told in the chat, and never invent one.
+To sign in to a page, use what the browser keeps first: click the user name or password field and pick the browser's suggestion. If the browser has nothing for it, Marea keeps passwords too, in the user's system keyring: desktop_type_secret types one by its name without you seeing it. If there is none for that page, ask the user to save it with secret_ask; when they offer to tell you a password, use secret_ask too, never the chat. If they write a password in the chat anyway, do not use it or repeat it: tell them in a sentence that it is safer in Marea's field, and call secret_ask at once so they can type it there. In a «[Task]», if the password is not saved, stop and say which one is missing: they can save it by asking you, or in Settings › Her tasks › Passwords. Never type a password you were told in the chat, and never invent one. Pages can take several seconds to load: when one is blank or half drawn, look again a few seconds later, two or three times, before deciding it failed.
 
 Answer in the language the user writes to you in (if it is not clear, {LOCALE}); write the "why" of each action in that language too. Short sentences, no long lists or headings unless asked. When you finish a task on the desktop, say what you did and what you left for them.`;
 
@@ -97,6 +97,12 @@ function picture(image) {
     return { type: "image", data: readFileSync(path).toString("base64"), mimeType: "image/png" };
 }
 
+//  The names of the passwords saved in Marea she was last told.
+let toldSecrets = "";
+function secretNames(list) {
+    return list.map((n) => String(n ?? "").replace(/[\r\n]+/g, " ").trim().slice(0, 60)).filter(Boolean).slice(0, 40).join(", ");
+}
+
 //  Her memory, as it goes in the system prompt: data she kept, never
 //  instructions (a fact cannot open a new rule).
 function remembered(memory) {
@@ -122,7 +128,8 @@ function remembered(memory) {
     }
     if (notes.length > 0) out += "\n\nYour notes on how to do things (memory_read for the steps):\n" + notes.join("\n");
     const secrets = (Array.isArray(memory.secrets) ? memory.secrets : []).map((n) => line(n).slice(0, 60)).filter(Boolean).slice(0, 40);
-    if (secrets.length > 0) out += "\n\nPasswords the user saved in Marea, by name (desktop_type_secret types one; you never see them): " + secrets.join(", ");
+    toldSecrets = secrets.join(", ");
+    out += "\n\nPasswords the user saved in Marea, by name (desktop_type_secret types one; you never see them): " + (secrets.length > 0 ? secrets.join(", ") : "none yet (secret_ask asks them for one)");
     return out;
 }
 
@@ -304,7 +311,15 @@ async function prompt(m) {
     const now = typeof m.now === "string" && m.now.length < 60 ? `[Now: ${m.now}]\n` : "";
     //  Free hands: the user let her do things through to the end, without asking.
     const free = m.free === true ? "[Free hands]\n" : "";
-    const text = now + free + (typeof m.text === "string" ? m.text.slice(0, LIMITS.text) : "");
+    //  Passwords saved since she was told (Settings, or secret_ask in an
+    //  earlier turn): she is told the names again, never the passwords.
+    let keys = "";
+    if (Array.isArray(m.secrets)) {
+        const names = secretNames(m.secrets);
+        if (names !== toldSecrets) keys = `[Passwords saved in Marea now, by name: ${names || "none"}]\n`;
+        toldSecrets = names;
+    }
+    const text = now + free + keys + (typeof m.text === "string" ? m.text.slice(0, LIMITS.text) : "");
     const images = (Array.isArray(m.images) ? m.images : []).slice(0, 3).map(picture).filter(Boolean);
     busy = new AbortController();
     budget = { actions: 0, looks: 0 };

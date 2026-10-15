@@ -91,6 +91,13 @@ part Chat {
     text keys.status = ""
     event keys_keep ->
     event keys_drop ->
+    //  She asks you for one there in the chat (secret_ask): where you write
+    //  turns into a hidden field for it, and `keys.prompt` says for what.
+    fact keys.asking = false
+    text keys.answer = ""
+    text keys.prompt = ""
+    event keys_give ->
+    event keys_refuse ->
     event task_flip ->                 // `emit task_flip(0)`: the first one on or off
     event task_drop ->
     event task_now ->

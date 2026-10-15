@@ -478,6 +478,54 @@ return function(shared)
         text["keys.status"] = ""
     end)
     show_secrets()
+    --  She asks you for one (secret_ask): where you write to her turns into a
+    --  field for it, Enter keeps it in your keyring under the name she gave,
+    --  and she is told only that it is there.
+    local asking = nil       -- { id, name, row }
+    local function ask_secret(id, args)
+        local name = first_letters((tostring(args.name or ""):gsub("%c", " "):match("^%s*(.-)%s*$")), 60)
+        if name == "" then answer(id, false, "A password needs a name to be kept under."); return end
+        if asking then answer(id, false, "The user is already being asked for one: wait for that."); return end
+        asking = { id = id, name = name, row = add(3, string.format(tr("Asks you for the password of «%s»"), name), "", 0) }
+        text["keys.answer"] = ""
+        text["keys.prompt"] = string.format(tr("The password of «%s»: it goes to your keyring, she never sees it"), name)
+        fact["keys.asking"] = true
+        fact["chat.state"] = "awaiting"
+        status(tr("Waiting for you"))
+        --  Asked while closed: open, so it is seen.
+        if fact.chatting ~= true then fact.chatting = true end
+    end
+    --  Kept, said no to, or the turn stopped (`quiet`: nobody to answer).
+    local function end_ask(kept, quiet)
+        local a = asking
+        if not a then return end
+        asking = nil
+        fact["keys.asking"] = false
+        text["keys.answer"] = ""
+        finish_row(a.row, kept, not kept)
+        if quiet then return end
+        if kept then
+            answer(a.id, true, "The user saved it as «" .. a.name .. "»: desktop_type_secret types it.")
+        else
+            answer(a.id, false, "", { denied = true })
+        end
+        fact["chat.state"] = "thinking"
+        status(tr("Thinking…"))
+    end
+    on("keys_give", function()
+        local a = asking
+        local value = tostring(text["keys.answer"] or "")
+        if not a or value == "" then return end
+        text["keys.answer"] = ""
+        run("secret-tool", { "store", "--label=Marea: " .. a.name, "service", "marea-plm", "name", a.name }, function(_, code)
+            if asking ~= a then return end
+            if code ~= 0 then text["keys.prompt"] = tr("The keyring did not take it"); return end
+            if not secret_named(a.name) then secrets[#secrets + 1] = a.name end
+            keep_secrets()
+            end_ask(true)
+        end, { input = value, errors = true })
+    end)
+    on("keys_refuse", function() end_ask(false) end)
 
     --  What goes to her in every conversation (her worker trims it to fit).
     local function for_her()
@@ -737,6 +785,13 @@ return function(shared)
             --  Her memory: kept in sight, never asked.
             if tool:sub(1, 7) == "memory_" then
                 remember(m.id, tool, args)
+            --  A password: only you can type it, so never on her own.
+            elseif tool == "secret_ask" then
+                if running_task then
+                    answer(m.id, false, "Nobody is there to answer in a task: stop, and say which password is missing.")
+                else
+                    ask_secret(m.id, args)
+                end
             --  Her tasks: a new one is asked (it will act alone later), unless
             --  you gave her free hands (below).
             elseif tool:sub(1, 5) == "task_" and tool ~= "task_schedule" then
@@ -976,6 +1031,7 @@ return function(shared)
         log("tasks · doing «" .. short(t.what, 40) .. "»")
         --  A conversation of its own: the one there was, kept to look back on.
         keep_talk()
+        end_ask(false, true)
         rows, history, asks, live = {}, {}, {}, nil
         shown_row, shown = nil, 0
         if worker and ready then send({ type = "reset" }) end
@@ -985,7 +1041,7 @@ return function(shared)
         start_worker()
         fact["chat.state"] = "thinking"
         status(tr("Doing one of her tasks…"))
-        send({ type = "prompt", text = "[Task] " .. tostring(t.what), now = os.date("%Y-%m-%d %H:%M, %A") })
+        send({ type = "prompt", text = "[Task] " .. tostring(t.what), now = os.date("%Y-%m-%d %H:%M, %A"), secrets = secrets })
     end
     turn_over = function(how)
         if not running_task then
@@ -1096,7 +1152,7 @@ return function(shared)
         start_worker()
         fact["chat.state"] = "thinking"
         status(tr("Thinking…"))
-        send({ type = "prompt", text = words, now = os.date("%Y-%m-%d %H:%M, %A"), free = fact["chat.free"] == true })
+        send({ type = "prompt", text = words, now = os.date("%Y-%m-%d %H:%M, %A"), free = fact["chat.free"] == true, secrets = secrets })
     end)
     local function decide(i, yes)
         local first = math.max(1, #rows - ROWS + 1)
@@ -1121,6 +1177,7 @@ return function(shared)
     on("chat_allow", function(i) decide(i, true) end)
     on("chat_deny", function(i) decide(i, false) end)
     on("chat_stop", function()
+        end_ask(false, true)
         for id, a in pairs(asks) do
             asks[id] = nil
             if rows[a.row] then rows[a.row].state = 2 end
@@ -1132,6 +1189,7 @@ return function(shared)
     on("chat_new", function()
         if worker then write(worker, json.encode({ type = "shutdown" }) .. "\n") end
         keep_talk()
+        end_ask(false, true)
         rows, history, asks, live = {}, {}, {}, nil
         shown_row, shown = nil, 0
         fact["chat.state"] = "idle"

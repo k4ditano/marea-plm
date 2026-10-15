@@ -299,6 +299,7 @@ library SpanishUi {
         "When the browser has none saved, she asks for one by its name and Marea types it: she never sees it. Kept in your system keyring." = "Si el navegador no tiene una guardada, la pide por su nombre y Marea la escribe: ella nunca la ve. Se guardan en el llavero del sistema."
         "Its name: bank" = "Su nombre: banco"
         "Keep" = "Guardar"
+        "Not now" = "Ahora no"
         "Clear all" = "Quitar todos"
         "Nothing waiting" = "Nada pendiente"
             // the system pages: Wi-Fi, Bluetooth, sound and focus

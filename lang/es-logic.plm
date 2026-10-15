@@ -252,6 +252,8 @@ library SpanishLogic {
         "A name and a password, both" = "Un nombre y una contraseña, las dos cosas"
         "The keyring did not take it" = "El llavero no la aceptó"
         "Kept as «%s»" = "Guardada como «%s»"
+        "Asks you for the password of «%s»" = "Te pide la contraseña de «%s»"
+        "The password of «%s»: it goes to your keyring, she never sees it" = "La contraseña de «%s»: va a tu llavero, ella nunca la ve"
         "Type a saved password in %s" = "Escribir una contraseña guardada en %s"
             // the system pages
         "Excellent signal" = "Señal excelente"
