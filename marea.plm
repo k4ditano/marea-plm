@@ -84,7 +84,12 @@ scene Marea {
         //  always breathing, and at 165 Hz she painted every breath 165 times a
         //  second. Measured: 21.5 % of a core, against 8.6 % on a 60 Hz screen.
         //  What she costs has to be the same on any screen.
-        rate: 60
+        //  And asleep, twenty: her sleeping breath is 1.1 px over 3.6 s and the
+        //  «z» rises slowly, and asleep is when she is on screen longest with
+        //  nobody looking —she painted 100 % of the time, 21 % of a core—. Once
+        //  she has settled (`drowsy`), so the nod of dozing off keeps its sixty;
+        //  waking up is sixty again at once.
+        rate: 60, 20 while asleep and drowsy > 0.98
         //  Keyboard only while something of hers is open, and handed back on
         //  closing: «the click gives keyboard focus, but does not leave them
         //  stuck to the screen». Exclusive once used to close the menu by
