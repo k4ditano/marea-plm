@@ -1164,6 +1164,12 @@ return function(shared)
                     rows[row].state = 3
                     local tool_row = add(3, said(a.tool, a.args), tostring(a.args.why or ""), 0)
                     perform(id, a.tool, a.args, tool_row)
+                    --  Another card still waiting (she asked for two at once):
+                    --  it is still you she waits for.
+                    if next(asks) ~= nil then
+                        fact["chat.state"] = "awaiting"
+                        status(tr("Waiting for you"))
+                    end
                 else
                     rows[row].state = 2
                     paint()

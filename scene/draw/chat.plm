@@ -107,6 +107,10 @@ part Chat {
         shader chat_tide { at: chat.x, ky0 + 45 + (chat.h - 45) / 2; size: chat.w, chat.h - 45; values: chat.stir; colors: mint }
         //  The thread. It scrolls with the wheel and by dragging, and follows
         //  what arrives while you are at the bottom of it.
+        //  Under the rows, not over them: the wheel and a drag reach any zone
+        //  underneath, and a press goes to the topmost. Declared after the
+        //  thread, it took every click in it —a card's Allow did nothing—.
+        zone box chat_area { from: kx0, ky0 + 56; size: 556, 404; active: chatting }
         column chat_list ~quick {
             at: kx0, ky0 + 56
             view: 556, 404
@@ -207,7 +211,6 @@ part Chat {
         }
         zone box keys_refuse_btn { at: kx0 + 432, ky0 + 518; size: 80, 28; corner: 9; cursor: pointer; active: chatting and keys.asking }
         zone box keys_give_btn { at: kx0 + 513, ky0 + 518; size: 72, 28; corner: 9; cursor: pointer; active: chatting and keys.asking }
-        zone box chat_area { from: kx0, ky0 + 56; size: 556, 404; active: chatting }
     }
     }
     on enter new_chat { new.glow: 1 }
