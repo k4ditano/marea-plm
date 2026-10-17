@@ -22,6 +22,11 @@ STATE_DIR="${XDG_STATE_HOME:-$HOME/.local/state}/marea-plm"
 # folder: `deriva/`, built there. Hers goes first on the PATH.
 DERIVA="$HERE/deriva/target/release"
 PATH="$DERIVA:$PATH"
+# And pleamar by its name: what she builds with you (Build something) is a
+# scene she starts and checks with it.
+case "$PLEAMAR" in
+    */*) PATH="$(dirname "$PLEAMAR"):$PATH" ;;
+esac
 export PATH
 
 # Built the first time she starts, and again when its source changes (after an

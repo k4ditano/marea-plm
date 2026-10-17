@@ -334,5 +334,9 @@ library SpanishUi {
         "She comes back when time is up" = "Vuelve cuando se acaba el tiempo"
         "{mins} min" = "{mins} min"
         "{focus.mins, 0} min" = "{focus.mins, 0} min"
+        // building a piece of the desktop with her (BUILDER.md)
+        "BUILDING" = "CONSTRUYENDO"
+        "Throw away" = "Tirar"
+        "Keep it" = "Quedármela"
     }
 }

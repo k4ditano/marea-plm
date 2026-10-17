@@ -91,15 +91,43 @@ part Chat {
         let kx0 = chat.x - 278
         let ky0 = chat.y - chat.h / 2
         //  The head: who she is, and with what.
-        text "MAREA" { at: kx0, ky0 + 24; anchor: left center; size: 9; weight: 600; color: mint; opacity: 80% }
-        text chat.model { at: kx0 + 48, ky0 + 24; anchor: left center; size: 9.5; color: #8b8f95; width: 300; lines: 1 }
+        text "MAREA" { at: kx0, ky0 + 24; anchor: left center; size: 9; weight: 600; color: mint; opacity: 80%; show: not build.on }
+        text chat.model { at: kx0 + 48, ky0 + 24; anchor: left center; size: 9.5; color: #8b8f95; width: 300; lines: 1; show: not build.on }
+        //  Building: what is being made, and its three ways out.
+        group {
+            show: build.on
+            prop build_undo.glow = 0 ~140ms
+            prop build_throw.glow = 0 ~140ms
+            prop build_keep.glow = 0 ~140ms
+            text "BUILDING" { at: kx0, ky0 + 24; anchor: left center; size: 9; weight: 600; color: amber; opacity: 90% }
+            text build.name { at: kx0 + 66, ky0 + 24; anchor: left center; size: 11; weight: 600; color: ink; width: 150; lines: 1 }
+            box { at: kx0 + 262, ky0 + 24; size: 64, 24; corner: 8; color: #2a2b2c; opacity: 70% + 30% * build_undo.glow }
+            text "Undo" { at: kx0 + 262, ky0 + 24; anchor: center; size: 10.5; weight: 600; color: ink }
+            box { at: kx0 + 344, ky0 + 24; size: 88, 24; corner: 8; color: #2a2b2c; opacity: 70% + 30% * build_throw.glow }
+            text "Throw away" { at: kx0 + 344, ky0 + 24; anchor: center; size: 10.5; weight: 600; color: #ef7a66 }
+            box { at: kx0 + 444, ky0 + 24; size: 96, 24; corner: 8; color: mint; opacity: 80% + 20% * build_keep.glow }
+            text "Keep it" { at: kx0 + 444, ky0 + 24; anchor: center; size: 10.5; weight: 700; color: #0c0f12 }
+            zone box build_undo_zone { at: kx0 + 262, ky0 + 24; size: 64, 24; corner: 8; cursor: pointer; active: chatting and build.on }
+            zone box build_throw_zone { at: kx0 + 344, ky0 + 24; size: 88, 24; corner: 8; cursor: pointer; active: chatting and build.on }
+            zone box build_keep_zone { at: kx0 + 444, ky0 + 24; size: 96, 24; corner: 8; cursor: pointer; active: chatting and build.on }
+            on enter build_undo_zone { build_undo.glow: 1 }
+            on leave build_undo_zone { build_undo.glow: 0 }
+            on enter build_throw_zone { build_throw.glow: 1 }
+            on leave build_throw_zone { build_throw.glow: 0 }
+            on enter build_keep_zone { build_keep.glow: 1 }
+            on leave build_keep_zone { build_keep.glow: 0 }
+            on press build_undo_zone { emit build_undo }
+            on press build_throw_zone { emit build_discard }
+            on press build_keep_zone { emit build_keep }
+        }
         prop new.glow = 0 ~140ms
         group {
+            show: not build.on
             opacity: 55% + 45% * new.glow
             line { from: kx0 + 512, ky0 + 24; to: kx0 + 524, ky0 + 24; width: 1.6; color: ink }
             line { from: kx0 + 518, ky0 + 18; to: kx0 + 518, ky0 + 30; width: 1.6; color: ink }
         }
-        zone box new_chat { at: kx0 + 518, ky0 + 24; size: 28, 28; corner: 14; cursor: pointer; active: chatting }
+        zone box new_chat { at: kx0 + 518, ky0 + 24; size: 28, 28; corner: 14; cursor: pointer; active: chatting and not build.on }
         box { at: kx0 + 548, ky0 + 24; size: 36, 22; corner: 7; color: #202021 }
         text "Esc" { at: kx0 + 548, ky0 + 24; anchor: center; size: 10.5; color: #8b8f95 }
         line { from: kx0, ky0 + 44; to: kx0 + 556, ky0 + 44; width: 1; color: ink; opacity: 8% }

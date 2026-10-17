@@ -8,6 +8,9 @@
 --  marea.luau loads it, and hands it what it uses of its own.
 return function(shared)
     local hooks, settings, save_settings, home_dir = shared.hooks, shared.settings, shared.save_settings, shared.home_dir
+    --  Building a piece of the desktop (logic/builder.luau): while it is on,
+    --  the thread is that creation's, and her engine has the builder's tools.
+    local builder = shared.builder
     local base = sys.ask("env", "XDG_STATE_HOME")
     if base == nil or base == "" then base = home_dir .. "/.local/state" end
     local STATE = base .. "/marea-plm/agent"
@@ -15,6 +18,7 @@ return function(shared)
     --  the cursor on the desktop is labelled hers.
     local HANDS = { errors = true, env = { PLEAMAR_AGENT_NAME = "Marea" } }
     local DEFAULT_MODEL = "openai-codex/gpt-5.6-luna"
+    local DEFAULT_BUILD_MODEL = "openai-codex/gpt-6-astra"
     local function chosen() return type(settings.chat_model) == "string" and settings.chat_model or DEFAULT_MODEL end
     local PROVIDERS = { ["openai-codex"] = "ChatGPT" }
     local models = {}
@@ -183,6 +187,7 @@ return function(shared)
         return programs[window_name(args.pid)] or ("the window " .. tostring(args.pid or "?"))
     end
     local function said(tool, args)
+        if builder and builder.owns(tool) then return builder.said(tool, args) end
         return string.format(tr(WORDS[tool] or tool), program(args, tool))
     end
     local function agent_args(tool, a)
@@ -251,6 +256,15 @@ return function(shared)
         send(m)
     end
     local function perform(id, tool, args, row)
+        if builder and builder.owns(tool) then
+            fact["chat.state"] = "acting"
+            status(said(tool, args))
+            builder.perform(tool, args, function(ok, words, extra)
+                finish_row(row, ok)
+                answer(id, ok, words, extra)
+            end)
+            return
+        end
         if tool:sub(1, 5) == "task_" then
             task_do(id, tool, args, row)
             return
@@ -782,8 +796,26 @@ return function(shared)
             live = nil
             local tool, args = tostring(m.tool), (type(m.args) == "table" and m.args or {})
             local looks_only = tool == "desktop_windows" or tool == "desktop_look"
+            local verdict = builder and builder.owns(tool) and builder.propose(tool, args)
+            --  Building: her own work on the creation is done at once; what it
+            --  would newly ask the system for is a card, and what is
+            --  dangerous is refused before anything is written.
+            if builder and builder.owns(tool) then
+                if verdict and verdict.refuse then
+                    if verdict.note ~= "" then add(5, verdict.note) end
+                    answer(m.id, false, verdict.refuse)
+                elseif verdict and verdict.ask then
+                    local row = add(4, verdict.ask, verdict.detail, 0)
+                    asks[m.id] = { row = row, tool = tool, args = args }
+                    fact["chat.state"] = "awaiting"
+                    status(tr("Waiting for you"))
+                    if fact.chatting ~= true then fact.chatting = true end
+                else
+                    local row = add(3, said(tool, args), tool == "creation_write" and tostring(args.why or "") or "", 0)
+                    perform(m.id, tool, args, row)
+                end
             --  Her memory: kept in sight, never asked.
-            if tool:sub(1, 7) == "memory_" then
+            elseif tool:sub(1, 7) == "memory_" then
                 remember(m.id, tool, args)
             --  A password: only you can type it, so never on her own.
             elseif tool == "secret_ask" then
@@ -890,7 +922,15 @@ return function(shared)
         worker = id
         local recent = {}
         for k = math.max(1, #history - 40), #history do recent[#recent + 1] = history[k] end
-        local line = json.encode({ type = "start", model = chosen(), locale = fact.locale, history = recent, memory = for_her() }) .. "\n"
+        local start = { type = "start", model = chosen(), locale = fact.locale, history = recent, memory = for_her() }
+        if builder and builder.active() then
+            start.mode, start.build, start.memory = "builder", builder.context(), nil
+            --  Writing scenes and designing asks for the strongest model: its
+            --  own (settings.build_model), or chat's when the account lacks it.
+            start.model = type(settings.build_model) == "string" and settings.build_model or DEFAULT_BUILD_MODEL
+            start.fallback = chosen()
+        end
+        local line = json.encode(start) .. "\n"
         write(worker, line)
     end
 
@@ -1233,4 +1273,39 @@ return function(shared)
     end)
     paint()
     hooks.chat = function() fact.chatting = true; paint() end
+
+    --  What the builder borrows: the thread becomes the creation's (its own
+    --  conversation, kept with it), and back to an empty one when it ends.
+    --  The engine starts again each time, with the other tools.
+    if builder then
+        local function restart()
+            if worker then write(worker, json.encode({ type = "shutdown" }) .. "\n") end
+            end_ask(false, true)
+            asks, live = {}, nil
+            shown_row, shown = nil, 0
+            fact["chat.state"] = "idle"
+            status("")
+        end
+        builder.attach({
+            begin = function(old_history, old_rows)
+                restart()
+                keep_talk()
+                rows, history = old_rows or {}, old_history or {}
+                if #rows == 0 then add(2, tr("Tell me what it should be: its colours, its shape, what it shows and does. I will make it right there, as you watch.")) end
+                paint()
+                save()
+                fact.chatting = true
+            end,
+            finish = function()
+                local r, h = rows, history
+                restart()
+                rows, history = {}, {}
+                paint()
+                save()
+                return r, h
+            end,
+            note = function(words) add(3, words, "", 1) end,
+            show = function() fact.chatting = true; paint() end,
+        })
+    end
 end

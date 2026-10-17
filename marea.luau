@@ -136,6 +136,8 @@ local OWN = {
     { "Session", "session sesion sesión apagar power poweroff reiniciar reboot restart logout salir suspend suspender", 1, open_page("session") },
     { "Lock the screen", "lock bloquear bloqueo pantalla screen", 1, function() emit("lock") end },
     { "Sleep", "sleep dormir siesta nap", 1, function() emit("sleep") end },
+    { "Build something", "build construir crear create make hacer diseñar disenar design barra bar dock widget panel app aplicacion aplicación escritorio desktop shell personalizar customize moldear arrecife", 2,
+      function() if hooks.build then hooks.build() end end },
     { "Screenshot of a region", "screenshot captura region región recorte shot", 1, function() emit("shot_region") end },
     { "Screenshot of the screen", "screenshot captura pantalla screen shot", 1, function() emit("shot_screen") end },
     { "Screenshot of a window", "screenshot captura ventana window shot", 1, function() emit("shot_window") end },
@@ -1583,4 +1585,5 @@ require("logic/software")({ hooks = hooks, say = say })
 
 -- ── the chat: talking to her, and her hands on the desktop ─────────
 --  In logic/chat.luau.
-require("logic/chat")({ hooks = hooks, settings = settings, save_settings = save_settings, home_dir = home_dir, apps = function() return apps end })
+local builder = require("logic/builder")({ hooks = hooks, home_dir = home_dir })
+require("logic/chat")({ hooks = hooks, settings = settings, save_settings = save_settings, home_dir = home_dir, apps = function() return apps end, builder = builder })

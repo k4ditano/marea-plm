@@ -19,6 +19,15 @@ part Chat {
     text chat.account = ""
     model chat.models max 8 { name: text; on: number }
     event chat ->                      // `marea chat`, Super+Shift+A, her menu, the finder
+    //  Building a piece of the desktop with her (logic/builder.luau,
+    //  BUILDER.md): while it is on, the thread is that creation's.
+    fact build.on = false
+    text build.name = ""
+    event build_start ->               // draw where it goes (`marea build_start`, the finder)
+    event build_undo ->                // its last version, undone
+    event build_keep ->                // kept: it runs with her from now on
+    event build_discard ->             // thrown away
+    event build_leave ->               // left as it is, to carry on another time
     text chat.input = ""
     event chat_send ->
     event chat_stop ->
