@@ -222,6 +222,15 @@ export const BUILDER_TOOLS = [
         parameters: Type.Object({ name: Type.String({ maxLength: 40 }) }),
     },
     {
+        name: "creation_key",
+        description: "Gives the creation a key of its own in the window manager (pleamar-wm's keys.conf, read at once): «open» opens it (an app), «emit EVENT» or «fact NAME VALUE» tell its scene something (show or hide a panel). The user is asked first. Use it when they ask for a shortcut, or offer one for something they will open often.",
+        parameters: Type.Object({
+            keys: Type.String({ maxLength: 40, description: "Like Super+u or Super+Shift+n" }),
+            order: Type.String({ maxLength: 100, description: "open · emit toggle · fact open true" }),
+            why: Type.String({ maxLength: 160 }),
+        }),
+    },
+    {
         name: "creation_poke",
         looks: true,
         description: "Uses the creation as the user would, to try it: «press ZONE» (a zone's name), «fact NAME VALUE», «emit EVENT», «get NAME». Answers with what changed (its facts and events). Look after it to see the result; then put it back as it was if the user should not find it changed.",

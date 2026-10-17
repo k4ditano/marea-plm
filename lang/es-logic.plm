@@ -375,5 +375,8 @@ library SpanishLogic {
         "Calling it %s" = "Llamándola %s"
         "run «%s»: only that script, nothing else" = "ejecutar «%s»: solo ese script, nada más"
         "Hidden while you build: %s's «%s». Keep yours and it stays hidden; throw yours away and it comes back." = "Oculto mientras construyes: lo de %s, «%s». Si te quedas la tuya, sigue oculto; si la tiras, vuelve."
+        "«%s» wants the key %s to: %s" = "«%s» quiere la tecla %s para: %s"
+        "A key of its own" = "Una tecla propia"
+        "A key: %s" = "Una tecla: %s"
     }
 }

@@ -392,6 +392,32 @@ scene Creation {
         end, { input = entry })
     end
 
+    -- ── a key of its own ──
+    --  «Open it with Super+U»: a line in pleamar-wm's keys.conf (read again
+    --  at once), marked with the creation's id so it goes when it goes. Only
+    --  for the creation itself: an order to its scene, or opening its app.
+    local config_dir = sys.ask("env", "PLEAMAR_CONFIG")
+    if config_dir == nil or config_dir == "" then
+        local xdg = sys.ask("env", "XDG_CONFIG_HOME")
+        config_dir = ((xdg and xdg ~= "") and xdg or (home_dir .. "/.config")) .. "/pleamar"
+    end
+    local KEYS = config_dir .. "/keys.conf"
+    local function key_command(record, order)
+        if order == "open" then return pleamar_path .. " --scene " .. path_of(record.id, "scene.plm") .. " --no-hud" end
+        return pleamar_path .. " --say " .. record.id .. " '" .. order:gsub("'", "") .. "'"
+    end
+    local function bind_key(record, keys, order, done)
+        local line = string.format("bind %s launch %s  # creation %s", keys, key_command(record, order), record.id)
+        --  A keys.conf of yours that did not exist starts with `defaults`, so
+        --  pleamar-wm's own keys stay.
+        run("sh", { "-c", '[ -f "$0" ] || { mkdir -p "$(dirname "$0")"; printf "defaults\n" > "$0"; }; printf "%s\n" "$1" >> "$0"', KEYS, line }, function(_, code)
+            done(code == 0, code == 0 and ("Bound: " .. keys .. " → " .. order .. ". pleamar-wm reads it at once (on another desktop, its own keys are needed).") or "Could not write keys.conf.")
+        end, { errors = true })
+    end
+    local function unbind_keys(id)
+        run("sh", { "-c", '[ -f "$0" ] && grep -q -F "# creation $1" "$0" && grep -v -F "# creation $1" "$0" > "$0.new" && mv "$0.new" "$0"; true', KEYS, id })
+    end
+
     -- ── what is already there: replaced, never deleted ──
     --  pleamar-wm says which programs' surfaces are on the desktop (a bar of
     --  waybar's, a shell's panel). One under what you draw is hidden while you
@@ -606,24 +632,32 @@ scene Creation {
     hooks.build = begin
 
     -- ── the tools she has while building ──
-    local OWN = { creation_read = 1, creation_write = 1, creation_check = 1, creation_look = 1, creation_poke = 1, creation_name = 1, pleamar_docs = 1, system_run = 1, system_read = 1 }
+    local OWN = { creation_read = 1, creation_write = 1, creation_check = 1, creation_look = 1, creation_poke = 1, creation_name = 1, creation_key = 1, pleamar_docs = 1, system_run = 1, system_read = 1 }
     local WORDS = {
         creation_read = "Reading %s", creation_write = "Writing %s", creation_check = "Checking it",
         creation_look = "Looking at it", pleamar_docs = "Reading pleamar's %s",
-        system_run = "Running %s", system_read = "Reading %s", creation_poke = "Trying it: %s", creation_name = "Calling it %s",
+        system_run = "Running %s", system_read = "Reading %s", creation_poke = "Trying it: %s", creation_name = "Calling it %s", creation_key = "A key: %s",
     }
     local api = {}
     function api.owns(tool) return OWN[tool] ~= nil end
     function api.active() return current ~= nil end
     function api.context() return context() end
     function api.said(tool, args)
-        return string.format(tr(WORDS[tool] or tool), tostring(args.file or args.topic or args.program or args.path or args.order or args.name or ""))
+        return string.format(tr(WORDS[tool] or tool), tostring(args.file or args.topic or args.program or args.path or args.keys or args.order or args.name or ""))
     end
     --  Before it is done: nil to do it now, { ask = …, detail = … } for a card,
     --  { refuse = for the model, note = for you }.
     function api.propose(tool, args)
         if not current then return { refuse = "Nothing is being built now: tell the user to draw where it goes first (Build, in Marea's finder).", note = "" } end
         if tool == "system_run" or tool == "system_read" then return judge_system(tool, args) end
+        if tool == "creation_key" then
+            local keys, order = tostring(args.keys or ""), tostring(args.order or "")
+            if not keys:match("^[%w%+]+$") then return { refuse = "Keys like Super+u or Super+Shift+n.", note = "" } end
+            if not (order == "open" or order:match("^emit [%w_]+") or order:match("^fact [%w_.]+ %S+$")) then
+                return { refuse = "The order is «open» (an app), «emit EVENT» or «fact NAME VALUE», for the creation itself.", note = "" }
+            end
+            return { ask = string.format(tr("«%s» wants the key %s to: %s"), current.name, keys, order) .. "\n" .. tostring(args.why or ""), detail = tr("A key of its own") }
+        end
         if tool ~= "creation_write" then return nil end
         local file = tostring(args.file or "")
         if not file:match("%.plm$") then return nil end
@@ -708,6 +742,11 @@ scene Creation {
                     done(c2 == 0, c2 == 0 and "The app's window as it is now." or tostring(o2), c2 == 0 and { image = { path = "/state/build-look.png" } } or nil)
                 end, { errors = true })
             end, { errors = true })
+        elseif tool == "creation_key" then
+            current.keys = current.keys or {}
+            table.insert(current.keys, tostring(args.keys))
+            record_save()
+            bind_key(current, tostring(args.keys), tostring(args.order), done)
         elseif tool == "creation_name" then
             local name = tostring(args.name or ""):gsub("[\r\n]", " "):sub(1, 40)
             if name == "" then done(false, "A name, please.") return end
@@ -913,6 +952,7 @@ scene Creation {
         stop_scene()
         if current.app then run("rm", { "-f", desktop_file(current.id) }) end
         if current.replaces then set_hidden(current.replaces, false) end
+        if current.keys then unbind_keys(current.id) end
         current.kept = false
         current.thrown = true
         local ix = index()
