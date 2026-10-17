@@ -374,5 +374,6 @@ library SpanishLogic {
         "Made with Marea" = "Hecha con Marea"
         "Calling it %s" = "Llamándola %s"
         "run «%s»: only that script, nothing else" = "ejecutar «%s»: solo ese script, nada más"
+        "Hidden while you build: %s's «%s». Keep yours and it stays hidden; throw yours away and it comes back." = "Oculto mientras construyes: lo de %s, «%s». Si te quedas la tuya, sigue oculto; si la tiras, vuelve."
     }
 }

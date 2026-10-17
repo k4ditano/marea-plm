@@ -301,7 +301,7 @@ return function(shared)
                 local w, h, x, y = block:match("(%d+)x(%d+)@[%d%.]+ at (%-?%d+)x(%-?%d+)")
                 local scale = tonumber(block:match("scale: ([%d%.]+)")) or 1
                 if name and w then
-                    out[#out + 1] = { name = name, x = tonumber(x), y = tonumber(y), w = math.floor(tonumber(w) / scale + 0.5), h = math.floor(tonumber(h) / scale + 0.5) }
+                    out[#out + 1] = { name = name, index = tonumber(block:match("%(ID (%d+)%)") or ""), x = tonumber(x), y = tonumber(y), w = math.floor(tonumber(w) / scale + 0.5), h = math.floor(tonumber(h) / scale + 0.5) }
                 end
             end
             done(out)
@@ -392,6 +392,56 @@ scene Creation {
         end, { input = entry })
     end
 
+    -- ── what is already there: replaced, never deleted ──
+    --  pleamar-wm says which programs' surfaces are on the desktop (a bar of
+    --  waybar's, a shell's panel). One under what you draw is hidden while you
+    --  build; kept, yours takes its place and it stays hidden —found again and
+    --  hidden whenever it comes back, after a login too—; thrown away, it
+    --  comes back. Its program and your autostart are never touched.
+    local function layers(done)
+        run("pleamar-wm", { "agent", "layers" }, function(out, code)
+            local list = {}
+            if code == 0 then
+                for line in tostring(out or ""):gmatch("[^\n]+") do
+                    local id, who, ns, w, h, x, y, mon, level = line:match("^%s*(%d+)%s+(.-)%s+«(.-)»%s+(%d+)x(%d+) at (%-?%d+),(%-?%d+)%s+monitor (%d+)%s+(%a+)")
+                    if id then
+                        list[#list + 1] = { id = id, who = who, ns = ns, w = tonumber(w), h = tonumber(h), x = tonumber(x), y = tonumber(y),
+                                            monitor = tonumber(mon), level = level, hidden = line:find("· hidden", 1, true) ~= nil }
+                    end
+                end
+            end
+            done(list)
+        end, { errors = true })
+    end
+    local function same(a, b) return a.who == b.who and a.ns == b.ns end
+    local function set_hidden(identity, hide)
+        layers(function(list)
+            for _, l in ipairs(list) do
+                if same(l, identity) and l.hidden ~= hide then
+                    run("pleamar-wm", { "agent", hide and "hide" or "show", l.id }, function() end, { errors = true })
+                end
+            end
+        end)
+    end
+    --  Under a new creation: the biggest surface of another program's that
+    --  it covers mostly, on its monitor (not hers, not a creation, not a
+    --  wallpaper).
+    local function under(r, monitor_index, done)
+        layers(function(list)
+            local best, best_area = nil, 0
+            for _, l in ipairs(list) do
+                local mine = l.who:find("marea.plm", 1, true) or l.who:find("/creations/", 1, true) or l.who:find("builder/draw", 1, true)
+                if not mine and not l.hidden and l.level ~= "background" and l.monitor == monitor_index then
+                    local ix = math.max(0, math.min(l.x + l.w, r.x + r.w) - math.max(l.x, r.x))
+                    local iy = math.max(0, math.min(l.y + l.h, r.y + r.h) - math.max(l.y, r.y))
+                    local area = ix * iy
+                    if area > 0.5 * math.min(l.w * l.h, r.w * r.h) and area > best_area then best, best_area = l, area end
+                end
+            end
+            done(best)
+        end)
+    end
+
     -- ── beginning, and coming back to one ──
     local function context()
         if not current then return nil end
@@ -451,12 +501,22 @@ scene Creation {
         index_save(ix)
         log("build · new " .. kind .. " " .. id .. " on " .. r.monitor)
         open(record)
+        if r.monitor_index then
+            under(r, r.monitor_index, function(l)
+                if not l or not current or current.id ~= id then return end
+                current.replaces = { who = l.who, ns = l.ns }
+                record_save()
+                run("pleamar-wm", { "agent", "hide", l.id }, function() end, { errors = true })
+                local name = (l.who:match("([^/%s]+)%.plm") or l.who:match("^(%S+)") or l.who)
+                if chat then chat.note(string.format(tr("Hidden while you build: %s's «%s». Keep yours and it stays hidden; throw yours away and it comes back."), name, l.ns)) end
+            end)
+        end
     end
     --  Where it goes: a region of a monitor, made a creation (or the one
     --  already there, opened again).
     local function chosen(m, x, y, w, h)
         if w < 8 or h < 8 then return end
-        local r = { monitor = m.name, mw = m.w, mh = m.h, x = x, y = y, w = w, h = h, gx = m.x + x, gy = m.y + y }
+        local r = { monitor = m.name, mw = m.w, mh = m.h, x = x, y = y, w = w, h = h, gx = m.x + x, gy = m.y + y, monitor_index = m.index }
         local again = overlapping(r)
         if again then
             local record = load(again)
@@ -852,6 +912,7 @@ scene Creation {
         if not current then return end
         stop_scene()
         if current.app then run("rm", { "-f", desktop_file(current.id) }) end
+        if current.replaces then set_hidden(current.replaces, false) end
         current.kept = false
         current.thrown = true
         local ix = index()
@@ -865,8 +926,31 @@ scene Creation {
     on("build_leave", function()
         if not current then return end
         stop_scene()
+        if current.replaces and not current.kept then set_hidden(current.replaces, false) end
         finish()
     end)
+
+    --  What the ones you kept replaced stays hidden: it comes back with a
+    --  login, or when its program starts again.
+    local function keep_replaced()
+        local who = {}
+        for _, item in ipairs(index().list) do
+            if not item.thrown then
+                local record = load(item.id)
+                if record and record.kept and record.replaces then who[#who + 1] = record.replaces end
+            end
+        end
+        if #who == 0 then return end
+        layers(function(list)
+            for _, l in ipairs(list) do
+                for _, w in ipairs(who) do
+                    if same(l, w) and not l.hidden then run("pleamar-wm", { "agent", "hide", l.id }, function() end, { errors = true }) end
+                end
+            end
+        end)
+    end
+    after(4000, keep_replaced)
+    every(30000, keep_replaced)
 
     --  The ones you kept run with her.
     shared.kept = {}
