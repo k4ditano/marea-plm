@@ -371,5 +371,8 @@ library SpanishLogic {
         "Nothing copied is a picture" = "Lo que has copiado no es una imagen"
         "%d pictures" = "%d imágenes"
         "a picture" = "una imagen"
+        "Made with Marea" = "Hecha con Marea"
+        "Calling it %s" = "Llamándola %s"
+        "run «%s»: only that script, nothing else" = "ejecutar «%s»: solo ese script, nada más"
     }
 }

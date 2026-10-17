@@ -216,6 +216,12 @@ export const BUILDER_TOOLS = [
         parameters: Type.Object({}),
     },
     {
+        name: "creation_name",
+        looks: true,
+        description: "Gives the creation its name: what the user sees at the top of the chat, and an app's name in the finder and the dock. Short, in the user's language («Notas», «Consumo IA»).",
+        parameters: Type.Object({ name: Type.String({ maxLength: 40 }) }),
+    },
+    {
         name: "creation_poke",
         looks: true,
         description: "Uses the creation as the user would, to try it: «press ZONE» (a zone's name), «fact NAME VALUE», «emit EVENT», «get NAME». Answers with what changed (its facts and events). Look after it to see the result; then put it back as it was if the user should not find it changed.",

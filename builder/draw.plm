@@ -1,0 +1,72 @@
+language 0.1
+// Where a piece of the desktop goes: drawn on the screen, before she builds
+// it (logic/builder.luau starts one of these per monitor, with --screen).
+// The screen dims a little; what you draw fills with water and says what it
+// will be. What you made before shows with its name: a click opens it again.
+// Esc leaves. It says what was chosen on its output, and is closed.
+scene Draw {
+    surface { size: full, full; level: overlay; keyboard: exclusive; captures: hidden }
+    permissions { services: "env" }
+    let ink = #e8f4ef
+    let mint = #7fe0c4
+    fact drawing = false
+    fact x0 = 0
+    fact y0 = 0
+    fact x1 = 0
+    fact y1 = 0
+    event picked ->
+    event cancel ->
+    event edit ->
+    model old max 12 { x: number; y: number; w: number; h: number; name: text }
+    prop shown = 0 ~280ms
+    prop t = 0
+    spin t by 0.4
+    every 16ms while shown < 1 { shown: 1 }
+
+    let left = min(x0, x1)
+    let top = min(y0, y1)
+    let dw = abs(x1 - x0)
+    let dh = abs(y1 - y0)
+    let bar = dw >= screen.width * 0.6 and (top <= 16 or top + dh >= screen.height - 16)
+    let dock = not bar and top + dh >= screen.height - 60 and abs(left + dw / 2 - screen.width / 2) < screen.width * 0.12
+
+    //  The screen, dimmed: under it, the desktop as it is.
+    box { from: 0, 0; size: screen.width, screen.height; color: #04100d; opacity: 38% * shown }
+    zone box canvas { from: 0, 0; size: screen.width, screen.height; cursor: crosshair }
+
+    //  What you made before: a dashed outline and its name; a click opens it.
+    component Old(r: record) {
+        prop lit = 0 ~140ms
+        box { from: r.x, r.y; size: r.w, r.h; corner: 8; color: mint; opacity: 8% + 14% * lit }
+        box { from: r.x, r.y; size: r.w, r.h; corner: 8; stroke: 1.5; color: mint; opacity: 55% + 40% * lit }
+        text r.name { at: r.x + 8, r.y - 12; anchor: left center; size: 12; weight: 700; color: mint }
+        zone box pick_old { from: r.x, r.y; size: r.w, r.h; corner: 8; cursor: pointer; active: not drawing }
+        on enter pick_old { lit: 1 }
+        on leave pick_old { lit: 0 }
+        on press pick_old { emit edit(r.index) }
+    }
+    for r in old { Old(r) }
+
+    //  What is being drawn: water filling it, its outline breathing, and
+    //  what it will be.
+    group {
+        show: drawing and dw > 4 and dh > 4
+        box { from: left, top; size: dw, dh; corner: min(14, min(dw, dh) * 0.3); color: #0c1c19; opacity: 70% }
+        box { from: left, top + dh * (0.55 + 0.05 * sin(t * 360)); size: dw, dh * (0.45 - 0.05 * sin(t * 360)); corner: min(14, min(dw, dh) * 0.3); color: mint; opacity: 16% }
+        box { from: left, top; size: dw, dh; corner: min(14, min(dw, dh) * 0.3); stroke: 2; color: mint; opacity: 70% + 25% * sin(t * 360) }
+        text "a bar" { at: left + dw / 2, top + dh / 2 - 9; anchor: center; size: 14; weight: 700; color: ink; show: bar }
+        text "a dock" { at: left + dw / 2, top + dh / 2 - 9; anchor: center; size: 14; weight: 700; color: ink; show: dock }
+        text "a widget or an app" { at: left + dw / 2, top + dh / 2 - 9; anchor: center; size: 14; weight: 700; color: ink; show: not bar and not dock }
+        text "{dw, 0} × {dh, 0}" { at: left + dw / 2, top + dh / 2 + 11; anchor: center; size: 11; color: ink; opacity: 70% }
+    }
+
+    //  What to do, at the top.
+    box { at: screen.width / 2, 44; size: 430, 40; corner: 20; color: #0c1c19; opacity: 88% * shown }
+    text "Draw where it goes · click one of yours to change it · Esc" { at: screen.width / 2, 44; anchor: center; size: 13; color: ink; opacity: shown }
+
+    on press canvas { x0 = pointer.x; y0 = pointer.y; x1 = pointer.x; y1 = pointer.y; drawing = true }
+    on drag canvas { x1 = pointer.x; y1 = pointer.y }
+    on release canvas while drawing and dw > 8 and dh > 8 { emit picked }
+    on release canvas while drawing and (dw <= 8 or dh <= 8) { drawing = false }
+    on key Escape { emit cancel }
+}

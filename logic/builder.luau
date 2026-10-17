@@ -45,6 +45,7 @@ return function(shared)
     local skill = nil        -- pleamar's guide to writing scenes, read once
     local desktop = nil      -- and its guide to the desktop
     local source = ""        -- pleamar's source, where there is one
+    local pleamar_path = "pleamar" -- the program by its whole path, for an app's .desktop
     local chat = nil         -- what the chat lends (see `attach`)
 
     fact["build.on"] = false
@@ -157,12 +158,18 @@ return function(shared)
         local refused, ask, fine = {}, {}, { run = {}, services = {} }
         for _, r in ipairs(runs) do
             if not has(approved.run, r) then
-                local name = r:match("([^/]+)$") or r
+                --  The program is the first word; what follows are the only
+                --  arguments it may start with (pleamar enforces it).
+                local prog = r:match("^(%S+)") or r
+                local scripted = r:find("%s") ~= nil
+                local name = prog:match("([^/]+)$") or prog
                 if DANGER_RUN[name] or name:match("^mkfs") then
                     refused[#refused + 1] = string.format(tr("run «%s», which can %s"), r, tr(DANGER_RUN[name] or "format disks"))
                 --  By its whole path it may be anything with a known name:
                 --  asked, never taken as harmless.
-                elseif r:find("/", 1, true) then
+                elseif INTERPRETERS[name] and scripted then
+                    ask[#ask + 1] = { run = r, words = string.format(tr("run «%s»: only that script, nothing else"), r) }
+                elseif prog:find("/", 1, true) or scripted then
                     ask[#ask + 1] = { run = r, words = string.format(tr("run «%s», a program Marea does not know"), r) }
                 elseif SAFE_RUN[name] then
                     table.insert(fine.run, r)
@@ -314,7 +321,8 @@ return function(shared)
         elseif y + h >= mh - 60 and math.abs(x + w / 2 - mw / 2) < mw * 0.12 then
             return "dock", string.format("surface { size: %d, %d; anchor: bottom; margin: 0, 0, %d, 0; %s; keyboard: none }", w, h, math.max(0, mh - y - h), screens), w, h
         end
-        return "widget", string.format("surface { size: %d, %d; anchor: top_left; margin: %d, 0, 0, %d; %s; keyboard: none }", w, h, y, x, screens), w, h
+        --  On the desktop, under the windows (and under her chat while you build).
+        return "widget", string.format("surface { size: %d, %d; anchor: top_left; margin: %d, 0, 0, %d; level: bottom; %s; keyboard: none }", w, h, y, x, screens), w, h
     end
     --  Where a scene's surface block puts it on its monitor: size, anchor,
     --  margin. nil if it cannot be told (a size from a fact).
@@ -355,6 +363,35 @@ scene Creation {
 ]], name, surface, w, h, tr("Marea is making it…"))
     end
 
+    -- ── apps: a window of its own, in the finder and the dock ──
+    --  A creation whose scene is `kind: window` is an app: kept, it gets a
+    --  .desktop file (its name, its icon.svg, how to open it) and opens from
+    --  the finder, the dock and any launcher instead of starting with her.
+    local function app_id_of(id) return "marea." .. id end
+    local function is_window(content) return tostring(content or ""):match("kind:%s*window") ~= nil end
+    local function shape_words(content)
+        local block = tostring(content or ""):match("surface%s*{(.-)}") or ""
+        return (block:match("kind:%s*(%a+)") or "panel") .. "|" .. (block:match("screens:%s*([^;}]+)") or "") .. "|" .. (block:match("keyboard:%s*([^;}]+)") or "")
+    end
+    local data_home = sys.ask("env", "XDG_DATA_HOME")
+    if data_home == nil or data_home == "" then data_home = home_dir .. "/.local/share" end
+    local APPS = data_home .. "/applications"
+    local function desktop_file(id) return APPS .. "/" .. app_id_of(id) .. ".desktop" end
+    local function install_app(record)
+        local icon = read(record.id, "icon.svg") and path_of(record.id, "icon.svg") or "applications-other"
+        local name = tostring(record.name):gsub("[\r\n]", " ")
+        local entry = table.concat({
+            "[Desktop Entry]", "Type=Application", "Name=" .. name,
+            "Comment=" .. tr("Made with Marea"),
+            "Exec=" .. pleamar_path .. " --scene " .. path_of(record.id, "scene.plm") .. " --no-hud",
+            "Icon=" .. icon, "StartupWMClass=" .. app_id_of(record.id),
+            "Categories=Utility;", "Terminal=false", "",
+        }, "\n")
+        run("sh", { "-c", 'mkdir -p "$(dirname "$0")" && cat > "$0"', desktop_file(record.id) }, function(_, code)
+            log("build · " .. (code == 0 and "installed" or "could not install") .. " the app " .. record.id)
+        end, { input = entry })
+    end
+
     -- ── beginning, and coming back to one ──
     local function context()
         if not current then return nil end
@@ -366,7 +403,7 @@ scene Creation {
         --  Marea's folder (she runs from it) and pleamar's source, if it is here.
         local code = { Marea = sys.ask("env", "PWD") or "" }
         if source ~= "" then code["pleamar (its source, docs and examples)"] = source end
-        return { name = current.name, kind = current.kind, region = current.region, files = files, skill = skill, desktop = desktop, code = code }
+        return { name = current.name, kind = current.kind, region = current.region, files = files, skill = skill, desktop = desktop, code = code, app_id = app_id_of(current.id) }
     end
     local function open(record)
         current = record
@@ -415,6 +452,69 @@ scene Creation {
         log("build · new " .. kind .. " " .. id .. " on " .. r.monitor)
         open(record)
     end
+    --  Where it goes: a region of a monitor, made a creation (or the one
+    --  already there, opened again).
+    local function chosen(m, x, y, w, h)
+        if w < 8 or h < 8 then return end
+        local r = { monitor = m.name, mw = m.w, mh = m.h, x = x, y = y, w = w, h = h, gx = m.x + x, gy = m.y + y }
+        local again = overlapping(r)
+        if again then
+            local record = load(again)
+            if record then stop_kept(again); open(record); return end
+        end
+        create(r)
+    end
+    --  Without her drawing scene: slurp's rectangle, on the whole desktop.
+    local function draw_with_slurp(list)
+        run("slurp", {}, function(sel, code)
+            local x, y, w, h = (sel or ""):match("(%-?%d+),(%-?%d+) (%d+)x(%d+)")
+            if code ~= 0 or x == nil then return end
+            x, y, w, h = tonumber(x), tonumber(y), tonumber(w), tonumber(h)
+            local cx, cy = x + w / 2, y + h / 2
+            local m = list[1]
+            for _, s in ipairs(list) do
+                if cx >= s.x and cx < s.x + s.w and cy >= s.y and cy < s.y + s.h then m = s end
+            end
+            chosen(m, x - m.x, y - m.y, w, h)
+        end)
+    end
+    --  Her drawing scene (builder/draw.plm), one on each monitor: the screen
+    --  dims, what you draw fills with water and says what it will be, and
+    --  what you made before shows with its name, to be opened with a click.
+    --  The first to answer decides; the others are closed.
+    local function draw_on(list)
+        local open_ones = {}
+        local answered = false
+        local function close_all()
+            for _, id in ipairs(open_ones) do pcall(kill, id) end
+            open_ones = {}
+        end
+        for _, m in ipairs(list) do
+            local mine = {}
+            for _, item in ipairs(index().list) do
+                local r = item.region
+                if not item.thrown and r and r.monitor == m.name then
+                    mine[#mine + 1] = string.format("%s|%d|%d|%d|%d|%s", item.id, r.x, r.y, r.w, r.h, (tostring(item.name):gsub("[;|]", " ")))
+                end
+            end
+            local ok, id = pcall(spawn, "pleamar", { "--scene", "builder/draw.plm", "--screen", m.name, "--no-hud" }, function(line)
+                local what, rest = tostring(line):match("BUILD (%a+) ?(.*)$")
+                if not what or answered then return end
+                answered = true
+                close_all()
+                if what == "pick" then
+                    local x, y, w, h = rest:match("(%-?%d+) (%-?%d+) (%d+) (%d+)")
+                    if x then chosen(m, tonumber(x), tonumber(y), tonumber(w), tonumber(h)) end
+                elseif what == "edit" then
+                    local record = load(rest)
+                    if record then stop_kept(rest); open(record) end
+                end
+            end, nil, { errors = true, env = { BUILD_OLD = table.concat(mine, ";") } })
+            if ok then open_ones[#open_ones + 1] = id end
+        end
+        if #open_ones == 0 then draw_with_slurp(list) end
+    end
+
     local function begin()
         if current then if chat then chat.show() end return end
         if not skill then
@@ -429,29 +529,16 @@ scene Creation {
             run("sh", { "-c", 'd=$(dirname "$(readlink -f "$(command -v pleamar)")"); for c in "$d/../.." "$HOME/.local/share/pleamar/src/pleamar"; do [ -f "$c/Cargo.toml" ] && { readlink -f "$c"; exit 0; }; done' }, function(out)
                 source = tostring(out or ""):gsub("%s+$", "")
             end)
+            run("sh", { "-c", "command -v pleamar" }, function(out)
+                local p = tostring(out or ""):gsub("%s+$", "")
+                if p ~= "" then pleamar_path = p end
+            end)
         end
         --  A breather so whatever was open (the finder) is gone from the screen.
         after(250, function()
-            run("slurp", {}, function(sel, code)
-                local x, y, w, h = (sel or ""):match("(%-?%d+),(%-?%d+) (%d+)x(%d+)")
-                if code ~= 0 or x == nil then return end
-                x, y, w, h = tonumber(x), tonumber(y), tonumber(w), tonumber(h)
-                if w < 8 or h < 8 then return end
-                monitors(function(list)
-                    local cx, cy = x + w / 2, y + h / 2
-                    local m = list[1]
-                    for _, s in ipairs(list) do
-                        if cx >= s.x and cx < s.x + s.w and cy >= s.y and cy < s.y + s.h then m = s end
-                    end
-                    if not m then log("build · no monitor"); return end
-                    local r = { monitor = m.name, mw = m.w, mh = m.h, x = x - m.x, y = y - m.y, w = w, h = h, gx = x, gy = y }
-                    local again = overlapping(r)
-                    if again then
-                        local record = load(again)
-                        if record then stop_kept(again); open(record); return end
-                    end
-                    create(r)
-                end)
+            monitors(function(list)
+                if #list == 0 then log("build · no monitor"); return end
+                draw_on(list)
             end)
         end)
     end
@@ -459,18 +546,18 @@ scene Creation {
     hooks.build = begin
 
     -- ── the tools she has while building ──
-    local OWN = { creation_read = 1, creation_write = 1, creation_check = 1, creation_look = 1, creation_poke = 1, pleamar_docs = 1, system_run = 1, system_read = 1 }
+    local OWN = { creation_read = 1, creation_write = 1, creation_check = 1, creation_look = 1, creation_poke = 1, creation_name = 1, pleamar_docs = 1, system_run = 1, system_read = 1 }
     local WORDS = {
         creation_read = "Reading %s", creation_write = "Writing %s", creation_check = "Checking it",
         creation_look = "Looking at it", pleamar_docs = "Reading pleamar's %s",
-        system_run = "Running %s", system_read = "Reading %s", creation_poke = "Trying it: %s",
+        system_run = "Running %s", system_read = "Reading %s", creation_poke = "Trying it: %s", creation_name = "Calling it %s",
     }
     local api = {}
     function api.owns(tool) return OWN[tool] ~= nil end
     function api.active() return current ~= nil end
     function api.context() return context() end
     function api.said(tool, args)
-        return string.format(tr(WORDS[tool] or tool), tostring(args.file or args.topic or args.program or args.path or args.order or ""))
+        return string.format(tr(WORDS[tool] or tool), tostring(args.file or args.topic or args.program or args.path or args.order or args.name or ""))
     end
     --  Before it is done: nil to do it now, { ask = …, detail = … } for a card,
     --  { refuse = for the model, note = for you }.
@@ -523,12 +610,17 @@ scene Creation {
                 local _, ask, fine = judge(content)
                 approve(args._ask or ask, fine)
             end
+            --  Another kind of surface, other monitors or another keyboard are
+            --  only taken when the scene starts again: it does.
+            local restart = file == "scene.plm" and shape_words(read(id, "scene.plm")) ~= shape_words(content)
             --  The version before, kept: «Undo» puts it back.
             local n = #current.versions + 1
             pcall(sys.call, "files.write", where(id) .. "/versions/" .. n .. "-" .. file, content)
             table.insert(current.versions, { n = n, file = file, why = tostring(args.why or ""), at = os.time() })
             pcall(sys.call, "files.write", where(id) .. "/" .. disk(id, file), content)
+            if file == "scene.plm" then current.app = is_window(content) end
             record_save()
+            if restart then stop_scene() end
             start_scene()
             if file:match("%.plm$") or file:match("%.luau$") then
                 said = {}
@@ -542,6 +634,30 @@ scene Creation {
             else
                 done(true, "Written.")
             end
+        elseif tool == "creation_look" and current.app then
+            --  An app is a window wherever the desktop put it: found by its title.
+            local title = tostring(read(id, "scene.plm") or ""):match('title:%s*"([^"]*)"') or ""
+            local dest = STATE .. "/build-look.png"
+            run("pleamar-wm", { "agent", "windows" }, function(out, code)
+                local pid = nil
+                for line in tostring(out or ""):gmatch("[^\n]+") do
+                    if title ~= "" and line:find("«" .. title .. "»", 1, true) then pid = line:match("^%s*([%d%.]+)") end
+                end
+                if code ~= 0 or not pid then done(false, "Its window is not on the screen (or this desktop cannot show one): is it kind: window with a title?") return end
+                run("pleamar-wm", { "agent", "look", pid, dest }, function(o2, c2)
+                    done(c2 == 0, c2 == 0 and "The app's window as it is now." or tostring(o2), c2 == 0 and { image = { path = "/state/build-look.png" } } or nil)
+                end, { errors = true })
+            end, { errors = true })
+        elseif tool == "creation_name" then
+            local name = tostring(args.name or ""):gsub("[\r\n]", " "):sub(1, 40)
+            if name == "" then done(false, "A name, please.") return end
+            current.name = name
+            text["build.name"] = name
+            local ix = index()
+            for _, item in ipairs(ix.list) do if item.id == id then item.name = name end end
+            index_save(ix)
+            record_save()
+            done(true, "Called «" .. name .. "» now.")
         elseif tool == "creation_look" then
             local r = current.region
             local m = 24
@@ -714,6 +830,15 @@ scene Creation {
     on("build_keep", function()
         if not current then return end
         current.kept = true
+        if current.app then
+            --  An app: in the finder and the dock from now on; its window
+            --  stays open, and it opens from there next time.
+            install_app(current)
+            scene_id = nil
+            log("build · kept the app " .. current.id)
+            finish()
+            return
+        end
         --  It goes on running, now as one of hers: she starts it with her.
         if scene_id then
             shared.kept = shared.kept or {}
@@ -726,6 +851,7 @@ scene Creation {
     on("build_discard", function()
         if not current then return end
         stop_scene()
+        if current.app then run("rm", { "-f", desktop_file(current.id) }) end
         current.kept = false
         current.thrown = true
         local ix = index()
@@ -747,7 +873,7 @@ scene Creation {
     for _, item in ipairs(index().list) do
         if not item.thrown then
             local record = load(item.id)
-            if record and record.kept then
+            if record and record.kept and not record.app then
                 local ok, id = pcall(spawn, "pleamar", { "--scene", path_of(item.id, "scene.plm"), "--no-hud" }, function(line)
                     log("build · " .. item.id .. " · " .. tostring(line))
                 end, function() shared.kept[item.id] = nil end, { errors = true })
