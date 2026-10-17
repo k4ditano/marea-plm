@@ -481,12 +481,15 @@ scene Creation {
         if source ~= "" then code["pleamar (its source, docs and examples)"] = source end
         return { name = current.name, kind = current.kind, region = current.region, files = files, skill = skill, desktop = desktop, code = code, app_id = app_id_of(current.id) }
     end
+    local review   -- (below): what a creation from someone else asks for, on a card
+    local import   -- (below): a .marea.tar.gz dropped on her chat
     local function open(record)
         current = record
         fact["build.on"] = true
         text["build.name"] = record.name
-        start_scene()
         if chat then chat.begin(record.history or {}, record.rows or {}) end
+        --  One from someone else does not run until you allow what it asks for.
+        if record.pending then review(record) else start_scene() end
     end
     --  A drawing that falls mostly on a creation already there edits it.
     local function overlapping(r)
@@ -840,7 +843,12 @@ scene Creation {
     on("drop:build_drop", function(data, mime)
         for line in tostring(data or ""):gmatch("[^\r\n]+") do
             local item = line:gsub("^%s+", ""):gsub("%s+$", "")
-            if item:match("^file://") or item:sub(1, 1) == "/" then
+            local file = item:match("^file://") and from_uri(item) or (item:sub(1, 1) == "/" and item or nil)
+            if file and file:match("%.marea%.tar%.gz$") then
+                if not current then import(file) end
+            elseif not current then
+                --  Pictures are for what is being built.
+            elseif item:match("^file://") or item:sub(1, 1) == "/" then
                 take_picture(item:match("^file://") and from_uri(item) or item)
             elseif item:match("^https?://") then
                 --  A picture from a browser: fetched first, then made a PNG.
@@ -1005,6 +1013,157 @@ scene Creation {
             end
         end
     end
+
+    -- ── one from someone else (a .marea.tar.gz dropped on her chat) ──
+    review = function(record)
+        local content = read(record.id, "scene.plm") or ""
+        local refused, ask, fine = judge(content)
+        local function go()
+            approve(ask, fine)
+            record.pending = nil
+            record_save()
+            start_scene()
+            if chat then chat.note(string.format(tr("«%s» is running. Ask me to change anything in it."), record.name)) end
+        end
+        if #refused > 0 then
+            if chat then chat.note(tr("It does not run: it asks to ") .. table.concat(refused, "; ") .. ". " .. tr("Ask me to take that out.")) end
+            return
+        end
+        if #ask == 0 then go() return end
+        local lines = {}
+        for _, a in ipairs(ask) do lines[#lines + 1] = "· " .. a.words end
+        if chat then
+            chat.card(string.format(tr("«%s» comes from someone else, and wants to:"), record.name) .. "\n" .. table.concat(lines, "\n"), tr("Before it runs"), function(yes)
+                if yes then go() elseif chat then chat.note(tr("It stays as it is, not running. Ask me to change what it asks for.")) end
+            end)
+        end
+    end
+    import = function(path)
+        monitors(function(list)
+            local m = list[1]
+            if not m then return end
+            local id = "c" .. os.date("%Y%m%d%H%M%S")
+            local tmp = STATE .. "/import/" .. id
+            local dest = FOLDER .. "/" .. where(id)
+            --  Unpacked apart; anything that is not a plain file (a link that
+            --  could point at your things) refuses it.
+            run("sh", { "-c", 'rm -rf "$0" && mkdir -p "$0" && tar xzf "$1" -C "$0" --no-same-owner --no-same-permissions && [ -f "$0/creation/scene.plm" ] && [ -z "$(find "$0" ! -type f ! -type d)" ] && mkdir -p "$2" && cp "$0/creation/scene.plm" "$2/$3.plm" && { [ -f "$0/creation/scene.luau" ] && cp "$0/creation/scene.luau" "$2/$3.luau"; [ -f "$0/creation/icon.svg" ] && cp "$0/creation/icon.svg" "$2/"; true; } && cat "$0/creation/manifest.json" 2>/dev/null; rc=$?; rm -rf "$0"; exit $rc',
+                        tmp, path, dest, id }, function(out, code)
+                if code ~= 0 then
+                    if chat then chat.note(tr("That file is not a creation she can open.")) end
+                    return
+                end
+                local ok, manifest = pcall(json.decode, tostring(out or ""))
+                manifest = (ok and type(manifest) == "table") and manifest or {}
+                local name = tostring(manifest.name or "Shared"):gsub("[%c]", ""):sub(1, 40)
+                local w = math.max(40, math.min(m.w, tonumber(manifest.size and manifest.size.w) or 320))
+                local h = math.max(30, math.min(m.h, tonumber(manifest.size and manifest.size.h) or 200))
+                --  Its monitor is the one it was made on, someone else's: yours now.
+                local scene = read(id, "scene.plm") or ""
+                scene = scene:gsub('screens:%s*"[^"]*"', 'screens: "' .. m.name .. '"')
+                pcall(sys.call, "files.write", where(id) .. "/" .. disk(id, "scene.plm"), scene)
+                local r = { monitor = m.name, mw = m.w, mh = m.h, x = math.floor((m.w - w) / 2), y = math.floor((m.h - h) / 2), w = w, h = h, gx = m.x + math.floor((m.w - w) / 2), gy = m.y + math.floor((m.h - h) / 2), monitor_index = m.index }
+                local record = { id = id, name = name, kind = tostring(manifest.kind or "widget"), app = manifest.app == true or is_window(scene), region = r, made = os.time(),
+                                 approved = { run = {}, services = {} }, versions = {}, history = {}, rows = {}, kept = false, pending = true, from = "shared" }
+                pcall(sys.call, "files.write", where(id) .. "/creation.json", record)
+                local ix = index()
+                table.insert(ix.list, { id = id, name = name, kind = record.kind, region = r })
+                index_save(ix)
+                log("build · imported " .. id .. " (" .. name .. ")")
+                if current == nil and not fact["build.on"] then open(record) end
+            end, { errors = true })
+        end)
+    end
+
+    on("build_import", function()
+        local path = tostring(text["build.import_path"] or "")
+        if path:match("%.marea%.tar%.gz$") and not current then import(path) end
+    end)
+
+    -- ── what you built: the list, open again, share, delete ──
+    local shelf = {}          -- the list's rows, in order: creation ids
+    local sure_id, sure_timer = nil, nil
+    local KIND_WORDS = { bar = "A bar", dock = "A dock", widget = "A widget" }
+    local function show_list()
+        local out = {}
+        shelf = {}
+        for _, item in ipairs(index().list) do
+            if not item.thrown then
+                local record = load(item.id) or {}
+                local what = record.app and tr("An app") or tr(KIND_WORDS[item.kind] or "A widget")
+                what = what .. " · " .. (record.kept and tr("kept") or tr("not kept"))
+                out[#out + 1] = { name = tostring(record.name or item.name or item.id), what = what, kept = record.kept and 1 or 0, sure = item.id == sure_id and 1 or 0 }
+                shelf[#shelf + 1] = item.id
+            end
+        end
+        model["build.list"] = out
+    end
+    on("fact:section", function(v) if v == "creations" then show_list() end end)
+    table.insert(hooks.language, show_list)
+    on("build_edit", function(i)
+        local id = shelf[(tonumber(i) or -1) + 1]
+        local record = id and load(id)
+        if not record or current then return end
+        fact.page = "none"
+        fact.open = false
+        stop_kept(id)
+        open(record)
+    end)
+    on("build_remove", function(i)
+        local id = shelf[(tonumber(i) or -1) + 1]
+        if not id then return end
+        --  Pressed once, it asks to be sure; again within four seconds, it goes.
+        if sure_id ~= id then
+            sure_id = id
+            if sure_timer then cancel(sure_timer) end
+            sure_timer = after(4000, function() sure_timer = nil; sure_id = nil; show_list() end)
+            show_list()
+            return
+        end
+        if sure_timer then cancel(sure_timer); sure_timer = nil end
+        sure_id = nil
+        local record = load(id)
+        stop_kept(id)
+        if record then
+            if record.app then run("rm", { "-f", desktop_file(id) }) end
+            if record.replaces then set_hidden(record.replaces, false) end
+            if record.keys then unbind_keys(id) end
+            record.kept = false
+            record.thrown = true
+            pcall(sys.call, "files.write", where(id) .. "/creation.json", record)
+        end
+        --  Its folder stays, out of the list: nothing of yours is lost by a
+        --  slip of the finger.
+        local ix = index()
+        for _, item in ipairs(ix.list) do if item.id == id then item.thrown = true end end
+        index_save(ix)
+        log("build · deleted " .. id)
+        show_list()
+    end)
+    --  Shared: its scene, its logic and its icon, with what it is and how big,
+    --  in a file to give anyone (#share-you-creation). Never its
+    --  conversation, which is yours.
+    on("build_share", function(i)
+        local id = shelf[(tonumber(i) or -1) + 1]
+        local record = id and load(id)
+        if not record then return end
+        local name = tostring(record.name):gsub("[^%w%-_ ]", ""):gsub("%s+", "-")
+        if name == "" then name = id end
+        local manifest = { name = record.name, kind = record.kind, app = record.app == true,
+                           size = { w = record.region and record.region.w or 0, h = record.region and record.region.h or 0 },
+                           made_with = "Marea · Build something" }
+        local stage = STATE .. "/share/" .. id
+        run("xdg-user-dir", { "DOWNLOAD" }, function(dir)
+            dir = tostring(dir or ""):gsub("%s+$", "")
+            if dir == "" then dir = home_dir end
+            local dest = dir .. "/" .. name .. ".marea.tar.gz"
+            run("sh", { "-c", 'rm -rf "$0" && mkdir -p "$0/creation" && cp "$1/$2.plm" "$0/creation/scene.plm" && { [ -f "$1/$2.luau" ] && cp "$1/$2.luau" "$0/creation/scene.luau"; [ -f "$1/icon.svg" ] && cp "$1/icon.svg" "$0/creation/"; true; } && cat > "$0/creation/manifest.json" && tar czf "$3" -C "$0" creation && rm -rf "$0"',
+                        stage, FOLDER .. "/" .. where(id), id, dest }, function(out, code)
+                text["build.shared"] = code == 0 and string.format(tr("Shared as %s: give it to anyone, or post it in #share-you-creation."), dest) or (tr("Could not share it: ") .. tostring(out))
+                after(12000, function() text["build.shared"] = "" end)
+            end, { errors = true, input = json.encode(manifest) })
+        end)
+    end)
 
     --  The chat lends what it needs to hold the builder's conversation:
     --  begin(history, rows), finish() → rows, history, note(text), show().

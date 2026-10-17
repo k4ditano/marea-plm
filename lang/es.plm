@@ -340,5 +340,9 @@ library SpanishUi {
         "Keep it" = "Quedármela"
         "A piece of the screen as a reference" = "Un trozo de la pantalla como referencia"
         "Paste a picture" = "Pegar una imagen"
+        "What you built" = "Lo que has construido"
+        "Delete it (press twice)" = "Borrarla (pulsa dos veces)"
+        "Made with her in «Build something». Open one again to keep improving it." = "Hechas con ella en «Construir algo». Ábrela otra vez para seguir mejorándola."
+        "Nothing yet: «Build something», in her finder." = "Nada todavía: «Construir algo», en su buscador."
     }
 }

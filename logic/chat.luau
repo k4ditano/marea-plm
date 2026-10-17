@@ -1201,6 +1201,15 @@ return function(shared)
         local first = math.max(1, #rows - ROWS + 1)
         local row = first + (i or 0)
         for id, a in pairs(asks) do
+            if a.row == row and a.tool == "__local" then
+                --  A card of Marea's own (not her engine's): what to do is hers.
+                asks[id] = nil
+                rows[row].state = yes and 3 or 2
+                paint()
+                if next(asks) == nil then fact["chat.state"] = "idle"; status("") end
+                a.then_(yes)
+                return
+            end
             if a.row == row then
                 asks[id] = nil
                 if yes then
@@ -1308,6 +1317,14 @@ return function(shared)
                 return r, h
             end,
             note = function(words) add(3, words, "", 1) end,
+            --  A card that asks you something of Marea's own: then_(yes).
+            card = function(body, detail, then_)
+                local row = add(4, body, detail, 0)
+                asks["local-" .. row] = { row = row, tool = "__local", args = {}, then_ = then_ }
+                fact["chat.state"] = "awaiting"
+                status(tr("Waiting for you"))
+                fact.chatting = true
+            end,
             show = function() fact.chatting = true; paint() end,
         })
     end

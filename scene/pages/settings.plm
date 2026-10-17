@@ -408,6 +408,50 @@ part Settings {
                 on press keys_row { emit to_keys }
             }
 
+            // ── what you built with her ──
+            //  Every creation of «Build something»: open it again to keep
+            //  improving it, share it (a file to give anyone), or delete it.
+            page creations "What you built" {
+                text "Made with her in «Build something». Open one again to keep improving it." { at: card.x - 228, card.top + 116; anchor: left center; size: 12; color: st.faint; width: 456; lines: 1 }
+                component CreationRow(r: record, edit: event, share: event, gone: event) {
+                    size: 456, 58
+                    prop glow = 0 ~140ms
+                    prop edit.glow = 0 ~140ms
+                    prop share.glow = 0 ~140ms
+                    prop gone.glow = 0 ~140ms
+                    box { from: 0, 0; size: 456, 58; corner: 14; color: mix(#202021, #262728, glow) }
+                    ellipse { at: 18, 29; radius: 4; color: mix(#8b8f95, mint, r.kept) }
+                    text r.name { at: 32, 21; anchor: left center; size: 13.5; weight: 700; color: ink; width: 230; lines: 1 }
+                    text r.what { at: 32, 40; anchor: left center; size: 10.5; color: st.faint; width: 230; lines: 1 }
+                    box { at: 312, 29; size: 58, 28; corner: 9; color: mix(#2a2b2c, #3d6b5c, edit.glow) }
+                    text "Open" { at: 312, 29; anchor: center; size: 11; weight: 600; color: ink }
+                    box { at: 376, 29; size: 58, 28; corner: 9; color: mix(#2a2b2c, #3a4a5c, share.glow) }
+                    text "Share" { at: 376, 29; anchor: center; size: 11; weight: 600; color: ink }
+                    box { at: 432, 29; size: 36, 28; corner: 9; color: mix(#2a2b2c, #6b3a32, max(gone.glow, r.sure)) }
+                    text "×" { at: 432, 28; anchor: center; size: 15; weight: 700; color: mix(ink, #ef7a66, r.sure) }
+                    zone box edit_zone { at: 312, 29; size: 58, 28; corner: 9; cursor: pointer }
+                    zone box share_zone { at: 376, 29; size: 58, 28; corner: 9; cursor: pointer }
+                    zone box gone_zone { at: 432, 29; size: 36, 28; corner: 9; cursor: pointer; label: "Delete it (press twice)" }
+                    on enter edit_zone { edit.glow: 1; glow: 1 }
+                    on leave edit_zone { edit.glow: 0; glow: 0 }
+                    on enter share_zone { share.glow: 1; glow: 1 }
+                    on leave share_zone { share.glow: 0; glow: 0 }
+                    on enter gone_zone { gone.glow: 1 }
+                    on leave gone_zone { gone.glow: 0 }
+                    on press edit_zone { emit edit(r.index) }
+                    on press share_zone { emit share(r.index) }
+                    on press gone_zone { emit gone(r.index) }
+                }
+                column creations_list ~quick {
+                    at: card.x - 228, card.top + 136
+                    view: 456, 300
+                    gap: 6
+                    for r in build.list { CreationRow(r, edit: build_edit, share: build_share, gone: build_remove) }
+                }
+                text "Nothing yet: «Build something», in her finder." { at: card.x - 228, card.top + 152; anchor: left center; size: 11.5; color: st.faint; show: build.list.count < 1 }
+                text build.shared { at: card.x - 228, card.top + 462; anchor: left center; size: 10.5; color: mint; width: 456; lines: 2 }
+            }
+
             // ── the passwords for her tasks ──
             //  For a page the browser has no saved password for. Each
             //  by a name she knows; the password itself goes to your

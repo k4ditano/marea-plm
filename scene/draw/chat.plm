@@ -219,7 +219,7 @@ part Chat {
         //  What you write. Enter sends; while she works, Stop. Building, it
         //  also takes pictures: dropped on it, a piece of the screen, or pasted.
         //  Under the rest: a drop goes to it wherever nothing else is.
-        zone box build_drop { from: kx0, ky0 + 496; size: 556, 44; corner: 14; active: chatting and build.on }
+        zone box build_drop { from: kx0, ky0 + 496; size: 556, 44; corner: 14; active: chatting }
         let refs_w = build.refs.count * 36
         box { from: kx0, ky0 + 496; size: 556, 44; corner: 14; color: #141415 }
         box { from: kx0, ky0 + 496; size: 556, 44; corner: 14; stroke: 1 + drag.over * build.on; color: mint; opacity: 18% + 50% * drag.over * build.on }

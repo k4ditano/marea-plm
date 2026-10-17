@@ -35,6 +35,19 @@ part Chat {
     event build_ref_paste ->           // the picture you copied
     event build_ref_remove ->          // `emit build_ref_remove(1)`: the second one, out
     text build.hint = ""               // what she says of a picture that could not be taken
+    //  What you built with her (Settings › What you built): each with what
+    //  it is and whether it is kept; open it again, share it, or delete it
+    //  (pressed twice: the first asks to be sure).
+    model build.list max 24 { name: text; what: text; kept: number; sure: number }
+    event build_edit ->
+    event build_share ->
+    event build_remove ->
+    text build.shared = ""             // where the last one shared was left
+    //  A creation someone shared, from outside: `pleamar --say marea
+    //  "text build.import_path /path/x.marea.tar.gz" "emit build_import"`
+    //  (dropping the file on her chat does the same).
+    text build.import_path = ""
+    event build_import ->
     text chat.input = ""
     event chat_send ->
     event chat_stop ->

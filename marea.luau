@@ -138,6 +138,8 @@ local OWN = {
     { "Sleep", "sleep dormir siesta nap", 1, function() emit("sleep") end },
     { "Build something", "build construir crear create make hacer diseñar disenar design barra bar dock widget panel app aplicacion aplicación escritorio desktop shell personalizar customize moldear arrecife", 2,
       function() if hooks.build then hooks.build() end end },
+    { "What you built", "creations creaciones built construido construidas mis my widgets apps compartir share importar import arrecife", 2,
+      open_page("settings", "creations") },
     { "Screenshot of a region", "screenshot captura region región recorte shot", 1, function() emit("shot_region") end },
     { "Screenshot of the screen", "screenshot captura pantalla screen shot", 1, function() emit("shot_screen") end },
     { "Screenshot of a window", "screenshot captura ventana window shot", 1, function() emit("shot_window") end },
