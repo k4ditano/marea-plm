@@ -1,7 +1,7 @@
 # Building the desktop by asking: plan
 
-Working name: **Arrecife** (a reef: it grows in place, live). Status: phase 1 prototype working
-in the headless test copy, 2026-10-17 (see «Prototype» at the end); not in the live Marea yet.
+Working name: **Arrecife** (a reef: it grows in place, live). Status, 2026-10-18: phases 1–4 and
+most of 6 are built and in Marea (see «Where it stands» at the end); phase 5 is designed.
 
 ## The idea
 
@@ -230,6 +230,42 @@ The system prompt holds the skill, the region, the kind and the rules:
   user's Codex account.
 - The shortcut (Super+Shift+B?) and the name in the finder.
 - Whether creations are pleamar's (`~/.config/pleamar/creations`, usable without Marea) or Marea's.
+
+## Where it stands, 2026-10-18
+
+| Phase | State |
+|---|---|
+| 1 · Shells | done: drawing, live building, versions, undo, keep, throw away, the chat's head |
+| 2 · Apps | done: `kind: window` + `app_id:` (pleamar), creation_name, icon.svg, a .desktop file when kept, its window looked at by its title |
+| 3 · Replacing what is there | done: `pleamar-wm agent layers/hide/show`; what you draw over is hidden while you build, stays hidden when kept, comes back when thrown away. Part switches inside pleamar-wm's own scene and Marea: not yet |
+| 4 · Safety in the engine | done another way: a command can be declared with its first arguments (`run: "node usage.js"`), which pleamar enforces; plus the fixed rules and cards in Marea, and «asked even to read» for secrets. A guard asked at run time is not needed for what the rules cannot already see |
+| 5 · The wm's own scene | designed, not built (below) |
+| 6 · Polish and sharing | done: her drawing scene on every monitor, the kind said as you draw, reference pictures (drop, capture, paste), What you built (open, share, delete), creations from others that run only once allowed, a key of its own (keys.conf). The water animation while she thinks is the placeholder's |
+
+Freedom: she reads and runs on the computer like a developer (`system_run`, `system_read`), sees
+her creation's log, tries it (`creation_poke`), and the strongest model builds.
+
+### Phase 5, designed
+
+pleamar-wm's scene is about 12 000 lines, generated per monitor, and a broken one stops the
+session at login. Building on it means one of two things.
+
+- **Live, without editing the scene.** Its look becomes facts: gaps, corner radius, border width,
+  the accent's strength, the title bar's height, the open and close motion. They are set with
+  `pleamar --say wm "fact style.gap 20"` and kept in session.conf. A creation of kind «windows»
+  sets them on cards, previews them at once, and keeps them. Lets like `gap` and `tb` become
+  `style.*` facts; colours need a palette of a few facts mixed (`mix`), since a fact is a number.
+- **Editing the scene.** Only in a nested session first (`pleamar-wm nested`), never applied
+  before it has run there for a while; the old scene kept to go back to at the login screen.
+
+### Next
+
+- Release pleamar 0.4.19 (app_id, commands with arguments) and pleamar-wm 0.4.4 (agent
+  layers/hide/show), announced.
+- Part switches in Marea and the wm scene: a creation replaces only her bar, or only the dock.
+- Phase 5, live first.
+- A creation's permissions checked again when it starts, if its files were edited by hand.
+- The model's design taste: a short gallery of good scenes in its context, made with pleamar.
 
 ## Prototype (phase 1), 2026-10-17
 
