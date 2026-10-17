@@ -1186,13 +1186,16 @@ return function(shared)
         local state = fact["chat.state"]
         if state == "thinking" or state == "acting" or state == "awaiting" or state == "starting" then return end
         text["chat.input"] = ""
-        add(1, words)
+        --  Building: the pictures you gave her go with it.
+        local images, pictures = nil, ""
+        if builder and builder.active() then images, pictures = builder.take_refs() end
+        add(1, pictures ~= "" and (words .. "\n📎 " .. pictures) or words)
         history[#history + 1] = { role = "user", text = words }
         stop_idle()
         start_worker()
         fact["chat.state"] = "thinking"
         status(tr("Thinking…"))
-        send({ type = "prompt", text = words, now = os.date("%Y-%m-%d %H:%M, %A"), free = fact["chat.free"] == true, secrets = secrets })
+        send({ type = "prompt", text = words, now = os.date("%Y-%m-%d %H:%M, %A"), free = fact["chat.free"] == true, secrets = secrets, images = images })
     end)
     local function decide(i, yes)
         local first = math.max(1, #rows - ROWS + 1)

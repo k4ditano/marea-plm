@@ -338,5 +338,7 @@ library SpanishUi {
         "BUILDING" = "CONSTRUYENDO"
         "Throw away" = "Tirar"
         "Keep it" = "Quedármela"
+        "A piece of the screen as a reference" = "Un trozo de la pantalla como referencia"
+        "Paste a picture" = "Pegar una imagen"
     }
 }

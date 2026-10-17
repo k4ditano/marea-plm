@@ -588,6 +588,97 @@ scene Creation {
         end
     end
 
+    -- ── pictures to show her what you mean ──
+    --  Dropped on where you write (a file, or a picture from a browser), a
+    --  piece of the screen, or what you copied: made a PNG no bigger than
+    --  the model takes, in her engine's folder, and sent with your next
+    --  message. Four at most.
+    local refs, ref_n = {}, 0
+    local function show_refs()
+        local out = {}
+        for k, r in ipairs(refs) do out[k] = { pic = r.local_path } end
+        model["build.refs"] = out
+    end
+    local function hint(words)
+        text["build.hint"] = words or ""
+        if words then after(4000, function() text["build.hint"] = "" end) end
+    end
+    local function take_picture(source, done_ok)
+        if #refs >= 4 then hint(tr("Four pictures at most")) return end
+        ref_n += 1
+        local name = string.format("ref-%d-%d.png", os.time(), ref_n)
+        local dest = STATE .. "/refs/" .. name
+        run("mkdir", { "-p", STATE .. "/refs" }, function()
+            run("magick", { source .. "[0]", "-resize", "1568x1568>", dest }, function(out, code)
+                if code ~= 0 then hint(tr("That is not a picture she can read")) return end
+                refs[#refs + 1] = { local_path = dest, path = "/state/refs/" .. name }
+                show_refs()
+                if done_ok then done_ok() end
+            end, { errors = true })
+        end)
+    end
+    --  A file's address as a path: file:///home/x/a%20b.png → /home/x/a b.png
+    local function from_uri(u)
+        local p = u:gsub("^file://[^/]*", "")
+        return (p:gsub("%%(%x%x)", function(h) return string.char(tonumber(h, 16)) end))
+    end
+    on("drop:build_drop", function(data, mime)
+        for line in tostring(data or ""):gmatch("[^\r\n]+") do
+            local item = line:gsub("^%s+", ""):gsub("%s+$", "")
+            if item:match("^file://") or item:sub(1, 1) == "/" then
+                take_picture(item:match("^file://") and from_uri(item) or item)
+            elseif item:match("^https?://") then
+                --  A picture from a browser: fetched first, then made a PNG.
+                local tmp = STATE .. "/refs/fetch-" .. os.time() .. ".bin"
+                run("mkdir", { "-p", STATE .. "/refs" }, function()
+                    run("curl", { "-sSL", "--max-time", "20", "--max-filesize", "20000000", "-o", tmp, item }, function(_, code)
+                        if code == 0 then take_picture(tmp, function() run("rm", { "-f", tmp }) end) else hint(tr("That is not a picture she can read")) end
+                    end)
+                end)
+            end
+        end
+    end)
+    on("build_ref_capture", function()
+        if not current then return end
+        --  Her panel steps aside while you choose.
+        fact.chatting = false
+        after(250, function()
+            run("slurp", {}, function(sel, code)
+                fact.chatting = true
+                local x, y, w, h = (sel or ""):match("(%-?%d+),(%-?%d+) (%d+)x(%d+)")
+                if code ~= 0 or not x then return end
+                local tmp = STATE .. "/refs/shot-" .. os.time() .. ".png"
+                run("mkdir", { "-p", STATE .. "/refs" }, function()
+                    run("grim", { "-g", string.format("%s,%s %sx%s", x, y, w, h), tmp }, function(_, c2)
+                        if c2 == 0 then take_picture(tmp, function() run("rm", { "-f", tmp }) end) end
+                    end)
+                end)
+            end)
+        end)
+    end)
+    on("build_ref_paste", function()
+        local tmp = STATE .. "/refs/paste-" .. os.time() .. ".png"
+        run("mkdir", { "-p", STATE .. "/refs" }, function()
+            run("sh", { "-c", 'wl-paste --type image/png > "$0" 2>/dev/null || wl-paste --type image/jpeg > "$0" 2>/dev/null', tmp }, function(_, code)
+                if code == 0 then take_picture(tmp, function() run("rm", { "-f", tmp }) end) else hint(tr("Nothing copied is a picture")) end
+            end)
+        end)
+    end)
+    on("build_ref_remove", function(i)
+        local k = (tonumber(i) or -1) + 1
+        if refs[k] then table.remove(refs, k); show_refs() end
+    end)
+    --  For the message being sent: its pictures, and the chips emptied.
+    function api.take_refs()
+        if #refs == 0 then return nil, "" end
+        local images = {}
+        for k, r in ipairs(refs) do images[k] = { path = r.path } end
+        local words = #refs == 1 and tr("a picture") or string.format(tr("%d pictures"), #refs)
+        refs = {}
+        show_refs()
+        return images, words
+    end
+
     -- ── undo, keep, throw away ──
     on("build_undo", function()
         if not current or #current.versions == 0 then return end
@@ -609,6 +700,8 @@ scene Creation {
         if chat then chat.note(string.format(tr("Undone: %s"), last.why ~= "" and last.why or last.file)) end
     end)
     local function finish()
+        refs = {}
+        show_refs()
         if chat then
             local rows, history = chat.finish()
             current.rows, current.history = rows, history

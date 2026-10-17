@@ -28,6 +28,13 @@ part Chat {
     event build_keep ->                // kept: it runs with her from now on
     event build_discard ->             // thrown away
     event build_leave ->               // left as it is, to carry on another time
+    //  Pictures to show her what you mean (dropped on where you write, a
+    //  piece of the screen, or pasted): they go with your next message.
+    model build.refs max 4 { pic: image 30, 30 }
+    event build_ref_capture ->         // a piece of the screen, as a reference
+    event build_ref_paste ->           // the picture you copied
+    event build_ref_remove ->          // `emit build_ref_remove(1)`: the second one, out
+    text build.hint = ""               // what she says of a picture that could not be taken
     text chat.input = ""
     event chat_send ->
     event chat_stop ->

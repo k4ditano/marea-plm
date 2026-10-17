@@ -366,5 +366,10 @@ library SpanishLogic {
         "Running %s" = "Ejecutando %s"
         "Marea did not let it run «%s», which can %s." = "Marea no le ha dejado ejecutar «%s», que puede %s."
         "Trying it: %s" = "Probándola: %s"
+        "That is not a picture she can read" = "Eso no es una imagen que pueda leer"
+        "Four pictures at most" = "Cuatro imágenes como mucho"
+        "Nothing copied is a picture" = "Lo que has copiado no es una imagen"
+        "%d pictures" = "%d imágenes"
+        "a picture" = "una imagen"
     }
 }

@@ -83,6 +83,21 @@ part Chat {
         on press deny_zone { emit chat_deny(r.index) }
     }
 
+    //  A picture you gave her to show what you mean, in where you write;
+    //  pressed, it goes.
+    component RefChip(r: record) {
+        size: 32, 32
+        prop gone.glow = 0 ~140ms
+        image r.pic { at: 1, 1; size: 30, 30 }
+        box { at: 16, 16; size: 30, 30; corner: 7; stroke: 1; color: mint; opacity: 35% + 40% * gone.glow }
+        box { at: 16, 16; size: 30, 30; corner: 7; color: #0c0f12; opacity: 55% * gone.glow }
+        text "×" { at: 16, 15; anchor: center; size: 16; weight: 700; color: ink; opacity: gone.glow }
+        zone box chip { at: 16, 16; size: 32, 32; corner: 7; cursor: pointer; active: chatting }
+        on enter chip { gone.glow: 1 }
+        on leave chip { gone.glow: 0 }
+        on press chip { emit build_ref_remove(r.index) }
+    }
+
     group {
     clip inset 2 box { at: chat.x, chat.y; size: chat.w, chat.h; corner: 24 * chat }
     group {
@@ -201,11 +216,37 @@ part Chat {
             text chat.status { at: kx0 + 2, ky0 + 480; anchor: left center; size: 10.5; color: #8b8f95; width: 480; lines: 1 }
         }
         text chat.status { at: kx0 + 2, ky0 + 480; anchor: left center; size: 10.5; color: #ef7a66; width: 540; lines: 1; show: chat.state == offline }
-        //  What you write. Enter sends; while she works, Stop.
+        //  What you write. Enter sends; while she works, Stop. Building, it
+        //  also takes pictures: dropped on it, a piece of the screen, or pasted.
+        //  Under the rest: a drop goes to it wherever nothing else is.
+        zone box build_drop { from: kx0, ky0 + 496; size: 556, 44; corner: 14; active: chatting and build.on }
+        let refs_w = build.refs.count * 36
         box { from: kx0, ky0 + 496; size: 556, 44; corner: 14; color: #141415 }
-        box { from: kx0, ky0 + 496; size: 556, 44; corner: 14; stroke: 1; color: mint; opacity: 18% }
+        box { from: kx0, ky0 + 496; size: 556, 44; corner: 14; stroke: 1 + drag.over * build.on; color: mint; opacity: 18% + 50% * drag.over * build.on }
+        row { at: kx0 + 8, ky0 + 502; gap: 4; show: build.on; for r in build.refs { RefChip(r) } }
         //  (An input's `at` is the top of its line: 14 px × 1.3, centred on 518.)
-        input chat.input { at: kx0 + 16, ky0 + 509; width: 470; size: 14; color: ink; placeholder: "Ask Marea…"; selection: #2f5f52; show: not keys.asking }
+        input chat.input { at: kx0 + 16 + refs_w, ky0 + 509; width: 470 - refs_w - 72 * build.on; size: 14; color: ink; placeholder: "Ask Marea…"; selection: #2f5f52; show: not keys.asking }
+        //  Building: a piece of the screen, and what you copied, as references.
+        prop shot.glow = 0 ~140ms
+        prop paste.glow = 0 ~140ms
+        group {
+            show: build.on and not keys.asking
+            ellipse { at: kx0 + 464, ky0 + 518; radius: 14; color: #24262a; opacity: 70% + 30% * paste.glow }
+            box { at: kx0 + 464, ky0 + 520; size: 11, 13; corner: 2; stroke: 1.5; color: ink }
+            box { at: kx0 + 464, ky0 + 513; size: 6, 3; corner: 1; color: ink }
+            ellipse { at: kx0 + 496, ky0 + 518; radius: 14; color: #24262a; opacity: 70% + 30% * shot.glow }
+            box { at: kx0 + 496, ky0 + 519; size: 15, 11; corner: 3; stroke: 1.5; color: ink }
+            ellipse { at: kx0 + 496, ky0 + 519; radius: 3; stroke: 1.4; color: ink }
+            text build.hint { at: kx0 + 2, ky0 + 480; anchor: left center; size: 10.5; color: amber; width: 540; lines: 1 }
+        }
+        zone ellipse build_paste_btn { at: kx0 + 464, ky0 + 518; radius: 14; cursor: pointer; label: "Paste a picture"; active: chatting and build.on and not keys.asking }
+        zone ellipse build_shot_btn { at: kx0 + 496, ky0 + 518; radius: 14; cursor: pointer; label: "A piece of the screen as a reference"; active: chatting and build.on and not keys.asking }
+        on enter build_paste_btn { paste.glow: 1 }
+        on leave build_paste_btn { paste.glow: 0 }
+        on enter build_shot_btn { shot.glow: 1 }
+        on leave build_shot_btn { shot.glow: 0 }
+        on press build_paste_btn { emit build_ref_paste }
+        on press build_shot_btn { emit build_ref_capture }
         prop send.glow = 0 ~140ms
         let busy = chat.state == thinking or chat.state == acting or chat.state == awaiting or chat.state == starting
         group {
