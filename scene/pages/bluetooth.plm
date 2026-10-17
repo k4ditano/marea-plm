@@ -52,7 +52,7 @@ part Bluetooth {
         }
         text d.name { at: 46, 15; anchor: left center; size: 12.5; weight: 500; width: 220; lines: 1; color: mix(#dfe1e3, #f6f6f5, glow) }
         text d.status { at: 46, 31; anchor: left center; size: 10.5; width: 220; lines: 1
-                        color: mix(#8b8f95, mint, lit) opacity: if(d.state == 2, 55% + 45% * sin(join.t * 360), 100%) }
+                        color: mix(#8b8f95, mint, lit); opacity: if(d.state == 2, 55% + 45% * sin(join.t * 360), 100%) }
         //  Its battery, if it says: a little cell, and the number.
         group {
             show: d.battery >= 0
