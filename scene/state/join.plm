@@ -88,6 +88,11 @@ part Join {
     //  While the window she sits on is carried by its title bar, the logic says so (`carry.on`,
     //  and where it was taken: `carry.gx`, `carry.gy`, from the window's corner) and the scene
     //  follows the mouse itself, every frame: the logic's numbers come a few times a second.
+    //  The window manager tells when one starts to be carried and when it is let go
+    //  (pleamar-wm 0.6.2: `emit carry_start`, `emit carry_end`): hers is the one whose title bar
+    //  the mouse is on at that moment.
+    event carry_start
+    event carry_end
     fact carry.on = false
     fact carry.gx = 0
     fact carry.gy = 0

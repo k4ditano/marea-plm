@@ -128,6 +128,19 @@ part JoinRules {
     on press join_away { join.typing = false }
     on press pill_zone { join.typing = true; focus join.input }
     on key Escape while join.phase == sitting { emit chat_detach }
+    //  A window carried by its title bar, told by the window manager: hers if the mouse is on
+    //  its title bar, and then she goes with the mouse at once, from where it was taken.
+    on carry_start while join.phase == sitting and not carry.on and join.screen == host.i and cur.dx >= join.x and cur.dx < join.x + join.w and cur.dy >= join.y and cur.dy < join.y + 40 {
+        carry.gx = cur.dx - join.x
+        carry.gy = cur.dy - join.y
+        carry.on = true
+    }
+    //  Let go: where it was left is where it is (the list of windows says so a moment later).
+    on carry_end while carry.on {
+        join.x = cur.dx - carry.gx
+        join.y = cur.dy - carry.gy
+        carry.on = false
+    }
 
     // ── letting go ───────────────────────────────────────────────
     //  The logic let go of the window (her button, Esc, `chat_detach`, the

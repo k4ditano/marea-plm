@@ -1433,8 +1433,9 @@ return function(shared)
                     local fx, fy = v[2] - v[4], v[3] - v[5]
                     local f = frame(cur)
                     if carried or (slot and v[1] == slot) or (not slot and math.abs(fx - f.x) < 60 and math.abs(fy - f.y) < 60) then
-                        if not carried then
-                            --  Where the window was taken: the scene follows the mouse from here.
+                        if not carried and fact["carry.on"] ~= true then
+                            --  Where the window was taken: the scene follows the mouse from here
+                            --  (a window manager that does not say it starts it here, a little late).
                             fact["carry.gx"], fact["carry.gy"] = v[4], v[5]
                             fact["carry.on"] = true
                         end
@@ -1448,7 +1449,8 @@ return function(shared)
                 if carried then
                     --  Let go: it stays where the mouse left it until the list says it.
                     carried = false
-                    if carry_at and cur then
+                    --  (Already let go in the scene when the window manager said it.)
+                    if carry_at and cur and fact["carry.on"] == true then
                         local bar = bars[cur.screen or 0] or 0
                         show_box({ x = math.floor(carry_at.x), y = math.floor(carry_at.y) + bar, w = cur.w, h = cur.h, screen = cur.screen })
                     end
