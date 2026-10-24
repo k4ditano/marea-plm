@@ -45,19 +45,19 @@ part JoinSurface {
         let hm.y = hm.dy - mo.y
         let kd.l = max(length(st.x - hm.x, st.y - hm.y), 1)
         //  Where it leaves her: a little inside her edge, on the side of the child.
-        let rt.x = hm.x + (st.x - hm.x) / kd.l * 13
-        let rt.y = hm.y + (st.y - hm.y) / kd.l * 13
+        let rt.x = hm.x + (st.x - hm.x) / kd.l * 23
+        let rt.y = hm.y + (st.y - hm.y) / kd.l * 23
         //  The tip of the thread: the child, until it breaks; then it flies back into her.
         let nt.x = st.x + (rt.x - st.x) * retract
         let nt.y = st.y + (rt.y - st.y) * retract
         let nt.len = length(nt.x - rt.x, nt.y - rt.y)
         //  It hangs behind when the child is pulled fast, and bows with its weight.
         let nc.x = (rt.x + nt.x) / 2 - clamp(vel(ball.x) * 0.045, -90, 90) * (1 - retract)
-        let nc.y = (rt.y + nt.y) / 2 + clamp(nt.len * 0.05, 0, 26) * (1 - retract)
+        let nc.y = (rt.y + nt.y) / 2 + clamp(nt.len * 0.09, 0, 46) * (1 - retract)
         //  Thick where it leaves her and where it reaches the child, thin between, and the
         //  longer it is the thinner: a thread of water, which is how it breaks.
-        let th.keep = clamp(1 - nt.len / 360, 0.1, 1)
-        let th.w0 = 17 * (1 - retract * 0.85) * clamp(kid.bud * 1.5, 0, 1)
+        let th.keep = clamp(1 - nt.len / 520, 0.3, 1)
+        let th.w0 = 11 * (1 - retract * 0.85) * clamp(kid.bud * 1.5, 0, 1)
         let th.w1 = max(kd.r * 0.7, 3) * (1 - retract * 0.85)
 
         //  The thread's points along the curve from her to the child's tip, and how wide it is
@@ -167,7 +167,10 @@ part JoinSurface {
         //  what is in it begins, clear of the child, and `jb.x` the send button at its far end.
         let pl.w = min(450, stick.width - 80)
         let pl.h = 32 * (1 + 0.03 * join.breath * clamp(pill, 0, 1))
-        let pl.side = if(st.x + kd.r + pl.w > stick.width - 10, -1, 1)
+        //  Where the box goes: to the right, unless it would not fit, or it would cover her where she
+        //  lives (then to the left, if there is room there).
+        let pl.cover = st.y < hm.y + 44 and st.x - 10 < hm.x + 42 and st.x + kd.r + pl.w > hm.x - 42
+        let pl.side = if(st.x + kd.r + pl.w > stick.width - 10, -1, if(pl.cover and st.x - kd.r - pl.w > 10, -1, 1))
         let pl.cx = st.x + pl.side * (kd.r - 4 + pl.w * pill / 2)
         let jb.x = st.x + pl.side * (kd.r - 4 + pl.w - 17)
         let pl.c.l = if(pl.side > 0, st.x + kd.r + 9, jb.x + 22)
@@ -181,7 +184,7 @@ part JoinSurface {
         //  many of its letters have come (they rise out of the water, as in the chat).
         measure jsaid
         let bub.w = pl.w - 30
-        let bub.t = st.y + pl.h / 2 + 6
+        let bub.t = st.y + pl.h / 2 + 9
         let bub.h = jsaid.height + 28
         let bub.x = pl.cx - pl.side * 6
         //  Whose window it is, in a tab on the ring that the window has: «Kitty» and the
@@ -261,9 +264,10 @@ part JoinSurface {
             rim: 32%
             glass: glassiness
             lens: bends
+            tint: 75%
             shadow: 0, 3, 12, 34%, kid.deep
             //  The bud on her, which the thread comes out of.
-            ellipse { at: rt.x, rt.y; radius: max(9 * (1 - retract) * clamp(kid.bud * 1.5, 0, 1), 0.01); blend: 12 }
+            ellipse { at: rt.x, rt.y; radius: max(5.5 * (1 - retract) * clamp(kid.bud * 1.5, 0, 1), 0.01); blend: 12 }
             //  The thread: 32 capsules along the curve, each as wide as the middle of its
             //  span; their round ends hide the joins.
             line { from: tp.0x, tp.0y; to: tp.1x, tp.1y; width: max((tw.0 + tw.1) / 2, 2.2); blend: 2; show: retract < 0.97 }
@@ -312,14 +316,22 @@ part JoinSurface {
                 blend: 10 + 30 * clamp(pill * (1 - pill) * 4, 0, 1)
                 show: pill > 0.02
             }
-            //  And its answer: a drop that forms under the box and joins it by a short neck.
-            box {
-                at: bub.x, bub.t + bub.h / 2
-                size: bub.w * join.bub, bub.h * clamp(join.bub * 1.6, 0, 1)
-                corner: 18
-                blend: 12 + 16 * clamp(join.bub * (1 - join.bub) * 4, 0, 1)
-            }
         }
+        }
+        //  And its answer: a calmer, darker drop of the same water that forms under the box.
+        group {
+            show: join.bub > 0.02
+            glow: 6, 26%, kid
+            body {
+                gradient: 0, bub.t to 0, bub.t + bub.h, #3b2f9e, kid.deep
+                rim: 26%
+                shadow: 0, 3, 10, 30%, kid.deep
+                box {
+                    at: bub.x, bub.t + bub.h / 2
+                    size: bub.w * join.bub, bub.h * clamp(join.bub * 1.6, 0, 1)
+                    corner: 17
+                }
+            }
         }
         //  The light on the water: a soft glint on the ball and a thin one along the top of the
         //  box, as on a drop, so it is glass and not a flat shape.

@@ -17,8 +17,8 @@ part Kid {
     group {
         show: kid.with > 0.01 or kid.pulse < 0.99
         group {
-            glow: 5, 70% * kid.lit, kid
-            ellipse { at: cx, cy_actual; radius: r + 0.8; stroke: 1.2; color: kid; opacity: 55% * kid.lit }
+            glow: 6, 90% * kid.lit, kid
+            ellipse { at: cx, cy_actual; radius: r + 0.8; stroke: 1.6; color: kid; opacity: 90% * kid.lit }
         }
         group {
             glow: 4, 90% * kid.lit, kid
