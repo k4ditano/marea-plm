@@ -402,7 +402,7 @@ part Face {
     //  Written twice, a pair of glasses stays looking the other way as soon as
     //  someone touches one of the two places.
     //  With her child out, her eyes are on it: towards where it is, as far as they go.
-    let face.dx = ((gaze.x + (4 - gaze.x) * attentive) * (1 - kid.look * 0.85) + kid.look * 5 * (kid.mx - cx) / kid.d) * (1 - glare)
+    let face.dx = ((gaze.x + (4 - gaze.x) * attentive) * (1 - kid.look * 0.85) + kid.look * 3.6 * (kid.mx - cx) / kid.d) * (1 - glare)
     let face.dy = (gaze.y * (1 - attentive) * (1 - kid.look * 0.85) + kid.look * 3 * (kid.my - cy_actual) / kid.d) * (1 - glare)
     let face.sink = (1 - out) * 4.5 * if(hidden, 1, 0)
     Face(cx, cy_actual, face.dx, face.dy, face.sink)

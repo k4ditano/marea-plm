@@ -10,7 +10,7 @@ part Kid {
     prop kid.with = 0 ~gentle
     follow kid.with = if(join.phase != none or chat.attached, 1, 0)
     //  Hers while it is out; stronger while it works.
-    let kid.lit = kid.with * (0.55 + 0.45 * chat.stir)
+    let kid.lit = kid.with * (0.8 + 0.2 * chat.stir)
     //  The side of her it is on: her edge in its direction.
     let kid.ex = cx + (kid.mx - cx) / kid.d * (r - 1.5)
     let kid.ey = cy_actual + (kid.my - cy_actual) / kid.d * (r - 1.5)
