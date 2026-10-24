@@ -393,5 +393,11 @@ library SpanishLogic {
         "Before it runs" = "Antes de ejecutarla"
         "It stays as it is, not running. Ask me to change what it asks for." = "Se queda como está, sin ejecutarse. Pídeme que cambie lo que pide."
         "That file is not a creation she can open." = "Ese archivo no es una creación que pueda abrir."
+        // joined to a window
+        "Joined to %s: «%s». I only touch this window." = "Unida a %s: «%s». Solo toco esta ventana."
+        "Let go of %s." = "He soltado %s."
+        "%s closed: I let go of it." = "%s se ha cerrado: la suelto."
+        "I could not see your windows." = "No he podido ver tus ventanas."
+        "I found no window to join." = "No he encontrado ninguna ventana a la que unirme."
     }
 }

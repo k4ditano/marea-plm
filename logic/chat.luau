@@ -843,6 +843,11 @@ return function(shared)
         rest_later()
         local how = ending or { ok = false, said = "" }
         ending = nil
+        --  Joined, what she says goes where you are looking: under her box.
+        if joined and tostring(how.said or "") ~= "" then
+            text["join.said"] = first_letters(tostring(how.said), 260)
+            fact["join.said_on"] = true
+        end
         if turn_over then turn_over(how) end
     end
     local function on_event(m)
@@ -1289,8 +1294,121 @@ return function(shared)
         joined, joined_dialogs = nil, {}
         fact["chat.attached"] = false
         text["chat.joined"] = ""
+        text["join.app"] = ""
+        text["join.said"] = ""
+        fact["join.said_on"] = false
+        fact["join.typing"] = false
         add(5, why or string.format(tr("Let go of %s."), app))
         paint()
+    end
+    --  Where the windows and the monitors are, as pleamar-wm's `agent` says it:
+    --  the perch (scene/surfaces/join.plm) draws in desktop pixels.
+    local function parse_windows(out)
+        local list = {}
+        for line in tostring(out):gmatch("[^\n]+") do
+            local pid, app, title, w, h, x, y = line:match("^%s*([%d%.]+)%s+(%S+)%s+«(.-)»%s+(%d+)x(%d+) at (-?%d+),(-?%d+)")
+            if pid then
+                list[#list + 1] = {
+                    pid = pid, app = app, title = title, w = tonumber(w), h = tonumber(h), x = tonumber(x), y = tonumber(y),
+                    screen = tonumber(line:match("monitor (%d+)") or "0"),
+                    dialog = line:find("dialog of", 1, true) ~= nil,
+                    keyboard = line:find("has the keyboard", 1, true) ~= nil,
+                }
+            end
+        end
+        return list
+    end
+    local function read_monitors(done)
+        run("pleamar-wm", { "agent", "monitors" }, function(out, code)
+            if code == 0 then
+                for line in tostring(out):gmatch("[^\n]+") do
+                    local k, w, x, y = line:match("^%s*(%d+)%s+%S+%s+(%d+)x%d+ at (-?%d+),(-?%d+)")
+                    k = tonumber(k)
+                    if k and k < 3 then
+                        fact["mon.x." .. k] = tonumber(x)
+                        fact["mon.y." .. k] = tonumber(y)
+                        fact["mon.w." .. k] = tonumber(w)
+                    end
+                end
+            end
+            if done then done() end
+        end, HANDS)
+    end
+    --  The smallest window that holds the point: the one she is over. A dialog
+    --  is not a window to join (it belongs to one), and a window that is one of
+    --  a program's several (`PID.N`) has no name the hands could be held to.
+    local function window_at(list, px, py)
+        local best
+        for _, w in ipairs(list) do
+            if not w.dialog and w.app ~= "marea" and not w.pid:find(".", 1, true)
+                and px >= w.x and px < w.x + w.w and py >= w.y and py < w.y + w.h then
+                if not best or w.w * w.h < best.w * best.h then best = w end
+            end
+        end
+        return best
+    end
+    local function show_box(w)
+        fact["join.x"], fact["join.y"], fact["join.w"], fact["join.h"] = w.x, w.y, w.w, w.h
+        fact["join.screen"] = w.screen or 0
+    end
+    --  While she sits on a window she keeps up with it: a moved or resized
+    --  window carries her, one that is gone lets her go. Every 300 ms while it
+    --  changes, every second when it is still.
+    local follow_gen = 0
+    local function follow_window()
+        follow_gen = follow_gen + 1
+        local gen = follow_gen
+        local missed = 0
+        local last = ""
+        local function tick()
+            if gen ~= follow_gen or not joined then return end
+            run("pleamar-wm", { "agent", "windows" }, function(out, code)
+                if gen ~= follow_gen or not joined then return end
+                local wait = 1000
+                if code == 0 then
+                    local mine
+                    for _, w in ipairs(parse_windows(out)) do
+                        if w.pid == joined.pid then mine = w end
+                    end
+                    if not mine then
+                        missed = missed + 1
+                        if missed >= 2 then
+                            leave(string.format(tr("%s closed: I let go of it."), joined.app))
+                            return
+                        end
+                    else
+                        missed = 0
+                        local box = mine.x .. "," .. mine.y .. "," .. mine.w .. "," .. mine.h .. "," .. mine.screen
+                        if box ~= last then
+                            if last ~= "" then wait = 300 end
+                            last = box
+                            show_box(mine)
+                            joined.title = mine.title
+                        end
+                    end
+                end
+                after(wait, tick)
+            end, HANDS)
+        end
+        after(600, tick)
+    end
+    --  Joined: she holds that window and only it, and the perch brings her down
+    --  onto its top edge (`dx`: how far along it).
+    local function attach(found, dx)
+        joined, joined_dialogs = found, {}
+        fact["chat.attached"] = true
+        text["chat.joined"] = found.app
+        text["chat.target"] = ""
+        text["join.app"] = found.app
+        text["join.said"] = ""
+        fact["join.said_on"] = false
+        text["join.input"] = ""
+        show_box(found)
+        fact["join.dx"] = dx or math.floor(found.w / 2)
+        add(5, string.format(tr("Joined to %s: «%s». I only touch this window."), found.app, found.title))
+        paint()
+        follow_window()
+        emit("join_land")
     end
     on("chat_attach", function()
         local want = tostring(text["chat.target"] or ""):gsub("%s", "")
@@ -1300,12 +1418,10 @@ return function(shared)
                 return
             end
             local found
-            for line in tostring(out):gmatch("[^\n]+") do
-                local pid, app, title = line:match("^%s*(%d+)%s+(%S+)%s+«(.-)»")
-                if pid and not line:find("dialog of", 1, true) and app ~= "marea" then
-                    local keyboard = line:find("has the keyboard", 1, true) ~= nil
-                    if (want == "" or want == "focus") and keyboard or want == pid then
-                        found = { pid = pid, app = app, title = title }
+            for _, w in ipairs(parse_windows(out)) do
+                if not w.dialog and w.app ~= "marea" then
+                    if (want == "" or want == "focus") and w.keyboard or want == w.pid then
+                        found = w
                         break
                     end
                 end
@@ -1314,19 +1430,13 @@ return function(shared)
                 add(5, tr("I found no window to join."))
                 return
             end
-            joined, joined_dialogs = found, {}
-            fact["chat.attached"] = true
-            text["chat.joined"] = found.app
-            text["chat.target"] = ""
-            if fact.chatting ~= true then fact.chatting = true end
-            add(5, string.format(tr("Joined to %s: «%s». I only touch this window."), found.app, found.title))
-            paint()
+            read_monitors(function() attach(found) end)
         end, HANDS)
     end)
     on("chat_detach", function() leave() end)
 
     -- ── what the panel asks ──
-    on("chat_send", function()
+    local function do_send()
         local words = tostring(text["chat.input"] or "")
         if words:match("^%s*$") then return end
         local state = fact["chat.state"]
@@ -1342,6 +1452,63 @@ return function(shared)
         fact["chat.state"] = "thinking"
         status(tr("Thinking…"))
         send({ type = "prompt", text = words, now = os.date("%Y-%m-%d %H:%M, %A"), free = fact["chat.free"] == true or joined ~= nil, joined = joined, secrets = secrets, images = images })
+    end
+    on("chat_send", do_send)
+
+    -- ── dropped on a window ──
+    --  She is pulled out of the notch (scene/rules/join.plm) and, while she is
+    --  held, the windows are looked at to light the one under her. Let go over
+    --  one, and she joins it.
+    local grab_gen = 0
+    on("join_grab", function()
+        grab_gen = grab_gen + 1
+        local gen = grab_gen
+        read_monitors()
+        local busy = false
+        local function tick()
+            if gen ~= grab_gen or fact["join.phase"] ~= "held" then return end
+            if busy then after(120, tick) return end
+            busy = true
+            run("pleamar-wm", { "agent", "windows" }, function(out, code)
+                busy = false
+                if gen == grab_gen and fact["join.phase"] == "held" and code == 0 then
+                    local w = window_at(parse_windows(out), fact["ptr.x"] or 0, fact["ptr.y"] or 0)
+                    if w then
+                        fact["hov.x"], fact["hov.y"], fact["hov.w"], fact["hov.h"] = w.x, w.y, w.w, w.h
+                        text["hov.app"] = w.app
+                    end
+                    fact["hov.on"] = w ~= nil
+                end
+                after(160, tick)
+            end, HANDS)
+        end
+        tick()
+    end)
+    on("join_drop", function()
+        grab_gen = grab_gen + 1
+        local px, py = fact["ptr.x"] or 0, fact["ptr.y"] or 0
+        run("pleamar-wm", { "agent", "windows" }, function(out, code)
+            local target = code == 0 and window_at(parse_windows(out), px, py) or nil
+            if not target then
+                fact["hov.on"] = false
+                emit("join_none")
+                return
+            end
+            if joined then leave() end
+            attach(target, math.floor(px - target.x))
+        end, HANDS)
+    end)
+    --  What is written in her box on the window is the chat's own message.
+    on("join_send", function()
+        local words = tostring(text["join.input"] or "")
+        if words:match("^%s*$") then return end
+        local state = fact["chat.state"]
+        if state == "thinking" or state == "acting" or state == "awaiting" or state == "starting" then return end
+        text["join.input"] = ""
+        text["join.said"] = ""
+        fact["join.said_on"] = false
+        text["chat.input"] = words
+        do_send()
     end)
     local function decide(i, yes)
         local first = math.max(1, #rows - ROWS + 1)

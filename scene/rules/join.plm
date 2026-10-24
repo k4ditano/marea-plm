@@ -1,0 +1,157 @@
+// Marea's scene, in pieces: pulling her onto a window and letting go of it. marea.plm includes it.
+part JoinRules {
+    // ── pulling her ──────────────────────────────────────────────
+    //  Pressing her and not moving is the click that opens her card (mouse.plm).
+    //  Moving more than 10 px is pulling: the surface of the perch takes her
+    //  from where she hangs, with the thread to the notch, and the logic starts
+    //  to look at which window is under her.
+    on drag body_zone while drag.dx * drag.dx + drag.dy * drag.dy > 100 { dragged = true }
+    on drag body_zone while join.can and drag.dx * drag.dx + drag.dy * drag.dy > 100 {
+        join.phase = held
+        needed = true
+        wanted = true
+        anc.x = host.x + (host.w - 920) / 2 + cx
+        anc.y = host.y
+        ball.x: host.x + (host.w - 920) / 2 + cx ~16ms
+        ball.y: host.y + cy_actual ~16ms
+        retract: 0 ~16ms
+        seat: 0 ~16ms
+        away: 1 ~16ms
+        splashing: 1 ~16ms
+        face = eye
+        emit join_grab
+    }
+    //  She follows the pointer, which keeps pulling even when it has left her
+    //  surface: the position is told in the surface that was pressed.
+    on drag body_zone while join.phase == held {
+        ptr.x = host.x + (host.w - 920) / 2 + pointer.x
+        ptr.y = host.y + pointer.y
+        ball.x: host.x + (host.w - 920) / 2 + pointer.x ~lively
+        ball.y: host.y + pointer.y ~lively
+    }
+    //  Let go: over a window she falls; over nothing she goes back up.
+    on release body_zone while join.phase == held {
+        join.phase = waiting
+        emit join_drop
+    }
+    on release body_zone while join.phase == none and not dragged { toggle open }
+    //  If the logic does not answer she does not hang there.
+    on still join.phase for 3s while join.phase == waiting { emit join_none }
+
+    // ── the fall ─────────────────────────────────────────────────
+    //  The logic found the window (its box is in `join.x…`). Pulled, she is
+    //  already out and just falls from where she was let go; told from the
+    //  keyboard, with nobody pulling her, she starts from the notch: the thread
+    //  gives, and she drops down it.
+    on join_land while join.phase == waiting {
+        face = happy
+        impulse wobble -200
+        join.up = ball.y > tgt.y
+        join.phase = falling
+        pb.x: join.x ~16ms
+        pb.y: join.y ~16ms
+        pb.w: join.w ~16ms
+        pb.h: join.h ~16ms
+        ball.x: tgt.x ~spring(70, 11)
+        ball.y: tgt.y ~spring(130, 21)
+    }
+    on join_land while join.phase == none {
+        needed = true
+        wanted = true
+        face = happy
+        impulse wobble -200
+        splashing: 1 ~16ms
+        away: 1 ~16ms
+        retract: 0 ~16ms
+        seat: 0 ~16ms
+        anc.x = host.x + (host.w - 920) / 2 + cx
+        anc.y = host.y
+        join.up = false
+        join.phase = falling
+        pb.x: join.x ~16ms
+        pb.y: join.y ~16ms
+        pb.w: join.w ~16ms
+        pb.h: join.h ~16ms
+        ball.x: host.x + (host.w - 920) / 2 + cx ~16ms
+        ball.y: host.y + cy_actual ~16ms
+        ball.x: tgt.x ~spring(70, 11) after 30ms
+        ball.y: tgt.y ~plunge after 30ms
+    }
+    //  It touches. The thread breaks and flies back up, the water at the notch
+    //  gives its tug, she squashes and a spray goes up.
+    on change join.hit while join.hit and join.phase == falling {
+        join.phase = sitting
+        seat: 1 ~140ms after 150ms
+        play land
+        retract: 1 ~240ms
+        impulse bounce -150
+        impulse wobble -340
+        ripple: 0 ~16ms
+        ripple: 1 ~900ms after 30ms
+        pulse: 0 ~16ms
+        pulse: 1 ~900ms after 30ms
+        emit join_splash
+        splashing: 0 ~400ms after 1300ms
+        pill: 1 after 100ms
+    }
+    //  A fall that never arrived (a window that moved out from under her).
+    on still join.phase for 1600ms while join.phase == falling { join.phase = sitting; seat: 1 ~140ms; retract: 1 ~240ms; pill: 1 after 120ms; splashing: 0 ~400ms }
+    //  And the box asks for the keyboard once it has grown.
+    on change pill > 0.6 while pill > 0.6 and join.phase == sitting {
+        join.typing = true
+        focus join.input
+    }
+
+    // ── what she does while she is there ─────────────────────────
+    //  Her face, as in the chat: waves while she thinks, a start when she
+    //  needs you, and a hop when she is done.
+    on change chat.state while chat.state == thinking and join.phase == sitting { face = reading }
+    on change chat.state while chat.state == awaiting and join.phase == sitting { face = alert; impulse bounce -60 }
+    on change chat.state while chat.state == idle and face == reading and join.phase == sitting { face = eye; play happy }
+    //  Joined to a window: she stops being happy about falling after a moment.
+    on still join.phase for 1400ms while join.phase == sitting and face == happy { face = eye }
+    //  Enter in the box sends it, and the box gives the keyboard back; the chat
+    //  panel stays closed: what she says is under her.
+    on submit join.input { emit join_send; join.typing = false }
+    on press jsend_btn while join.busy { emit chat_stop }
+    on press jsend_btn while not join.busy { emit join_send; join.typing = false }
+    on press join_away { join.typing = false }
+    on press pill_zone { join.typing = true; focus join.input }
+    on key Escape while join.phase == sitting { emit chat_detach }
+
+    // ── letting go ───────────────────────────────────────────────
+    //  The logic let go of the window (her button, Esc, `chat_detach`, the
+    //  window closing): she lifts off, the thread grows back to the notch and
+    //  she goes into the water, to come out of it where she lives.
+    on change chat.attached while not chat.attached and (join.phase == sitting or join.phase == falling) { join.phase = leaving }
+    on join_none while join.phase == waiting { join.phase = leaving }
+    on change join.phase while join.phase == leaving {
+        join.typing = false
+        hov.on = false
+        pill: 0 ~220ms
+        face = eye
+        seat: 0 ~16ms
+        ball.x: sit.x ~16ms
+        ball.y: sit.y ~16ms
+        retract: 0 ~200ms
+        ball.x: host.x + (host.w - 920) / 2 + cx ~spring(60, 12) after 40ms
+        ball.y: host.y - 34 ~spring(60, 12) after 40ms
+        splashing: 1 ~16ms
+    }
+    //  She is in the water when her ball is wholly above the edge. (And a rule that
+    //  waits for a time is not safe against a reload of the scene, so the second one
+    //  is the fallback: it just sends her the last few pixels.)
+    let join.home = ball.y < host.y - 22
+    on change join.home while join.home and join.phase == leaving {
+        join.phase = none
+        retract: 1 ~16ms
+        away: 0 ~lively
+        impulse bounce -110
+        impulse wobble -90
+        ripple: 0 ~16ms
+        ripple: 1 ~760ms after 30ms
+        splashing: 0 ~400ms after 600ms
+        face = eye
+    }
+    on still join.phase for 1500ms while join.phase == leaving { ball.y: host.y - 60 ~16ms }
+}

@@ -1,0 +1,223 @@
+// Marea's scene, in pieces: the surface where she is pulled onto a window and sits on it. marea.plm includes it.
+part JoinSurface {
+    // ── the surface of the perch ─────────────────────────────────
+    //  The whole monitor, open only while she is out of her place for this: held,
+    //  falling, sitting on a window or on her way back. It takes the mouse only
+    //  where it has zones (her, her box, the little «let go»), so the desktop
+    //  under it stays the user's. Sitting, only the copy on the monitor of the
+    //  window is open: one transparent surface of the size of a monitor costs
+    //  little, but nothing needs two.
+    surface stick {
+        size: full, full
+        anchor: top_left
+        level: overlay
+        screens: each max 3
+        open: join.phase != none and (join.phase != sitting or screen.index == join.screen)
+        //  The box holds the keyboard while it is being written in; the scene's
+        //  `focus` on it, with no click, asks for all of it until `join.typing`
+        //  stops (Enter, Esc, a click away), and gives it back then.
+        keyboard: on_demand while join.typing
+        rate: 60
+
+        //  This copy's corner, in desktop pixels, and everything in its own.
+        let mo.x = pick(screen.index, mon.x.0, mon.x.1, mon.x.2)
+        let mo.y = pick(screen.index, mon.y.0, mon.y.1, mon.y.2)
+        //  Her, where she is: pulled, on her way, or sitting (`seat`). A fall from above
+        //  is cut at the window: the spring that drops her would carry her through it.
+        let st.fy = if(join.phase == falling or join.phase == sitting, if(join.up, max(ball.y, sit.y), min(ball.y, sit.y)), ball.y)
+        let st.x = ball.x + (sit.x - ball.x) * seat - mo.x
+        let st.y = st.fy + (sit.y - st.fy) * seat - mo.y
+        //  Is there a ledge to sit on? With room above the window she sits on its edge
+        //  and has a foot there; at the top of a monitor she is astride it instead.
+        let st.ledge = clamp((sit.y - sit.my - 27) / 10, 0, 1)
+        //  The notch, where the thread is fixed.
+        let nk.x = anc.x - mo.x
+        let nk.y = anc.y - mo.y
+        //  The tip of the thread: her, until it breaks; then it flies back up to the notch.
+        let nt.x = st.x + (nk.x - st.x) * retract
+        let nt.y = st.y + (nk.y - st.y) * retract
+        let nt.len = length(nt.x - nk.x, nt.y - nk.y)
+        //  It hangs behind her when she is pulled fast, and bows with the weight.
+        let nc.x = (nk.x + nt.x) / 2 - clamp(vel(ball.x) * 0.045, -90, 90) * (1 - retract)
+        let nc.y = (nk.y + nt.y) / 2
+        //  Thick at the notch, thin where she hangs from it, thinner the longer it is.
+        let nr.t = clamp(14 - nt.len / 45, 5.2, 14) * (1 - retract * 0.9)
+        let nr.b = 18 * (1 - retract * 0.6)
+
+        //  What she answered, under her box (and under the chip when that is below).
+        measure jsaid
+        let sd.y = if(st.y > 66, st.y + 32, st.y + 70)
+
+        //  A click anywhere else gives the keyboard back to whoever had it. It goes
+        //  first: of two zones the later one is on top, and the box's own zones
+        //  have to win over it.
+        zone box join_away { from: 0, 0; size: stick.width, stick.height; active: join.typing; label: "Outside her box: gives the keyboard back"; role: region }
+
+        //  The box: 410 wide, on the side of her with room for it. `pl.c.l` and
+        //  `pl.c.r` are where what is in it begins and ends, clear of her.
+        let pl.w = 410
+        let pl.side = if(st.x + 33 + pl.w > stick.width - 10, -1, 1)
+        let pl.cx = st.x + pl.side * (6 + pl.w * pill / 2)
+        let pl.c.l = if(pl.side > 0, st.x + 37, st.x - 6 - pl.w + 22)
+        let pl.c.r = if(pl.side > 0, st.x + 6 + pl.w - 14, st.x - 37)
+        //  Where she looks: down when she is pulled, at her box when she sits.
+        let st.gx = if(join.phase == sitting, pl.side * 3.4 * clamp(pill * 2, 0, 1), clamp(vel(ball.x) * 0.004, -3.5, 3.5))
+        let st.gy = if(join.phase == sitting, 0, 3)
+        zone box pill_zone { at: pl.cx, st.y; size: pl.w * pill, 38; corner: 19; cursor: text; label: "Tell her what to do in this window"; active: join.phase == sitting and pill > 0.7 and not join.busy }
+
+        //  The windows first, so she is over their edge: the one under her while she
+        //  is pulled, and the one she has joined.
+        group {
+            show: hov.a > 0.01
+            opacity: hov.a
+            box { at: hov.x - mo.x + hov.w / 2, hov.y - mo.y + hov.h / 2; size: hov.w + 8, hov.h + 8; corner: 18; color: mint; opacity: 9% }
+            group {
+                glow: 9, 80%, #9ed6bd
+                box { at: hov.x - mo.x + hov.w / 2, hov.y - mo.y + hov.h / 2; size: hov.w + 6, hov.h + 6; corner: 17; stroke: 2.4; color: mint }
+            }
+        }
+        group {
+            show: join.a > 0.01
+            opacity: join.a
+            box { at: pb.x - mo.x + pb.w / 2, pb.y - mo.y + pb.h / 2; size: pb.w + 6, pb.h + 6; corner: 17; color: mint; opacity: 5% }
+            group {
+                glow: 8, 70%, #9ed6bd
+                box { at: pb.x - mo.x + pb.w / 2, pb.y - mo.y + pb.h / 2; size: pb.w + 6, pb.h + 6; corner: 17; stroke: 2; color: mint; opacity: 85% }
+            }
+            //  Where she landed, the ring runs out along the edge once.
+            box { at: pb.x - mo.x + pb.w / 2, pb.y - mo.y + pb.h / 2
+                  size: pb.w + 6 + 90 * pulse, pb.h + 6 + 90 * pulse; corner: 17 + 45 * pulse; stroke: 2.2; color: mint
+                  opacity: 70% * (1 - pulse) * (1 - pulse) }
+        }
+
+        //  Her: the water at the notch, the thread, her ball, the foot she has on
+        //  the edge and the box that grows from her, one silhouette.
+        body {
+            color: skin
+            rim: 20%
+            glass: glassiness
+            lens: bends
+            shadow: 0, 4, 16, 36%, #05070a
+            ellipse { at: nk.x, nk.y - 8; radius: 21 * (1 - retract * 0.85); scale: 1.4, 0.8; blend: 14 }
+            //  The thread: 20 capsules along a curve from the notch to her tip, each a little
+            //  thinner than the one before; their round ends hide the joins.
+            line { from: (1 - (0/20)) * (1 - (0/20)) * nk.x + 2 * (1 - (0/20)) * (0/20) * nc.x + (0/20) * (0/20) * nt.x, (1 - (0/20)) * (1 - (0/20)) * nk.y + 2 * (1 - (0/20)) * (0/20) * nc.y + (0/20) * (0/20) * nt.y; to: (1 - (1/20)) * (1 - (1/20)) * nk.x + 2 * (1 - (1/20)) * (1/20) * nc.x + (1/20) * (1/20) * nt.x, (1 - (1/20)) * (1 - (1/20)) * nk.y + 2 * (1 - (1/20)) * (1/20) * nc.y + (1/20) * (1/20) * nt.y
+                   width: 2 * (nr.t + (nr.b - nr.t) * (1 - 1/20) * (1 - 1/20) * (1 - 1/20)); blend: 3; show: retract < 0.97 }
+            line { from: (1 - (1/20)) * (1 - (1/20)) * nk.x + 2 * (1 - (1/20)) * (1/20) * nc.x + (1/20) * (1/20) * nt.x, (1 - (1/20)) * (1 - (1/20)) * nk.y + 2 * (1 - (1/20)) * (1/20) * nc.y + (1/20) * (1/20) * nt.y; to: (1 - (2/20)) * (1 - (2/20)) * nk.x + 2 * (1 - (2/20)) * (2/20) * nc.x + (2/20) * (2/20) * nt.x, (1 - (2/20)) * (1 - (2/20)) * nk.y + 2 * (1 - (2/20)) * (2/20) * nc.y + (2/20) * (2/20) * nt.y
+                   width: 2 * (nr.t + (nr.b - nr.t) * (1 - 2/20) * (1 - 2/20) * (1 - 2/20)); blend: 3; show: retract < 0.97 }
+            line { from: (1 - (2/20)) * (1 - (2/20)) * nk.x + 2 * (1 - (2/20)) * (2/20) * nc.x + (2/20) * (2/20) * nt.x, (1 - (2/20)) * (1 - (2/20)) * nk.y + 2 * (1 - (2/20)) * (2/20) * nc.y + (2/20) * (2/20) * nt.y; to: (1 - (3/20)) * (1 - (3/20)) * nk.x + 2 * (1 - (3/20)) * (3/20) * nc.x + (3/20) * (3/20) * nt.x, (1 - (3/20)) * (1 - (3/20)) * nk.y + 2 * (1 - (3/20)) * (3/20) * nc.y + (3/20) * (3/20) * nt.y
+                   width: 2 * (nr.t + (nr.b - nr.t) * (1 - 3/20) * (1 - 3/20) * (1 - 3/20)); blend: 3; show: retract < 0.97 }
+            line { from: (1 - (3/20)) * (1 - (3/20)) * nk.x + 2 * (1 - (3/20)) * (3/20) * nc.x + (3/20) * (3/20) * nt.x, (1 - (3/20)) * (1 - (3/20)) * nk.y + 2 * (1 - (3/20)) * (3/20) * nc.y + (3/20) * (3/20) * nt.y; to: (1 - (4/20)) * (1 - (4/20)) * nk.x + 2 * (1 - (4/20)) * (4/20) * nc.x + (4/20) * (4/20) * nt.x, (1 - (4/20)) * (1 - (4/20)) * nk.y + 2 * (1 - (4/20)) * (4/20) * nc.y + (4/20) * (4/20) * nt.y
+                   width: 2 * (nr.t + (nr.b - nr.t) * (1 - 4/20) * (1 - 4/20) * (1 - 4/20)); blend: 3; show: retract < 0.97 }
+            line { from: (1 - (4/20)) * (1 - (4/20)) * nk.x + 2 * (1 - (4/20)) * (4/20) * nc.x + (4/20) * (4/20) * nt.x, (1 - (4/20)) * (1 - (4/20)) * nk.y + 2 * (1 - (4/20)) * (4/20) * nc.y + (4/20) * (4/20) * nt.y; to: (1 - (5/20)) * (1 - (5/20)) * nk.x + 2 * (1 - (5/20)) * (5/20) * nc.x + (5/20) * (5/20) * nt.x, (1 - (5/20)) * (1 - (5/20)) * nk.y + 2 * (1 - (5/20)) * (5/20) * nc.y + (5/20) * (5/20) * nt.y
+                   width: 2 * (nr.t + (nr.b - nr.t) * (1 - 5/20) * (1 - 5/20) * (1 - 5/20)); blend: 3; show: retract < 0.97 }
+            line { from: (1 - (5/20)) * (1 - (5/20)) * nk.x + 2 * (1 - (5/20)) * (5/20) * nc.x + (5/20) * (5/20) * nt.x, (1 - (5/20)) * (1 - (5/20)) * nk.y + 2 * (1 - (5/20)) * (5/20) * nc.y + (5/20) * (5/20) * nt.y; to: (1 - (6/20)) * (1 - (6/20)) * nk.x + 2 * (1 - (6/20)) * (6/20) * nc.x + (6/20) * (6/20) * nt.x, (1 - (6/20)) * (1 - (6/20)) * nk.y + 2 * (1 - (6/20)) * (6/20) * nc.y + (6/20) * (6/20) * nt.y
+                   width: 2 * (nr.t + (nr.b - nr.t) * (1 - 6/20) * (1 - 6/20) * (1 - 6/20)); blend: 3; show: retract < 0.97 }
+            line { from: (1 - (6/20)) * (1 - (6/20)) * nk.x + 2 * (1 - (6/20)) * (6/20) * nc.x + (6/20) * (6/20) * nt.x, (1 - (6/20)) * (1 - (6/20)) * nk.y + 2 * (1 - (6/20)) * (6/20) * nc.y + (6/20) * (6/20) * nt.y; to: (1 - (7/20)) * (1 - (7/20)) * nk.x + 2 * (1 - (7/20)) * (7/20) * nc.x + (7/20) * (7/20) * nt.x, (1 - (7/20)) * (1 - (7/20)) * nk.y + 2 * (1 - (7/20)) * (7/20) * nc.y + (7/20) * (7/20) * nt.y
+                   width: 2 * (nr.t + (nr.b - nr.t) * (1 - 7/20) * (1 - 7/20) * (1 - 7/20)); blend: 3; show: retract < 0.97 }
+            line { from: (1 - (7/20)) * (1 - (7/20)) * nk.x + 2 * (1 - (7/20)) * (7/20) * nc.x + (7/20) * (7/20) * nt.x, (1 - (7/20)) * (1 - (7/20)) * nk.y + 2 * (1 - (7/20)) * (7/20) * nc.y + (7/20) * (7/20) * nt.y; to: (1 - (8/20)) * (1 - (8/20)) * nk.x + 2 * (1 - (8/20)) * (8/20) * nc.x + (8/20) * (8/20) * nt.x, (1 - (8/20)) * (1 - (8/20)) * nk.y + 2 * (1 - (8/20)) * (8/20) * nc.y + (8/20) * (8/20) * nt.y
+                   width: 2 * (nr.t + (nr.b - nr.t) * (1 - 8/20) * (1 - 8/20) * (1 - 8/20)); blend: 3; show: retract < 0.97 }
+            line { from: (1 - (8/20)) * (1 - (8/20)) * nk.x + 2 * (1 - (8/20)) * (8/20) * nc.x + (8/20) * (8/20) * nt.x, (1 - (8/20)) * (1 - (8/20)) * nk.y + 2 * (1 - (8/20)) * (8/20) * nc.y + (8/20) * (8/20) * nt.y; to: (1 - (9/20)) * (1 - (9/20)) * nk.x + 2 * (1 - (9/20)) * (9/20) * nc.x + (9/20) * (9/20) * nt.x, (1 - (9/20)) * (1 - (9/20)) * nk.y + 2 * (1 - (9/20)) * (9/20) * nc.y + (9/20) * (9/20) * nt.y
+                   width: 2 * (nr.t + (nr.b - nr.t) * (1 - 9/20) * (1 - 9/20) * (1 - 9/20)); blend: 3; show: retract < 0.97 }
+            line { from: (1 - (9/20)) * (1 - (9/20)) * nk.x + 2 * (1 - (9/20)) * (9/20) * nc.x + (9/20) * (9/20) * nt.x, (1 - (9/20)) * (1 - (9/20)) * nk.y + 2 * (1 - (9/20)) * (9/20) * nc.y + (9/20) * (9/20) * nt.y; to: (1 - (10/20)) * (1 - (10/20)) * nk.x + 2 * (1 - (10/20)) * (10/20) * nc.x + (10/20) * (10/20) * nt.x, (1 - (10/20)) * (1 - (10/20)) * nk.y + 2 * (1 - (10/20)) * (10/20) * nc.y + (10/20) * (10/20) * nt.y
+                   width: 2 * (nr.t + (nr.b - nr.t) * (1 - 10/20) * (1 - 10/20) * (1 - 10/20)); blend: 3; show: retract < 0.97 }
+            line { from: (1 - (10/20)) * (1 - (10/20)) * nk.x + 2 * (1 - (10/20)) * (10/20) * nc.x + (10/20) * (10/20) * nt.x, (1 - (10/20)) * (1 - (10/20)) * nk.y + 2 * (1 - (10/20)) * (10/20) * nc.y + (10/20) * (10/20) * nt.y; to: (1 - (11/20)) * (1 - (11/20)) * nk.x + 2 * (1 - (11/20)) * (11/20) * nc.x + (11/20) * (11/20) * nt.x, (1 - (11/20)) * (1 - (11/20)) * nk.y + 2 * (1 - (11/20)) * (11/20) * nc.y + (11/20) * (11/20) * nt.y
+                   width: 2 * (nr.t + (nr.b - nr.t) * (1 - 11/20) * (1 - 11/20) * (1 - 11/20)); blend: 3; show: retract < 0.97 }
+            line { from: (1 - (11/20)) * (1 - (11/20)) * nk.x + 2 * (1 - (11/20)) * (11/20) * nc.x + (11/20) * (11/20) * nt.x, (1 - (11/20)) * (1 - (11/20)) * nk.y + 2 * (1 - (11/20)) * (11/20) * nc.y + (11/20) * (11/20) * nt.y; to: (1 - (12/20)) * (1 - (12/20)) * nk.x + 2 * (1 - (12/20)) * (12/20) * nc.x + (12/20) * (12/20) * nt.x, (1 - (12/20)) * (1 - (12/20)) * nk.y + 2 * (1 - (12/20)) * (12/20) * nc.y + (12/20) * (12/20) * nt.y
+                   width: 2 * (nr.t + (nr.b - nr.t) * (1 - 12/20) * (1 - 12/20) * (1 - 12/20)); blend: 3; show: retract < 0.97 }
+            line { from: (1 - (12/20)) * (1 - (12/20)) * nk.x + 2 * (1 - (12/20)) * (12/20) * nc.x + (12/20) * (12/20) * nt.x, (1 - (12/20)) * (1 - (12/20)) * nk.y + 2 * (1 - (12/20)) * (12/20) * nc.y + (12/20) * (12/20) * nt.y; to: (1 - (13/20)) * (1 - (13/20)) * nk.x + 2 * (1 - (13/20)) * (13/20) * nc.x + (13/20) * (13/20) * nt.x, (1 - (13/20)) * (1 - (13/20)) * nk.y + 2 * (1 - (13/20)) * (13/20) * nc.y + (13/20) * (13/20) * nt.y
+                   width: 2 * (nr.t + (nr.b - nr.t) * (1 - 13/20) * (1 - 13/20) * (1 - 13/20)); blend: 3; show: retract < 0.97 }
+            line { from: (1 - (13/20)) * (1 - (13/20)) * nk.x + 2 * (1 - (13/20)) * (13/20) * nc.x + (13/20) * (13/20) * nt.x, (1 - (13/20)) * (1 - (13/20)) * nk.y + 2 * (1 - (13/20)) * (13/20) * nc.y + (13/20) * (13/20) * nt.y; to: (1 - (14/20)) * (1 - (14/20)) * nk.x + 2 * (1 - (14/20)) * (14/20) * nc.x + (14/20) * (14/20) * nt.x, (1 - (14/20)) * (1 - (14/20)) * nk.y + 2 * (1 - (14/20)) * (14/20) * nc.y + (14/20) * (14/20) * nt.y
+                   width: 2 * (nr.t + (nr.b - nr.t) * (1 - 14/20) * (1 - 14/20) * (1 - 14/20)); blend: 3; show: retract < 0.97 }
+            line { from: (1 - (14/20)) * (1 - (14/20)) * nk.x + 2 * (1 - (14/20)) * (14/20) * nc.x + (14/20) * (14/20) * nt.x, (1 - (14/20)) * (1 - (14/20)) * nk.y + 2 * (1 - (14/20)) * (14/20) * nc.y + (14/20) * (14/20) * nt.y; to: (1 - (15/20)) * (1 - (15/20)) * nk.x + 2 * (1 - (15/20)) * (15/20) * nc.x + (15/20) * (15/20) * nt.x, (1 - (15/20)) * (1 - (15/20)) * nk.y + 2 * (1 - (15/20)) * (15/20) * nc.y + (15/20) * (15/20) * nt.y
+                   width: 2 * (nr.t + (nr.b - nr.t) * (1 - 15/20) * (1 - 15/20) * (1 - 15/20)); blend: 3; show: retract < 0.97 }
+            line { from: (1 - (15/20)) * (1 - (15/20)) * nk.x + 2 * (1 - (15/20)) * (15/20) * nc.x + (15/20) * (15/20) * nt.x, (1 - (15/20)) * (1 - (15/20)) * nk.y + 2 * (1 - (15/20)) * (15/20) * nc.y + (15/20) * (15/20) * nt.y; to: (1 - (16/20)) * (1 - (16/20)) * nk.x + 2 * (1 - (16/20)) * (16/20) * nc.x + (16/20) * (16/20) * nt.x, (1 - (16/20)) * (1 - (16/20)) * nk.y + 2 * (1 - (16/20)) * (16/20) * nc.y + (16/20) * (16/20) * nt.y
+                   width: 2 * (nr.t + (nr.b - nr.t) * (1 - 16/20) * (1 - 16/20) * (1 - 16/20)); blend: 3; show: retract < 0.97 }
+            line { from: (1 - (16/20)) * (1 - (16/20)) * nk.x + 2 * (1 - (16/20)) * (16/20) * nc.x + (16/20) * (16/20) * nt.x, (1 - (16/20)) * (1 - (16/20)) * nk.y + 2 * (1 - (16/20)) * (16/20) * nc.y + (16/20) * (16/20) * nt.y; to: (1 - (17/20)) * (1 - (17/20)) * nk.x + 2 * (1 - (17/20)) * (17/20) * nc.x + (17/20) * (17/20) * nt.x, (1 - (17/20)) * (1 - (17/20)) * nk.y + 2 * (1 - (17/20)) * (17/20) * nc.y + (17/20) * (17/20) * nt.y
+                   width: 2 * (nr.t + (nr.b - nr.t) * (1 - 17/20) * (1 - 17/20) * (1 - 17/20)); blend: 3; show: retract < 0.97 }
+            line { from: (1 - (17/20)) * (1 - (17/20)) * nk.x + 2 * (1 - (17/20)) * (17/20) * nc.x + (17/20) * (17/20) * nt.x, (1 - (17/20)) * (1 - (17/20)) * nk.y + 2 * (1 - (17/20)) * (17/20) * nc.y + (17/20) * (17/20) * nt.y; to: (1 - (18/20)) * (1 - (18/20)) * nk.x + 2 * (1 - (18/20)) * (18/20) * nc.x + (18/20) * (18/20) * nt.x, (1 - (18/20)) * (1 - (18/20)) * nk.y + 2 * (1 - (18/20)) * (18/20) * nc.y + (18/20) * (18/20) * nt.y
+                   width: 2 * (nr.t + (nr.b - nr.t) * (1 - 18/20) * (1 - 18/20) * (1 - 18/20)); blend: 3; show: retract < 0.97 }
+            line { from: (1 - (18/20)) * (1 - (18/20)) * nk.x + 2 * (1 - (18/20)) * (18/20) * nc.x + (18/20) * (18/20) * nt.x, (1 - (18/20)) * (1 - (18/20)) * nk.y + 2 * (1 - (18/20)) * (18/20) * nc.y + (18/20) * (18/20) * nt.y; to: (1 - (19/20)) * (1 - (19/20)) * nk.x + 2 * (1 - (19/20)) * (19/20) * nc.x + (19/20) * (19/20) * nt.x, (1 - (19/20)) * (1 - (19/20)) * nk.y + 2 * (1 - (19/20)) * (19/20) * nc.y + (19/20) * (19/20) * nt.y
+                   width: 2 * (nr.t + (nr.b - nr.t) * (1 - 19/20) * (1 - 19/20) * (1 - 19/20)); blend: 3; show: retract < 0.97 }
+            line { from: (1 - (19/20)) * (1 - (19/20)) * nk.x + 2 * (1 - (19/20)) * (19/20) * nc.x + (19/20) * (19/20) * nt.x, (1 - (19/20)) * (1 - (19/20)) * nk.y + 2 * (1 - (19/20)) * (19/20) * nc.y + (19/20) * (19/20) * nt.y; to: (1 - (20/20)) * (1 - (20/20)) * nk.x + 2 * (1 - (20/20)) * (20/20) * nc.x + (20/20) * (20/20) * nt.x, (1 - (20/20)) * (1 - (20/20)) * nk.y + 2 * (1 - (20/20)) * (20/20) * nc.y + (20/20) * (20/20) * nt.y
+                   width: 2 * (nr.t + (nr.b - nr.t) * (1 - 20/20) * (1 - 20/20) * (1 - 20/20)); blend: 3; show: retract < 0.97 }
+            ellipse {
+                at: st.x, st.y
+                radius: 23
+                scale: sx * (1 - join.stretch * 0.5), sy * (1 + join.stretch)
+                blend: 16
+            }
+            //  The foot: a flat drop of her on the ledge, so she is stuck to it.
+            ellipse { at: st.x, st.y + 22; radius: 16 * seat * st.ledge; scale: 1.5, 0.18; blend: 6 * seat * st.ledge }
+            //  And the box. It comes out of her on the side with room.
+            box pill_box {
+                at: pl.cx, st.y
+                size: pl.w * pill, 38 * clamp(pill * 2.4, 0, 1)
+                corner: 19
+                blend: 30 * 4 * pill * (1 - pill) + 24 * pill
+                show: pill > 0.02
+            }
+        }
+        Face(st.x, st.y, st.gx, st.gy, 0)
+        //  The drops that go up where she lands, and fall back.
+        particles { at: st.x, sit.y + 20 - mo.y; area: 40, 2; count: 28; life: 0.35s .. 0.75s; speed: 90 .. 280
+                    direction: -90deg; spread: 140deg; gravity: 0, 720; size: 4.5, 1; colors: #e8f6ff, #9ed6bd; opacity: 95%, 0%
+                    shape: dot; burst: join_splash }
+
+        //  What she says under her while she is pulled: the name of the window she
+        //  is over, or that it has to be one.
+        group {
+            show: join.phase == held
+            let h.y = st.y + 46
+            box { at: st.x, h.y; size: 170, 22; corner: 11; color: #101314; opacity: 88% }
+            box { at: st.x, h.y; size: 170, 22; corner: 11; stroke: 1; color: mint; opacity: hov.a * 60% }
+            text hov.app { at: st.x, h.y; anchor: center; size: 11.5; weight: 600; color: mint; width: 150; lines: 1; opacity: hov.a }
+            text "Drop me on a window" { at: st.x, h.y; anchor: center; size: 11; color: #8b8f95; opacity: 1 - hov.a }
+        }
+
+        //  The box. Joined, with the window it is joined to; the task goes in it
+        //  and while she works it says what she is doing.
+        group {
+            opacity: clamp(pill * 3 - 2, 0, 1)
+            show: pill > 0.7
+            //  Who she is joined to, above the box, and the way out.
+            let jc.y = if(st.y > 66, st.y - 38, st.y + 38)
+            box { at: pl.cx, jc.y; size: 232, 24; corner: 12; color: #101314; opacity: 90% }
+            box { at: pl.cx, jc.y; size: 232, 24; corner: 12; stroke: 1; color: mint; opacity: 30% }
+            ellipse { at: pl.cx - 104, jc.y; radius: 3.2; color: mint }
+            text "{upper(join.app)}" { at: pl.cx - 96, jc.y; anchor: left center; size: 9.5; weight: 700; color: mint; width: 100; lines: 1 }
+            prop letgo.glow = 0 ~140ms
+            box { at: pl.cx + 74, jc.y; size: 72, 18; corner: 9; color: #2a2b2c; opacity: 70% + 30% * letgo.glow }
+            text "Let go" { at: pl.cx + 74, jc.y; anchor: center; size: 10; weight: 600; color: ink }
+            zone box letgo_btn { at: pl.cx + 74, jc.y; size: 72, 18; corner: 9; cursor: pointer; label: "Let go of the window"; active: join.phase == sitting and pill > 0.7 }
+            on enter letgo_btn { letgo.glow: 1 }
+            on leave letgo_btn { letgo.glow: 0 }
+            on press letgo_btn { emit chat_detach }
+
+            //  What she said when she was done: it stays until the next task.
+            box { at: pl.cx, sd.y + jsaid.height / 2; size: pl.w - 16, jsaid.height + 18; corner: 14; color: #101314; opacity: 92%; show: join.said_on }
+            box { at: pl.cx, sd.y + jsaid.height / 2; size: pl.w - 16, jsaid.height + 18; corner: 14; stroke: 1; color: mint; opacity: 25%; show: join.said_on }
+            text join.said { at: pl.cx - pl.w / 2 + 18, sd.y - 6; anchor: left top; width: pl.w - 52; size: 12.5; line_height: 1.35; color: ink; measure: jsaid }
+            //  Where she writes. A password never goes through here: it is the
+            //  chat's field that turns into one.
+            input join.input { at: pl.c.l, st.y - 9; width: pl.c.r - pl.c.l - 40; size: 14; color: ink
+                               placeholder: "Tell me what to do in this window…"
+                               selection: #2f5f52; show: not join.busy }
+            //  And while she works, what she is on.
+            text chat.status { at: pl.c.l, st.y; anchor: left center; size: 12.5; color: #b9bcc0; width: pl.c.r - pl.c.l - 40; lines: 1; show: join.busy }
+            text chat.status { at: pl.c.l, st.y; anchor: left center; size: 12.5; color: #ef7a66; width: pl.c.r - pl.c.l - 40; lines: 1; show: chat.state == offline }
+            prop jsend.glow = 0 ~140ms
+            ellipse { at: pl.c.r - 15, st.y; radius: 15; color: mix(mint, #ef7a66, join.busy); opacity: 80% + 20% * jsend.glow }
+            path { at: pl.c.r - 21, st.y - 7; color: #0c0f12; stroke: 2; show: not join.busy
+                   move 6, 13; line 6, 1 }
+            path { at: pl.c.r - 21, st.y - 7; color: #0c0f12; stroke: 2; show: not join.busy
+                   move 1, 6; line 6, 1; line 11, 6 }
+            box { at: pl.c.r - 15, st.y; size: 10, 10; corner: 2; color: #0c0f12; show: join.busy }
+            zone ellipse jsend_btn { at: pl.c.r - 15, st.y; radius: 16; cursor: pointer; label: "Send"; active: join.phase == sitting and pill > 0.7 }
+            on enter jsend_btn { jsend.glow: 1 }
+            on leave jsend_btn { jsend.glow: 0 }
+        }
+        //  Her: pressed, she lets go of the window.
+        zone ellipse her_perch { at: st.x, st.y; radius: 24; cursor: pointer; label: "Let go of the window"; active: join.phase == sitting and pill > 0.2 }
+    }
+}

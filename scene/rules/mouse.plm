@@ -73,7 +73,9 @@ part Mouse {
     on idle for 45s while not needed and not haven and not open and not tray_open and not corner and not asleep { asleep = true; dozed = true }
     //  The click opens; brushing past does not. Before, 450 ms of brushing were
     //  enough for a whole panel to cover what you were reading.
-    on press body_zone { press: 1; toggle open }
+    //  The click opens on letting go, and only if she was not pulled: pulling her is
+    //  something else (scene/rules/join.plm).
+    on press body_zone { press: 1; dragged = false }
     on release body_zone { press: 0 }
     // ── her menu ─────────────────────────────────────────────────
     //  It goes at the end on purpose: its zones have to be the last ones, because

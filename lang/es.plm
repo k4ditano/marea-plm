@@ -344,5 +344,13 @@ library SpanishUi {
         "Delete it (press twice)" = "Borrarla (pulsa dos veces)"
         "Made with her in «Build something». Open one again to keep improving it." = "Hechas con ella en «Construir algo». Ábrela otra vez para seguir mejorándola."
         "Nothing yet: «Build something», in her finder." = "Nada todavía: «Construir algo», en su buscador."
+        // dropped on a window (scene/surfaces/join.plm)
+        "Drop me on a window" = "Suéltame sobre una ventana"
+        "Let go" = "Soltar"
+        "Let go of the window" = "Soltar la ventana"
+        "Outside her box: gives the keyboard back" = "Fuera de su caja: devuelve el teclado"
+        "Send" = "Enviar"
+        "Tell her what to do in this window" = "Dile qué hacer en esta ventana"
+        "Tell me what to do in this window…" = "Dime qué hacer en esta ventana…"
     }
 }

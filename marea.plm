@@ -115,6 +115,7 @@ scene Marea {
     include "scene/state/deriva.plm"
     include "scene/state/finder.plm"
     include "scene/state/chat.plm"
+    include "scene/state/join.plm"
     include "scene/state/software.plm"
     include "scene/state/sleep.plm"
     include "scene/state/haven.plm"
@@ -147,8 +148,10 @@ scene Marea {
     include "scene/rules/notices.plm"
     include "scene/rules/recording.plm"
     include "scene/rules/mouse.plm"
+    include "scene/rules/join.plm"
 
     // ── her other surfaces ───────────────────────────────────────
     include "scene/surfaces/lock.plm"
     include "scene/surfaces/desktop.plm"
+    include "scene/surfaces/join.plm"
 }
