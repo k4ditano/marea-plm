@@ -312,7 +312,12 @@ async function start(m) {
     const ok = session.model && session.model.provider !== "unknown" && session.model.id !== "unknown"
         && available.some((x) => x.provider === session.model.provider && x.id === session.model.id);
     usable = !!ok;
-    if (Array.isArray(m.history) && m.history.length > 0) session.agent.state.messages = restored(m.history, session.model);
+    if (Array.isArray(m.history) && m.history.length > 0) {
+        //  Pi 1.x keeps the history in the session manager, not in the agent's state:
+        //  what came before is appended there, then the context is read again from it.
+        for (const message of restored(m.history, session.model)) session.sessionManager.appendMessage(message);
+        session.refreshContext();
+    }
     const active = session.getActiveToolNames?.() ?? [];
     const extra = active.filter((n) => !list.some((t) => t.name === n));
     if (extra.length > 0) throw new Error("unexpected_tools:" + extra.join(","));
@@ -478,7 +483,10 @@ input.on("line", (line) => {
             }
             break;
         case "reset":
-            if (session && !busy) session.agent.state.messages = [];
+            if (session && !busy) {
+                session.sessionManager.newSession();
+                session.refreshContext();
+            }
             break;
         case "shutdown":
             process.exit(0);

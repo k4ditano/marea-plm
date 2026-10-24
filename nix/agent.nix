@@ -7,7 +7,7 @@ buildNpmPackage {
   version = "0.1.0";
   src = ../agent;
   inherit nodejs;
-  npmDepsHash = "sha256-yxuXsTPc1q1nmith2FKCY1rAP6rHVDHG19Xo4CZTUjw=";
+  npmDepsHash = "sha256-HqxjBrqu7URvJVcka+a0eV8Eb3gAkKPQAyO9AqkAPUo=";
   npmFlags = [ "--ignore-scripts" ];
   dontNpmBuild = true;
   installPhase = ''
