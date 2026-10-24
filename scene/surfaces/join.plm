@@ -15,7 +15,7 @@ part JoinSurface {
         anchor: top_left
         level: overlay
         screens: each max 3
-        open: join.phase != none and (join.phase != sitting or screen.index == join.screen)
+        open: join.phase != none and not join.hidden and (join.phase != sitting or screen.index == join.screen)
         //  The keyboard is asked for on demand while the box is shown: a click in the field
         //  gives it to the child, a click on another window to that one. Never exclusive: it would
         //  keep his typing from every other window (rules/join.plm).

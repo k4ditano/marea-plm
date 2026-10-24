@@ -102,6 +102,8 @@ part Join {
     prop cl.y = 0 ~55ms
     follow cl.x = cur.dx
     follow cl.y = cur.dy
+    //  Her window is not shown (another workspace, minimised): she is not either.
+    fact join.hidden = false
     fact carry.on = false
     fact carry.gx = 0
     fact carry.gy = 0

@@ -101,6 +101,15 @@ export const TOOLS = [
         }),
     },
     {
+        name: "terminal_wait",
+        looks: true,
+        description: "Waits until what runs in a terminal window finishes, and brings back what it printed. For an AI agent there (Claude Code, Codex…) it waits until it is done and ready again; for a command or any other program, until the terminal is quiet. Up to «seconds» (60 by default, 600 at most); if it is not done by then it says so and what is on the screen, and you can wait again. Use it after you type a task into a terminal, instead of ending your turn: the user expects the result, not «I sent it».",
+        parameters: Type.Object({
+            pid: shellPid,
+            seconds: Type.Optional(Type.Integer({ minimum: 5, maximum: 600 })),
+        }),
+    },
+    {
         name: "desktop_run",
         description: "Types a command in a terminal window's shell, presses Enter, waits until the shell is ready again (up to «seconds», 30 by default) and answers with what it printed. The window must be a terminal (desktop_windows says «does text»); pid can be PID:SHELL when it has several shells.",
         parameters: Type.Object({
