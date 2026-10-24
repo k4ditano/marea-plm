@@ -30,9 +30,9 @@ part JoinRules {
         ball.y: host.y + pointer.y ~lively
     }
     //  Let go: over a window she falls; over nothing she goes back up.
+    //  (Where she is let go is where the pull last told it: the release itself comes
+    //  with no place in some compositors, 0,0, and that is the corner of her surface.)
     on release body_zone while join.phase == held {
-        ptr.x = host.x + (host.w - 920) / 2 + pointer.x
-        ptr.y = host.y + pointer.y
         join.phase = waiting
         emit join_drop
     }
