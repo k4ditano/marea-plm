@@ -118,9 +118,13 @@ part JoinRules {
     on change chatting while not chatting and join.phase == sitting { pill: 1 after 260ms }
     //  Enter in the box sends it, and the box gives the keyboard back; the chat
     //  panel stays closed: what she says is under her.
-    on submit join.input { emit join_send; join.typing = false }
+    //  (The box keeps the keyboard, so the next thing is typed at once; a click
+    //  outside gives it back.)
+    on submit join.input { emit join_send }
     on press jsend_btn while join.busy { emit chat_stop }
-    on press jsend_btn while not join.busy { emit join_send; join.typing = false }
+    on press jsend_btn while not join.busy { emit join_send; join.typing = true; focus join.input }
+    //  Done with what she was asked: the box takes the keyboard again, unless the chat is open.
+    on change chat.state while chat.state == idle and join.phase == sitting and not chatting { join.typing = true; focus join.input }
     on press join_away { join.typing = false }
     on press pill_zone { join.typing = true; focus join.input }
     on key Escape while join.phase == sitting { emit chat_detach }

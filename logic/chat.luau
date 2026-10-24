@@ -1384,11 +1384,13 @@ return function(shared)
         local gen = follow_gen
         local missed = 0
         local last = ""
+        local calm = 99   -- rounds since it last moved
         local function tick()
             if gen ~= follow_gen or not joined then return end
             run("pleamar-wm", { "agent", "windows" }, function(out, code)
                 if gen ~= follow_gen or not joined then return end
-                local wait = 1000
+                --  Close behind it while it moves (a round costs 10 ms), at ease when it is still.
+                local wait = calm < 25 and 45 or 600
                 if code == 0 then
                     local mine
                     for _, w in ipairs(parse_windows(out)) do
@@ -1404,12 +1406,18 @@ return function(shared)
                         missed = 0
                         local box = mine.x .. "," .. mine.y .. "," .. mine.w .. "," .. mine.h .. "," .. mine.screen
                         if box ~= last then
-                            if last ~= "" then wait = 300 end
+                            local moved_screen = last ~= "" and tostring(last):match(",(%d+)$") ~= tostring(mine.screen)
+                            if last ~= "" then wait = 45; calm = 0 end
                             last = box
                             show_box(mine)
                             joined.title = mine.title
-                            --  A change of box may be tiled turning free: look at the bars again.
-                            read_bars(function() if joined then show_box(mine) end end)
+                            --  Tiled turning free changes the title bar: the bars are looked at again
+                            --  when it changes monitor or after it has been still for a moment.
+                            if moved_screen then read_bars(function() if joined then show_box(mine) end end) end
+                        else
+                            calm = calm + 1
+                            if calm == 25 then read_bars(function() if joined then show_box(mine) end end) end
+                            if calm < 25 then wait = 45 end
                         end
                     end
                 end

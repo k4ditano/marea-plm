@@ -81,10 +81,10 @@ part Join {
     prop seat = 0 ~110ms
     //  The window's box, followed with a spring: she is carried by it, a little
     //  behind, as water would.
-    prop pb.x = 0 ~lively
-    prop pb.y = 0 ~lively
-    prop pb.w = 0 ~lively
-    prop pb.h = 0 ~lively
+    prop pb.x = 0 ~70ms
+    prop pb.y = 0 ~70ms
+    prop pb.w = 0 ~70ms
+    prop pb.h = 0 ~70ms
     follow pb.x = join.x
     follow pb.y = join.y
     follow pb.w = join.w
