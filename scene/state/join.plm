@@ -153,11 +153,17 @@ part Join {
     //  sits astride the edge as high as her own body allows.
     let sit.mx = pick(join.screen, mon.x.0, mon.x.1, mon.x.2)
     let sit.my = pick(join.screen, mon.y.0, mon.y.1, mon.y.2)
-    let sit.x = pb.x + clamp(join.dx, 34, max(pb.w - 34, 34))
+    //  Where along the window's edge the child sits: where it was let go, unless the box (450) would
+    //  fit on neither side of it inside the window: then at the window's left end, so the box has
+    //  all the rest.
+    let sit.dx0 = clamp(join.dx, 34, max(pb.w - 34, 34))
+    let sit.dx = if(sit.dx0 >= 480 or pb.w - sit.dx0 >= 480, sit.dx0, 34)
+    let sit.x = pb.x + sit.dx
     let sit.y = sit.my + max(pb.y - sit.my - 22, 24)
     //  The same place from the logic's own numbers, for sending her there: the
     //  window's box springs (`pb`) and has not arrived yet when she is sent.
-    let tgt.x = jx + clamp(join.dx, 34, max(join.w - 34, 34))
+    let tgt.d0 = clamp(join.dx, 34, max(join.w - 34, 34))
+    let tgt.x = jx + if(tgt.d0 >= 480 or join.w - tgt.d0 >= 480, tgt.d0, 34)
     let tgt.y = sit.my + max(jy - sit.my - 22, 24)
     //  Let go inside a window she is BELOW its top edge, so she goes up to it (a
     //  drop drawn along the glass); told from the keyboard she starts above it and
