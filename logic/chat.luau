@@ -1360,6 +1360,7 @@ return function(shared)
         local app = joined.app
         joined, joined_dialogs = nil, {}
         fact["carry.on"] = false
+        fact["join.hidden"] = false
         fact["chat.attached"] = false
         text["chat.joined"] = ""
         text["join.app"] = ""
@@ -1375,6 +1376,13 @@ return function(shared)
         local list = {}
         for line in tostring(out):gmatch("[^\n]+") do
             local pid, app, title, w, h, x, y = line:match("^%s*([%d%.]+)%s+(%S+)%s+«(.-)»%s+(%d+)x(%d+) at (-?%d+),(-?%d+)")
+            if not pid then
+                --  Not shown (another workspace, minimised): no box, but it is there.
+                local hpid, happ, htitle = line:match("^%s*([%d%.]+)%s+(%S+)%s+«(.-)»%s+hidden")
+                if hpid then
+                    list[#list + 1] = { pid = hpid, app = happ, title = htitle, w = 0, h = 0, x = 0, y = 0, screen = 0, hidden = true, dialog = line:find("dialog of", 1, true) ~= nil, keyboard = false }
+                end
+            end
             if pid then
                 list[#list + 1] = {
                     pid = pid, app = app, title = title, w = tonumber(w), h = tonumber(h), x = tonumber(x), y = tonumber(y),
@@ -1457,6 +1465,7 @@ return function(shared)
         local carried = false
         local carry_at
         local rounds = 0
+        local chain = 0       -- which round of the loop is the live one: a round that never heard back is left behind
         local slot            -- the window manager's place for her window, to know it is the one carried
         local poll
         --  Which of the window manager's slots her window is: the one whose place (`x.N`, `y.N`, where
@@ -1488,9 +1497,11 @@ return function(shared)
         --  is hers (it starts where she sits), her place is the mouse's, as the scene says it.
         local function tick()
             if gen ~= follow_gen or not joined then return end
-            if not cur then return poll() end
+            chain = chain + 1
+            local my = chain
+            if not cur then return poll(my) end
             run("pleamar-wm", { "--say", "wm", "get dragging", "get mouse.x", "get mouse.y", "get grab.x", "get grab.y" }, function(out, code)
-                if gen ~= follow_gen or not joined then return end
+                if gen ~= follow_gen or not joined or my ~= chain then return end
                 local v, i = {}, 0
                 for line in tostring(out):gmatch("[^\n]+") do
                     i = i + 1
@@ -1525,12 +1536,12 @@ return function(shared)
                 end
                 --  Still, the window is looked at every fifth round; the carry, every one.
                 rounds = rounds + 1
-                if calm < 25 or rounds % 5 == 0 then poll() else after(120, tick) end
+                if calm < 25 or rounds % 5 == 0 then poll(my) else after(120, tick) end
             end, { errors = false })
         end
-        poll = function()
+        poll = function(my)
             run("pleamar-wm", { "agent", "windows" }, function(out, code)
-                if gen ~= follow_gen or not joined then return end
+                if gen ~= follow_gen or not joined or my ~= chain then return end
                 --  Close behind it while it moves (a round costs 10 ms), at ease when it is still.
                 local wait = calm < 25 and 45 or 120
                 if code == 0 then
@@ -1544,8 +1555,16 @@ return function(shared)
                             leave(string.format(tr("%s closed: I let go of it."), joined.app))
                             return
                         end
+                    elseif mine.hidden then
+                        --  On another workspace (or minimised): she is not shown, and she is not let go.
+                        missed = 0
+                        if fact["join.hidden"] ~= true then fact["join.hidden"] = true end
+                        carried = false
+                        fact["carry.on"] = false
+                        wait = 300
                     else
                         missed = 0
+                        if fact["join.hidden"] == true then fact["join.hidden"] = false end
                         cur = mine
                         local box = mine.x .. "," .. mine.y .. "," .. mine.w .. "," .. mine.h .. "," .. mine.screen
                         if box ~= last then
@@ -1569,6 +1588,16 @@ return function(shared)
             end, HANDS)
         end
         after(600, tick)
+        --  And if a round never heard back (the window manager busy while a window is
+        --  resized), the loop is started again instead of standing still for good.
+        local seen = -1
+        local function watch()
+            if gen ~= follow_gen or not joined then return end
+            if chain == seen then tick() end
+            seen = chain
+            after(2500, watch)
+        end
+        after(2500, watch)
     end
     --  Joined: she holds that window and only it, and the perch brings her down
     --  onto its top edge (`dx`: how far along it).
