@@ -1490,6 +1490,9 @@ return function(shared)
         grab_gen = grab_gen + 1
         local gen = grab_gen
         read_monitors()
+        --  Which monitors give their windows a title bar, before she is let go over one
+        --  (the drop on a title bar is the natural one): asked only once she joined before.
+        read_bars()
         local busy = false
         local function tick()
             if gen ~= grab_gen or fact["join.phase"] ~= "held" then return end
