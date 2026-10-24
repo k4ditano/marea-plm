@@ -31,6 +31,8 @@ part JoinRules {
     }
     //  Let go: over a window she falls; over nothing she goes back up.
     on release body_zone while join.phase == held {
+        ptr.x = host.x + (host.w - 920) / 2 + pointer.x
+        ptr.y = host.y + pointer.y
         join.phase = waiting
         emit join_drop
     }

@@ -1322,6 +1322,7 @@ return function(shared)
     --  the window manager's `tb`); tiled ones have none. She sits on the top of
     --  the whole frame, so each monitor's mode is asked of the window manager.
     local bars = {}
+    local nmon = 1
     local function read_bars(done)
         local left = 3
         for k = 0, 2 do
@@ -1340,6 +1341,7 @@ return function(shared)
                     local k, w, x, y = line:match("^%s*(%d+)%s+%S+%s+(%d+)x%d+ at (-?%d+),(-?%d+)")
                     k = tonumber(k)
                     if k and k < 3 then
+                        nmon = math.max(nmon, k + 1)
                         fact["mon.x." .. k] = tonumber(x)
                         fact["mon.y." .. k] = tonumber(y)
                         fact["mon.w." .. k] = tonumber(w)
@@ -1511,6 +1513,20 @@ return function(shared)
     on("join_drop", function()
         grab_gen = grab_gen + 1
         local px, py = fact["ptr.x"] or 0, fact["ptr.y"] or 0
+        --  The pointer that crosses to another monitor stops being told to her (the
+        --  press belongs to her surface): the last place she knows is at the edge
+        --  she was pulled across. That is not a window; she goes back.
+        local hx, hw = 0, 0
+        for k = 0, 2 do
+            if px >= (fact["mon.x." .. k] or 0) and px < (fact["mon.x." .. k] or 0) + (fact["mon.w." .. k] or 0) then
+                hx, hw = fact["mon.x." .. k], fact["mon.w." .. k]
+            end
+        end
+        if nmon > 1 and hw > 0 and (px - hx <= 24 or px - hx >= hw - 24) then
+            fact["hov.on"] = false
+            emit("join_none")
+            return
+        end
         run("pleamar-wm", { "agent", "windows" }, function(out, code)
             local target = code == 0 and window_at(parse_windows(out), px, py) or nil
             if not target then
