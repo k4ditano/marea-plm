@@ -13,12 +13,12 @@ part JoinSurface {
         level: overlay
         screens: each max 3
         open: join.phase != none and (join.phase != sitting or screen.index == join.screen)
-        //  The box holds the keyboard while it is being written in; the scene's
-        //  `focus` on it, with no click, asks for all of it until `join.typing`
-        //  stops (Enter, Esc, a click away), and gives it back then.
-        keyboard: on_demand while join.typing
+        //  The keyboard is asked for on demand while the box is shown: a click in the field
+        //  gives it to her, a click on another window to that one. Never exclusive: it would
+        //  keep his typing from every other window (rules/join.plm).
+        keyboard: on_demand while join.shown
         //  Sitting and not being written to, a breathing ring needs few frames.
-        rate: 60, 20 while join.phase == sitting and not join.typing and not join.busy and not carry.on
+        rate: 60, 30 while join.phase == sitting and not join.busy and not carry.on
 
         //  This copy's corner, in desktop pixels, and everything in its own.
         let mo.x = pick(screen.index, mon.x.0, mon.x.1, mon.x.2)
@@ -153,11 +153,6 @@ part JoinSurface {
         //  What she answered, under her box (and under the chip when that is below).
         measure jsaid
         let sd.y = if(st.y > 52, st.y + 32, st.y + 70)
-
-        //  A click anywhere else gives the keyboard back to whoever had it. It goes
-        //  first: of two zones the later one is on top, and the box's own zones
-        //  have to win over it.
-        zone box join_away { from: 0, 0; size: stick.width, stick.height; active: join.typing; label: "Outside her box: gives the keyboard back"; role: region }
 
         //  The box: 410 wide, on the side of her with room for it. `pl.c.l` and
         //  `pl.c.r` are where what is in it begins and ends, clear of her.

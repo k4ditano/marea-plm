@@ -59,6 +59,9 @@ part Join {
     //  Where what you write in the box goes: the logic copies it into the
     //  chat's own input and sends it.
     text join.input = ""
+    //  The box is there to be written in (grown, she sits, the chat is not in its place):
+    //  a click in it gives it the keyboard, as any field.
+    let join.shown = join.phase == sitting and pill > 0.5
     fact join.typing = false          // the box holds the keyboard
     event join_grab ->                // she has been pulled out: look at the windows
     event join_drop ->                // let go: which window is she over?

@@ -98,11 +98,12 @@ part JoinRules {
     }
     //  A fall that never arrived (a window that moved out from under her).
     on still join.phase for 1600ms while join.phase == falling { join.phase = sitting; seat: 1 ~140ms; retract: 1 ~240ms; pill: 1 after 120ms; splashing: 0 ~400ms }
-    //  And the box asks for the keyboard once it has grown.
-    on change pill > 0.6 while pill > 0.6 and join.phase == sitting {
-        join.typing = true
-        focus join.input
-    }
+    //  The box has no exclusive hold on the keyboard: it asks for it on demand while it is
+    //  shown (scene/surfaces/join.plm), so a click in the field gives it to her and a click on
+    //  any window gives it to that window; she never keeps it from him. (A `focus` on the field
+    //  asks for all of it as long as the surface may have it: it stayed asked for as long as she
+    //  sat, so nothing was typed anywhere else.) Typing is therefore started by a click in the
+    //  field; the first key after the drop still goes to the window that had the keyboard.
 
     // ── what she does while she is there ─────────────────────────
     //  Her face, as in the chat: waves while she thinks, a start when she
@@ -122,11 +123,7 @@ part JoinRules {
     //  outside gives it back.)
     on submit join.input { emit join_send }
     on press jsend_btn while join.busy { emit chat_stop }
-    on press jsend_btn while not join.busy { emit join_send; join.typing = true; focus join.input }
-    //  Done with what she was asked: the box takes the keyboard again, unless the chat is open.
-    on change chat.state while chat.state == idle and join.phase == sitting and not chatting { join.typing = true; focus join.input }
-    on press join_away { join.typing = false }
-    on press pill_zone { join.typing = true; focus join.input }
+    on press jsend_btn while not join.busy { emit join_send }
     on key Escape while join.phase == sitting { emit chat_detach }
     //  A window carried by its title bar, told by the window manager: hers if the mouse is on
     //  its title bar, and then she goes with the mouse at once, from where it was taken.
