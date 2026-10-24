@@ -403,6 +403,9 @@ async function prompt(m) {
     const now = typeof m.now === "string" && m.now.length < 60 ? `[Now: ${m.now}]\n` : "";
     //  Free hands: the user let her do things through to the end, without asking.
     const free = m.free === true ? "[Free hands]\n" : "";
+    //  Joined to a window: hers, and only hers, with free hands.
+    const j = m.joined && typeof m.joined === "object" ? m.joined : null;
+    const joined = j ? `[Joined to a window: pid ${String(j.pid).replace(/[^0-9.]/g, "")}, ${String(j.app).slice(0, 40).replace(/[\n\r]/g, " ")} «${String(j.title).slice(0, 80).replace(/[\n\r]/g, " ")}». It is the only window you touch, with free hands: do what is asked inside it through to the end. Read it with desktop_tree first. You cannot open programs or touch other windows.]\n` : "";
     //  Passwords saved since she was told (Settings, or secret_ask in an
     //  earlier turn): she is told the names again, never the passwords.
     let keys = "";
@@ -411,7 +414,7 @@ async function prompt(m) {
         if (names !== toldSecrets) keys = `[Passwords saved in Marea now, by name: ${names || "none"}]\n`;
         toldSecrets = names;
     }
-    const text = now + free + keys + (typeof m.text === "string" ? m.text.slice(0, LIMITS.text) : "");
+    const text = now + free + joined + keys + (typeof m.text === "string" ? m.text.slice(0, LIMITS.text) : "");
     const images = (Array.isArray(m.images) ? m.images : []).slice(0, 4).map(picture).filter(Boolean);
     busy = new AbortController();
     budget = { actions: 0, looks: 0 };

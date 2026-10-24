@@ -46,6 +46,11 @@ return function(shared)
     local revealing = false
     local asks = {}          -- proposal id -> { row, tool, args }
     local programs = {}      -- pid -> program, from the last list of windows
+    --  Joined to a window: she has that window (and its dialogs) and only that
+    --  one, with free hands. { pid, app, title }, nil when she has the desktop.
+    local joined = nil
+    local joined_dialogs = {}  -- the pids of dialogs that window opened
+    local leave                -- let go of it (defined with the panel's events)
     local looks = 0
     local idle_timer = nil
     local stopped_by_pill = false
@@ -193,6 +198,23 @@ return function(shared)
         if args.name and tool ~= "desktop_type_secret" then return tostring(args.name) end
         return programs[window_name(args.pid)] or ("the window " .. tostring(args.pid or "?"))
     end
+    --  What touches a window other than the one she is joined to is refused
+    --  here, whatever the model asks for; the model is only told.
+    local DESKTOP = { desktop_look = true, desktop_tree = true, desktop_find = true, desktop_press = true, desktop_fill = true, desktop_steps = true, desktop_wait = true, desktop_run = true, desktop_click = true, desktop_type = true, desktop_type_secret = true, desktop_key = true, desktop_hotkey = true, desktop_scroll = true, desktop_drag = true }
+    local function joined_refuses(tool, args)
+        if not joined then return nil end
+        if tool == "open_app" or tool == "desktop_to_monitor" or tool == "desktop_focus" then
+            return "You are joined to one window (" .. joined.app .. "): you do not open programs or move windows. Do what is asked inside it."
+        end
+        if DESKTOP[tool] then
+            local base = tostring(args.pid or ""):match("^(%d+)")
+            local whole = tostring(args.pid or ""):match("^([%d%.]+)")
+            if base ~= joined.pid and not joined_dialogs[whole or ""] then
+                return "You are joined to window " .. joined.pid .. " (" .. joined.app .. ") only: you cannot touch another one. Use pid " .. joined.pid .. "."
+            end
+        end
+        return nil
+    end
     local function said(tool, args)
         if builder and builder.owns(tool) then return builder.said(tool, args) end
         return string.format(tr(WORDS[tool] or tool), program(args, tool))
@@ -239,7 +261,7 @@ return function(shared)
             return { "agent", "do", pid }, table.concat(lines, "\n") .. "\n"
         end
         if tool == "desktop_wait" then
-            local until_ = tostring(a.until or "")
+            local until_ = tostring(a["until"] or "")
             local seconds = tostring(math.max(1, math.min(30, math.floor(tonumber(a.seconds) or 10)))) .. "s"
             if until_ == "has" or until_ == "gone" then return { "agent", "wait", pid, until_, "--text", tostring(a.text or ""), seconds } end
             if until_ == "changed" or until_ == "dialog" then return { "agent", "wait", pid, until_, seconds } end
@@ -413,6 +435,17 @@ return function(shared)
                     return
                 end
                 programs = {}
+                joined_dialogs = {}
+                local kept = {}
+                for line in tostring(out):gmatch("[^\n]+") do
+                    local lp = line:match("^%s*([%d%.]+)%s")
+                    if joined and lp then
+                        local owner = line:match("dialog of ([%d%.]+)")
+                        if owner and owner:match("^%d+") == joined.pid then joined_dialogs[lp] = true end
+                        if lp:match("^%d+") == joined.pid or joined_dialogs[lp] then kept[#kept + 1] = line end
+                    end
+                end
+                if joined then out = table.concat(kept, "\n") end
                 for line in tostring(out):gmatch("[^\n]+") do
                     local pid, app = line:match("^%s*([%d%.]+)%s+(%S+)%s+«")
                     if pid then
@@ -441,6 +474,10 @@ return function(shared)
             end
             finish_row(row, code == 0)
             answer(id, code == 0, code == 0 and (out ~= "" and tostring(out) or "Done.") or tostring(out))
+            --  Its window closed: she has nothing to hold on to any more.
+            if joined and code ~= 0 and tostring(out):find("window gone", 1, true) then
+                leave(string.format(tr("%s closed: I let go of it."), joined.app))
+            end
         end, stdin and { errors = true, env = HANDS.env, input = stdin } or HANDS)
     end
 
@@ -851,12 +888,16 @@ return function(shared)
         elseif kind == "propose" then
             live = nil
             local tool, args = tostring(m.tool), (type(m.args) == "table" and m.args or {})
+            local refused = joined_refuses(tool, args)
             local looks_only = tool == "desktop_windows" or tool == "desktop_look" or tool == "desktop_tree" or tool == "desktop_find" or tool == "desktop_wait"
             local verdict = builder and builder.owns(tool) and builder.propose(tool, args)
+
             --  Building: her own work on the creation is done at once; what it
             --  would newly ask the system for is a card, and what is
             --  dangerous is refused before anything is written.
-            if builder and builder.owns(tool) then
+            if refused then
+                answer(m.id, false, refused)
+            elseif builder and builder.owns(tool) then
                 if verdict and verdict.refuse then
                     if verdict.note ~= "" then add(5, verdict.note) end
                     answer(m.id, false, verdict.refuse)
@@ -891,7 +932,7 @@ return function(shared)
             --  Free hands: no card at all, the final step (it sends, buys,
             --  deletes…) included: you let her do it on her own. A task of
             --  her own is kept at once too, and the chat says so.
-            elseif looks_only or fact["chat.free"] == true then
+            elseif looks_only or fact["chat.free"] == true or joined then
                 local line, why = said(tool, args), looks_only and "" or tostring(args.why or "")
                 if tool == "task_schedule" then
                     line = string.format(tr("Kept as a task: %s, at %s"), task_days(args.days), tostring(args.time or "?"))
@@ -1237,6 +1278,53 @@ return function(shared)
     end)
     show_tasks()
 
+    -- ── joined to a window ──
+    --  `marea attach` (a key, or the drop on a window): she has THAT window,
+    --  and everything in it, with free hands, and nothing else of the desktop.
+    --  The window is the one in `chat.target` (a pid from desktop_windows), or,
+    --  said «focus» or empty, the one that has the keyboard.
+    function leave(why)
+        if not joined then return end
+        local app = joined.app
+        joined, joined_dialogs = nil, {}
+        fact["chat.attached"] = false
+        text["chat.joined"] = ""
+        add(5, why or string.format(tr("Let go of %s."), app))
+        paint()
+    end
+    on("chat_attach", function()
+        local want = tostring(text["chat.target"] or ""):gsub("%s", "")
+        run("pleamar-wm", { "agent", "windows" }, function(out, code)
+            if code ~= 0 then
+                add(5, tr("I could not see your windows."))
+                return
+            end
+            local found
+            for line in tostring(out):gmatch("[^\n]+") do
+                local pid, app, title = line:match("^%s*(%d+)%s+(%S+)%s+«(.-)»")
+                if pid and not line:find("dialog of", 1, true) and app ~= "marea" then
+                    local keyboard = line:find("has the keyboard", 1, true) ~= nil
+                    if (want == "" or want == "focus") and keyboard or want == pid then
+                        found = { pid = pid, app = app, title = title }
+                        break
+                    end
+                end
+            end
+            if not found then
+                add(5, tr("I found no window to join."))
+                return
+            end
+            joined, joined_dialogs = found, {}
+            fact["chat.attached"] = true
+            text["chat.joined"] = found.app
+            text["chat.target"] = ""
+            if fact.chatting ~= true then fact.chatting = true end
+            add(5, string.format(tr("Joined to %s: «%s». I only touch this window."), found.app, found.title))
+            paint()
+        end, HANDS)
+    end)
+    on("chat_detach", function() leave() end)
+
     -- ── what the panel asks ──
     on("chat_send", function()
         local words = tostring(text["chat.input"] or "")
@@ -1253,7 +1341,7 @@ return function(shared)
         start_worker()
         fact["chat.state"] = "thinking"
         status(tr("Thinking…"))
-        send({ type = "prompt", text = words, now = os.date("%Y-%m-%d %H:%M, %A"), free = fact["chat.free"] == true, secrets = secrets, images = images })
+        send({ type = "prompt", text = words, now = os.date("%Y-%m-%d %H:%M, %A"), free = fact["chat.free"] == true or joined ~= nil, joined = joined, secrets = secrets, images = images })
     end)
     local function decide(i, yes)
         local first = math.max(1, #rows - ROWS + 1)
