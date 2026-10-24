@@ -165,12 +165,22 @@ part JoinSurface {
         //  The box: 450 wide, on the side of the child with room for it, as tall as a line of
         //  15 px with air; it breathes a little while the child is idle. `pl.c.l` is where
         //  what is in it begins, clear of the child, and `jb.x` the send button at its far end.
-        let pl.w = min(450, stick.width - 80)
+        let pl.w0 = min(450, stick.width - 80)
         let pl.h = 32 * (1 + 0.03 * join.breath * clamp(pill, 0, 1))
-        //  Where the box goes: to the right, unless it would not fit, or it would cover her where she
-        //  lives (then to the left, if there is room there).
-        let pl.cover = st.y < hm.y + 44 and st.x - 10 < hm.x + 42 and st.x + kd.r + pl.w > hm.x - 42
-        let pl.side = if(st.x + kd.r + pl.w > stick.width - 10, -1, if(pl.cover and st.x - kd.r - pl.w > 10, -1, 1))
+        //  Inside its window: the box never leaves the window it works in, nor the screen. The
+        //  window's edges in this copy's own pixels, and the room each side of the child has.
+        let win.l = pb.x - mo.x
+        let win.r = pb.x + pb.w - mo.x
+        let pl.room.r = min(win.r, stick.width) - 10 - (st.x + kd.r - 4)
+        let pl.room.l = (st.x - kd.r + 4) - max(win.l, 0) - 10
+        let pl.fit.r = pl.room.r >= pl.w0
+        let pl.fit.l = pl.room.l >= pl.w0
+        //  Where the box goes: to the right if it fits in the window, unless it would cover her where
+        //  she lives (then to the left, if it fits there); if neither fits whole, to the side with
+        //  more room, and shorter.
+        let pl.cover = st.y < hm.y + 44 and st.x - 10 < hm.x + 42 and st.x + kd.r + pl.w0 > hm.x - 42
+        let pl.side = if(pl.fit.r and not (pl.cover and pl.fit.l), 1, if(pl.fit.l, -1, if(pl.room.r >= pl.room.l, 1, -1)))
+        let pl.w = clamp(if(pl.side > 0, pl.room.r, pl.room.l), 170, pl.w0)
         let pl.cx = st.x + pl.side * (kd.r - 4 + pl.w * pill / 2)
         let jb.x = st.x + pl.side * (kd.r - 4 + pl.w - 17)
         let pl.c.l = if(pl.side > 0, st.x + kd.r + 9, jb.x + 22)
@@ -191,8 +201,10 @@ part JoinSurface {
         //  way out. It sits on the other side of the child from the box, or past the end of it.
         measure jname
         let tb.w = jname.width + 62
-        let tb.room = st.x - kd.r - 12 - tb.w > 10
-        let tb.cx = if(pl.side > 0, if(tb.room, st.x - kd.r - 12 - tb.w / 2, pl.cx + pl.w * clamp(pill, 0, 1) / 2 + 12 + tb.w / 2), st.x + kd.r + 12 + tb.w / 2)
+        let tb.room = st.x - kd.r - 12 - tb.w > max(win.l, 0) + 6
+        let tb.cx0 = if(pl.side > 0, if(tb.room, st.x - kd.r - 12 - tb.w / 2, pl.cx + pl.w * clamp(pill, 0, 1) / 2 + 12 + tb.w / 2), st.x + kd.r + 12 + tb.w / 2)
+        //  (And the tab stays on the window's ring, not past its end.)
+        let tb.cx = clamp(tb.cx0, win.l + tb.w / 2 + 6, max(win.r - tb.w / 2 - 6, win.l + tb.w / 2 + 6))
         let tb.cy = max(pb.y - mo.y, 17)
         zone box pill_zone { at: pl.cx, st.y; size: pl.w * pill, pl.h; corner: 16; cursor: text; label: "Tell her what to do in this window"; active: join.phase == sitting and pill > 0.7 and not join.busy }
 
