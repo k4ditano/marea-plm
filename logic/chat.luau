@@ -1390,7 +1390,32 @@ return function(shared)
         local carried = false
         local carry_at
         local rounds = 0
+        local slot            -- the window manager's place for her window, to know it is the one carried
         local poll
+        --  Which of the window manager's slots her window is: the one whose place (`x.N`, `y.N`, where
+        --  the window is, its title bar included) is where `agent windows` says it, asked when it is
+        --  still. A carried window is told apart by this, however fast it goes.
+        local function find_slot()
+            if not cur then return end
+            local names = {}
+            for k = 0, 9 do names[#names + 1] = "get x." .. k end
+            for k = 0, 9 do names[#names + 1] = "get y." .. k end
+            local argv = { "--say", "wm" }
+            for _, n in ipairs(names) do argv[#argv + 1] = n end
+            run("pleamar-wm", argv, function(out, code)
+                if gen ~= follow_gen or not joined or code ~= 0 or not cur then return end
+                local v, i = {}, 0
+                for line in tostring(out):gmatch("[^\n]+") do
+                    i = i + 1
+                    v[i] = tonumber(line)
+                end
+                local f = frame(cur)
+                for k = 0, 9 do
+                    local x, y = v[k + 1], v[k + 11]
+                    if x and y and math.abs(x - f.x) < 2.5 and math.abs(y - f.y) < 2.5 then slot = k break end
+                end
+            end, { errors = false })
+        end
         --  Carried by its title bar, the window is drawn at the mouse and its own place waits
         --  until it is let go, so the list above is a second late: while one is carried and it
         --  is hers (it starts where she sits), her place is the mouse's, as the scene says it.
@@ -1407,7 +1432,7 @@ return function(shared)
                 if code == 0 and v[1] and v[1] >= 0 and v[2] and v[3] and v[4] and v[5] then
                     local fx, fy = v[2] - v[4], v[3] - v[5]
                     local f = frame(cur)
-                    if carried or (math.abs(fx - f.x) < 60 and math.abs(fy - f.y) < 60) then
+                    if carried or (slot and v[1] == slot) or (not slot and math.abs(fx - f.x) < 60 and math.abs(fy - f.y) < 60) then
                         if not carried then
                             --  Where the window was taken: the scene follows the mouse from here.
                             fact["carry.gx"], fact["carry.gy"] = v[4], v[5]
@@ -1465,6 +1490,7 @@ return function(shared)
                             if moved_screen then read_bars(function() if joined then show_box(mine) end end) end
                         else
                             calm = calm + 1
+                            if slot == nil or calm == 3 then find_slot() end
                             if calm == 25 then read_bars(function() if joined then show_box(mine) end end) end
                             if calm < 25 then wait = 45 end
                         end
