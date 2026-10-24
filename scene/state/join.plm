@@ -99,6 +99,8 @@ part Join {
     follow join.a = if(join.phase == sitting or join.phase == falling, 1, 0)
     //  The wave that runs out along the window's edge when she lands.
     prop pulse = 1 ~900ms
+    //  And the slow breath of the ring on the window she is joined to (join surface).
+    prop join.breath = 0
     //  She is chewing on a task (the box says what).
     let join.busy = chat.state == thinking or chat.state == acting or chat.state == awaiting or chat.state == starting
     //  Which monitor she lives on, for the notch.
@@ -113,11 +115,11 @@ part Join {
     let sit.mx = pick(join.screen, mon.x.0, mon.x.1, mon.x.2)
     let sit.my = pick(join.screen, mon.y.0, mon.y.1, mon.y.2)
     let sit.x = pb.x + clamp(join.dx, 34, max(pb.w - 34, 34))
-    let sit.y = sit.my + max(pb.y - sit.my - 17, 27)
+    let sit.y = sit.my + max(pb.y - sit.my - 17, 14)
     //  The same place from the logic's own numbers, for sending her there: the
     //  window's box springs (`pb`) and has not arrived yet when she is sent.
     let tgt.x = join.x + clamp(join.dx, 34, max(join.w - 34, 34))
-    let tgt.y = sit.my + max(join.y - sit.my - 17, 27)
+    let tgt.y = sit.my + max(join.y - sit.my - 17, 14)
     //  Let go inside a window she is BELOW its top edge, so she goes up to it (a
     //  drop drawn along the glass); told from the keyboard she starts above it and
     //  falls. `join.up` says which, when she is sent.
