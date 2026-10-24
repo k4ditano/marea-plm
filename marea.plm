@@ -123,10 +123,12 @@ scene Marea {
     include "scene/state/moods.plm"
     include "scene/state/photograph.plm"
     include "scene/state/journey.plm"
+    include "scene/state/kid.plm"
 
     // ── what is seen of her, in the order it is painted ─────────
     include "scene/draw/body.plm"
     include "scene/draw/face.plm"
+    include "scene/draw/kid.plm"
     include "scene/draw/haven.plm"
     include "scene/draw/drops.plm"
     include "scene/draw/stones.plm"

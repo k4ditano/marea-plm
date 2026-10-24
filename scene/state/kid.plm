@@ -1,0 +1,14 @@
+// Marea's scene, in pieces: where her child is, seen from her. marea.plm includes it.
+part KidState {
+    // ── her and her child ────────────────────────────────────────
+    //  Her place in desktop pixels: the thread is fixed on it, and a child that goes home goes
+    //  there.
+    let hm.dx = host.x + (host.w - 920) / 2 + cx
+    let hm.dy = host.y + cy_actual
+    //  And where the child is, in HER surface's pixels: which way she looks.
+    let kid.mx = ball.x + (sit.x - ball.x) * seat - host.x - (host.w - 920) / 2
+    let kid.my = ball.y + (sit.y - ball.y) * seat - host.y
+    let kid.d = max(length(kid.mx - cx, kid.my - cy_actual), 1)
+    //  Her child is a little under three quarters of her once it sits.
+    let kid.k = (0.64 + 0.2 * seat) * kid.bud
+}

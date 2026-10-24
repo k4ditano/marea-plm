@@ -1,0 +1,29 @@
+// Marea's scene, in pieces: what she shows of her child while it is out. marea.plm includes it.
+part Kid {
+    // ── her, with her child out ──────────────────────────────────
+    //  She stays where she lives while a drop of her water sits on a window
+    //  (scene/surfaces/join.plm). What says it is hers: a thin violet light round
+    //  her, a bright point on her edge on the side where the thread leaves her, and
+    //  the face (it is the same face: the child's waves are her waves while it
+    //  works, and her eyes are on it, scene/draw/face.plm). When it comes home a
+    //  ring runs out of her in its colour.
+    prop kid.with = 0 ~gentle
+    follow kid.with = if(join.phase != none or chat.attached, 1, 0)
+    //  Hers while it is out; stronger while it works.
+    let kid.lit = kid.with * (0.55 + 0.45 * chat.stir)
+    //  The side of her it is on: her edge in its direction.
+    let kid.ex = cx + (kid.mx - cx) / kid.d * (r - 1.5)
+    let kid.ey = cy_actual + (kid.my - cy_actual) / kid.d * (r - 1.5)
+    group {
+        show: kid.with > 0.01 or kid.pulse < 0.99
+        group {
+            glow: 5, 70% * kid.lit, kid
+            ellipse { at: cx, cy_actual; radius: r + 0.8; stroke: 1.2; color: kid; opacity: 55% * kid.lit }
+        }
+        group {
+            glow: 4, 90% * kid.lit, kid
+            ellipse { at: kid.ex, kid.ey; radius: 2.3; color: kid; opacity: kid.lit }
+        }
+        ellipse { at: cx, cy_actual; radius: r + 3 + 18 * kid.pulse; stroke: 2.2; color: kid; opacity: 65% * (1 - kid.pulse) * (1 - kid.pulse) }
+    }
+}

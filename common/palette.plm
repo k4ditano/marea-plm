@@ -5,6 +5,12 @@ library Palette {
     let sand   = #e8c07a        // the second accent
     let rose   = #e86a9a        // what demands attention
     let coal   = #151616        // the ball's body
+    //  Her child, the one that perches on a window: soft violet, the opposite of her mint.
+    //  Its light (rings, glow, small words), and its water from top to bottom.
+    let kid      = #b4a8ff
+    let kid.top  = #7566e8
+    let kid.bot  = #4a3ab5
+    let kid.deep = #2a2070
     let slate  = #232727        // the panels inside
     //  No more glass goes on glass —Apple: «never stack glass on glass»—:
     //  what is inside the card are veils, a white you can barely see that lets

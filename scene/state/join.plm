@@ -30,9 +30,6 @@ part Join {
     fact mon.x.2 = 3840
     fact mon.y.2 = 0
     fact mon.w.2 = 1920
-    //  Her place at the top: the thread starts from here (desktop pixels).
-    fact anc.x = 960
-    fact anc.y = 0
     //  The pointer while she is pulled, in desktop pixels; the logic reads it to
     //  find the window under her.
     fact ptr.x = 0
@@ -128,6 +125,15 @@ part Join {
     prop join.rev = 0 ~2200ms
     //  And the slow breath of the ring on the window she is joined to (join surface).
     prop join.breath = 0
+    //  Her child. What perches on the window is not her: it is a drop of her water, smaller and
+    //  of another colour, that buds off her and stays joined to her by a thread until it lands.
+    //  She stays where she lives, with her eyes on it. `kid.bud` is how formed it is (it grows
+    //  out of her as it is pulled and goes back into her when it is let go), `kid.pulse` the ring
+    //  that runs round her when it comes home, and `kid.look` how much she is looking at it.
+    prop kid.bud = 0 ~spring(150, 13)
+    prop kid.pulse = 1 ~700ms
+    prop kid.look = 0 ~gentle
+    follow kid.look = if(join.phase != none, 1, 0)
     //  She is chewing on a task (the box says what).
     let join.busy = chat.state == thinking or chat.state == acting or chat.state == awaiting or chat.state == starting
     //  Which monitor she lives on, for the notch.

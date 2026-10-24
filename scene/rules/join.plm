@@ -2,22 +2,20 @@
 part JoinRules {
     // ── pulling her ──────────────────────────────────────────────
     //  Pressing her and not moving is the click that opens her card (mouse.plm).
-    //  Moving more than 10 px is pulling: the surface of the perch takes her
-    //  from where she hangs, with the thread to the notch, and the logic starts
-    //  to look at which window is under her.
+    //  Moving more than 10 px is pulling: a drop of her water buds off her and the surface of
+    //  the perch takes it, with a thread back to her, while she stays where she lives and watches
+    //  it; and the logic starts to look at which window is under it.
     on drag body_zone while drag.dx * drag.dx + drag.dy * drag.dy > 100 { dragged = true }
     on drag body_zone while join.can and drag.dx * drag.dx + drag.dy * drag.dy > 100 {
         join.phase = held
         needed = true
         wanted = true
-        anc.x = host.x + (host.w - 920) / 2 + cx
-        anc.y = host.y
-        ball.x: host.x + (host.w - 920) / 2 + cx ~16ms
-        ball.y: host.y + cy_actual ~16ms
+        ball.x: hm.dx ~16ms
+        ball.y: hm.dy ~16ms
         retract: 0 ~16ms
         seat: 0 ~16ms
-        away: 1 ~16ms
-        splashing: 1 ~16ms
+        kid.bud: 0 ~16ms
+        kid.bud: 1 after 40ms
         face = eye
         emit join_grab
     }
@@ -62,25 +60,23 @@ part JoinRules {
         wanted = true
         face = happy
         impulse wobble -200
-        splashing: 1 ~16ms
-        away: 1 ~16ms
         retract: 0 ~16ms
         seat: 0 ~16ms
-        anc.x = host.x + (host.w - 920) / 2 + cx
-        anc.y = host.y
+        kid.bud: 0 ~16ms
+        kid.bud: 1 after 30ms
         join.up = false
         join.phase = falling
         pb.x: join.x ~16ms
         pb.y: join.y ~16ms
         pb.w: join.w ~16ms
         pb.h: join.h ~16ms
-        ball.x: host.x + (host.w - 920) / 2 + cx ~16ms
-        ball.y: host.y + cy_actual ~16ms
-        ball.x: tgt.x ~spring(70, 11) after 30ms
-        ball.y: tgt.y ~plunge after 30ms
+        ball.x: hm.dx ~16ms
+        ball.y: hm.dy ~16ms
+        ball.x: tgt.x ~spring(70, 11) after 120ms
+        ball.y: tgt.y ~plunge after 120ms
     }
-    //  It touches. The thread breaks and flies back up, the water at the notch
-    //  gives its tug, she squashes and a spray goes up.
+    //  It touches. The thread breaks and flies back into her, the water she lives in
+    //  gives its tug, the child squashes and a spray goes up.
     on change join.hit while join.hit and join.phase == falling {
         join.phase = sitting
         seat: 1 ~140ms after 150ms
@@ -93,11 +89,11 @@ part JoinRules {
         pulse: 0 ~16ms
         pulse: 1 ~900ms after 30ms
         emit join_splash
-        splashing: 0 ~400ms after 1300ms
         pill: 1 after 100ms
+        face = happy
     }
     //  A fall that never arrived (a window that moved out from under her).
-    on still join.phase for 1600ms while join.phase == falling { join.phase = sitting; seat: 1 ~140ms; retract: 1 ~240ms; pill: 1 after 120ms; splashing: 0 ~400ms }
+    on still join.phase for 1600ms while join.phase == falling { join.phase = sitting; seat: 1 ~140ms; retract: 1 ~240ms; pill: 1 after 120ms }
     //  The box has no exclusive hold on the keyboard: it asks for it on demand while it is
     //  shown (scene/surfaces/join.plm), so a click in the field gives it to her and a click on
     //  any window gives it to that window; she never keeps it from him. (A `focus` on the field
@@ -125,7 +121,7 @@ part JoinRules {
     on press jsend_btn while join.busy { emit chat_stop }
     on press jsend_btn while not join.busy { emit join_send }
     //  Her answer comes up out of the water, letter by letter.
-    on change join.said_on while join.said_on { join.rev: 0 ~16ms; join.rev: 700 ~2600ms after 40ms }
+    on change join.said_on while join.said_on { join.rev: 0 ~0ms; join.rev: 320 ~7000ms after 40ms }
     on key Escape while join.phase == sitting { emit chat_detach }
     //  A window carried by its title bar, told by the window manager: hers if the mouse is on
     //  its title bar, and then she goes with the mouse at once, from where it was taken.
@@ -144,37 +140,40 @@ part JoinRules {
 
     // ── letting go ───────────────────────────────────────────────
     //  The logic let go of the window (her button, Esc, `chat_detach`, the
-    //  window closing): she lifts off, the thread grows back to the notch and
-    //  she goes into the water, to come out of it where she lives.
+    //  window closing): the child lifts off, a thread grows from her to meet it and it goes
+    //  back into her, the way it came; she gives a happy little bob.
     on change chat.attached while not chat.attached and (join.phase == sitting or join.phase == falling) { join.phase = leaving }
     on join_none while join.phase == waiting { join.phase = leaving }
     on change join.phase while join.phase == leaving {
         join.typing = false
         hov.on = false
         pill: 0 ~220ms
-        face = eye
         seat: 0 ~16ms
         ball.x: sit.x ~16ms
         ball.y: sit.y ~16ms
         retract: 0 ~200ms
-        ball.x: host.x + (host.w - 920) / 2 + cx ~spring(60, 12) after 40ms
-        ball.y: host.y - 34 ~spring(60, 12) after 40ms
-        splashing: 1 ~16ms
+        ball.x: hm.dx ~spring(70, 13) after 60ms
+        ball.y: hm.dy ~spring(70, 13) after 60ms
+        kid.bud: 0 ~spring(110, 15) after 260ms
     }
-    //  She is in the water when her ball is wholly above the edge. (And a rule that
-    //  waits for a time is not safe against a reload of the scene, so the second one
-    //  is the fallback: it just sends her the last few pixels.)
-    let join.home = ball.y < host.y - 22
+    //  It is in her when it has reached her. (And a rule that waits for a time is not safe
+    //  against a reload of the scene, so the second one is the fallback: it just sends it the
+    //  last few pixels.)
+    let join.home = length(ball.x - hm.dx, ball.y - hm.dy) < 11
     on change join.home while join.home and join.phase == leaving {
         join.phase = none
         retract: 1 ~16ms
-        away: 0 ~lively
+        kid.bud: 0 ~16ms
+        kid.pulse: 0 ~16ms
+        kid.pulse: 1 ~700ms after 30ms
         impulse bounce -110
         impulse wobble -90
         ripple: 0 ~16ms
         ripple: 1 ~760ms after 30ms
-        splashing: 0 ~400ms after 600ms
-        face = eye
+        face = happy
+        play happy
     }
-    on still join.phase for 1500ms while join.phase == leaving { ball.y: host.y - 60 ~16ms }
+    on still join.phase for 900ms while join.phase == leaving { ball.x: hm.dx ~16ms; ball.y: hm.dy ~16ms }
+    //  A little after, she is herself again.
+    on still join.phase for 1300ms while join.phase == none and face == happy { face = eye }
 }
