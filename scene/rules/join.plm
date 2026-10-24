@@ -122,6 +122,11 @@ part JoinRules {
     on press jsend_btn while not join.busy { emit join_send }
     //  Her answer comes up out of the water, letter by letter.
     on change join.said_on while join.said_on { join.rev: 0 ~0ms; join.rev: 320 ~7000ms after 40ms }
+    //  One of the others (finder, chat, a menu, the card) closed while she sits: the box stops asking
+    //  for the keyboard for a moment (500 ms, more than the 300 ms pleamar keeps a lent keyboard),
+    //  so that what they were lent is let go instead of being held by the box.
+    on change kb.others while not kb.others and join.phase == sitting { join.settle = true }
+    on still join.settle for 500ms while join.settle { join.settle = false }
     //  (Esc does not let go of the child: it closes the finder, the chat, the menus. The way to let
     //  go of it is its ×, the box's button, `chat_detach`, or its window closing.)
     //  A window carried by its title bar, told by the window manager: hers if the mouse is on
