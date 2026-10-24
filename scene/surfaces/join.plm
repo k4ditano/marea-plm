@@ -18,7 +18,7 @@ part JoinSurface {
         //  stops (Enter, Esc, a click away), and gives it back then.
         keyboard: on_demand while join.typing
         //  Sitting and not being written to, a breathing ring needs few frames.
-        rate: 60, 20 while join.phase == sitting and not join.typing and not join.busy
+        rate: 60, 20 while join.phase == sitting and not join.typing and not join.busy and not carry.on
 
         //  This copy's corner, in desktop pixels, and everything in its own.
         let mo.x = pick(screen.index, mon.x.0, mon.x.1, mon.x.2)

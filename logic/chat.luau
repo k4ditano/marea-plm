@@ -1389,6 +1389,7 @@ return function(shared)
         local cur         -- its box as `agent windows` last said it
         local carried = false
         local carry_at
+        local rounds = 0
         local poll
         --  Carried by its title bar, the window is drawn at the mouse and its own place waits
         --  until it is let go, so the list above is a second late: while one is carried and it
@@ -1428,14 +1429,16 @@ return function(shared)
                     end
                     fact["carry.on"] = false
                 end
-                poll()
+                --  Still, the window is looked at every fifth round; the carry, every one.
+                rounds = rounds + 1
+                if calm < 25 or rounds % 5 == 0 then poll() else after(120, tick) end
             end, { errors = false })
         end
         poll = function()
             run("pleamar-wm", { "agent", "windows" }, function(out, code)
                 if gen ~= follow_gen or not joined then return end
                 --  Close behind it while it moves (a round costs 10 ms), at ease when it is still.
-                local wait = calm < 25 and 45 or 600
+                local wait = calm < 25 and 45 or 120
                 if code == 0 then
                     local mine
                     for _, w in ipairs(parse_windows(out)) do
