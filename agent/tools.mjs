@@ -15,6 +15,8 @@ import { Type } from "typebox";
 //  A window, as desktop_windows names it: its process (4521), or one of a
 //  program's several windows (4521.3).
 const pid = Type.Union([Type.Integer(), Type.String({ pattern: "^[0-9]+(\\.[0-9]+)?$" })], { description: "The window, as desktop_windows names it: 4521, or 4521.3 for one of a program's several windows" });
+//  A terminal's shell too: 4521:2.
+const shellPid = Type.String({ pattern: "^[0-9]+(\\.[0-9]+)?(:[A-Za-z0-9_-]{1,16})?$", description: "The terminal, as desktop_windows names it: 4521, or 4521:2 for one of its shells" });
 const why = Type.String({ description: "What this is for, in a few words, in the user's language: they read it before allowing it", maxLength: 160 });
 //  `final` marks the step that sends, buys or deletes: it is asked on a card,
 //  unless the user gave her free hands (then nothing is).
@@ -34,6 +36,79 @@ export const TOOLS = [
         looks: true,
         description: "A picture of one window, as it is now. Its pixels are the coordinates the other desktop tools take. If the program has a dialog open (save, open, a confirmation), the picture is the dialog, and the actions on that pid go to it. Look again after anything that changes the page: what was at a point may not be there any more.",
         parameters: Type.Object({ pid }),
+    },
+    //  The window's own tree (the accessibility bus): what is on it, by name,
+    //  without a picture. A page that has none (a game, a canvas, a program
+    //  that does not publish one) is read with desktop_look.
+    {
+        name: "desktop_tree",
+        looks: true,
+        description: "Reads a window from its accessibility tree, as text, no picture: what can be acted on (buttons, links, fields) and the headings and texts that say something, one a line as «@24 button \"Save\" 120,40 80x24 focusable», under what they are in. The @24 names the element for desktop_press and desktop_fill; the numbers are in the same pixels as desktop_look. It is faster and surer than a picture: start here. A terminal window gives its screen's lines. «within» reads one part (an element and what it holds), «role» only the elements of one kind, «since» what changed since your last read. A page with no tree (a game, a canvas) shows only its frame: use desktop_look then.",
+        parameters: Type.Object({
+            pid,
+            within: Type.Optional(Type.String({ pattern: "^@[0-9]+$", description: "One part: that element and what it holds, as @24" })),
+            role: Type.Optional(Type.String({ pattern: "^[a-z_]{2,24}$", description: "Only the elements of this role: button, link, entry, heading, tree_item…" })),
+            since: Type.Optional(Type.Boolean({ description: "Only what changed since your last read of this window" })),
+            max: Type.Optional(Type.Integer({ minimum: 10, maximum: 400, description: "At most this many lines" })),
+        }),
+    },
+    {
+        name: "desktop_find",
+        looks: true,
+        description: "Finds what says a text in its name or content in a window's tree, under what it is in, with its @number. Cheaper than reading the whole tree when you know what you are after.",
+        parameters: Type.Object({ pid, text: Type.String({ maxLength: 200 }) }),
+    },
+    {
+        name: "desktop_press",
+        description: "Presses an element of a window's tree: a button, a link, a menu item, a tab. By its @number from desktop_tree or desktop_find, or by its whole name (text; when several have it, the first). It scrolls it into view and answers what changed after, so you rarely need to look again. «action» 1, 2… is another action of it (its default is 0); with the user's pace on instant it does not even move your pointer.",
+        parameters: Type.Object({
+            pid,
+            element: Type.Optional(Type.String({ pattern: "^@[0-9]+$", description: "The element, as @24" })),
+            text: Type.Optional(Type.String({ maxLength: 200, description: "Instead of element: its whole name" })),
+            button: Type.Optional(Type.Union([Type.Literal("right"), Type.Literal("middle")], { description: "A right click (a menu) or a middle one; left by default" })),
+            why, final,
+        }),
+    },
+    {
+        name: "desktop_fill",
+        description: "Types into a field of a window's tree by its @number (it gets the focus first). «replace»: its whole text is set at once, what was there goes. Without an element, it types where the caret is. Any text: accents, ñ and emoji too. Not for passwords (desktop_type_secret).",
+        parameters: Type.Object({
+            pid,
+            element: Type.Optional(Type.String({ pattern: "^@[0-9]+$", description: "The field, as @24" })),
+            text: Type.String({ maxLength: 4000 }),
+            replace: Type.Optional(Type.Boolean({ description: "Set the whole text instead of typing at the caret" })),
+            why, final,
+        }),
+    },
+    {
+        name: "desktop_steps",
+        description: "Several steps in one window, in order, in one go (it stops at the first that fails and says which). Each is a line like `press @12`, `press --text \"Save\"`, `type @12 --set -- \"ana\"`, `key tab`, `hotkey ctrl+l`, `wait has --text \"Done\" 5s`. Use it for a sequence you are sure of, a form for instance: one call instead of ten. Not for what must be checked between steps.",
+        parameters: Type.Object({
+            pid,
+            steps: Type.Array(Type.String({ maxLength: 400, pattern: "^[^\\n]+$" }), { minItems: 1, maxItems: 25 }),
+            why, final,
+        }),
+    },
+    {
+        name: "desktop_wait",
+        looks: true,
+        description: "Waits (up to 30 s) until a window shows or stops showing a text, changes, settles, or opens a dialog, and answers when it does: for a page that loads, a download, a build.",
+        parameters: Type.Object({
+            pid,
+            until: Type.Union(["has", "gone", "changed", "settled", "dialog"].map((t) => Type.Literal(t)), { description: "has / gone: some text is shown / no longer; changed: anything; settled: nothing moves for a moment; dialog: it opens one" }),
+            text: Type.Optional(Type.String({ maxLength: 200, description: "For has and gone" })),
+            seconds: Type.Optional(Type.Integer({ minimum: 1, maximum: 30 })),
+        }),
+    },
+    {
+        name: "desktop_run",
+        description: "Types a command in a terminal window's shell, presses Enter, waits until the shell is ready again (up to «seconds», 30 by default) and answers with what it printed. The window must be a terminal (desktop_windows says «does text»); pid can be PID:SHELL when it has several shells.",
+        parameters: Type.Object({
+            pid: shellPid,
+            command: Type.String({ maxLength: 2000 }),
+            seconds: Type.Optional(Type.Integer({ minimum: 1, maximum: 300 })),
+            why, final,
+        }),
     },
     {
         name: "desktop_click",

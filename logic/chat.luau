@@ -164,6 +164,13 @@ return function(shared)
     local WORDS = {
         desktop_windows = "Looking at your windows",
         desktop_look = "Looking at %s",
+        desktop_tree = "Reading %s",
+        desktop_find = "Looking in %s",
+        desktop_press = "Press in %s",
+        desktop_fill = "Fill in %s",
+        desktop_steps = "Several steps in %s",
+        desktop_wait = "Waiting for %s",
+        desktop_run = "Run in %s",
         desktop_click = "Click in %s",
         desktop_type = "Type in %s",
         desktop_type_secret = "Type a saved password in %s",
@@ -179,7 +186,7 @@ return function(shared)
     --  a program's several. Anything else is no window.
     local function window_name(v)
         local name = tostring(v or "")
-        if name:match("^%d+$") or name:match("^%d+%.%d+$") then return name end
+        if name:match("^%d+$") or name:match("^%d+%.%d+$") or name:match("^%d+%.?%d*:[%w_-]+$") then return name end
         return "0"
     end
     local function program(args, tool)
@@ -194,6 +201,55 @@ return function(shared)
         local pid = window_name(a.pid)
         local n = function(v) return tostring(tonumber(v) or 0) end
         if tool == "desktop_windows" then return { "agent", "windows" } end
+        --  By element (@24, from the window's tree): `--` ends the options, so a
+        --  text that starts with @ or -- is text.
+        local function element(v) v = tostring(v or "") if v:match("^@%d+$") then return v end end
+        if tool == "desktop_tree" then
+            local argv = { "agent", "tree", pid }
+            if element(a.within) then argv[#argv + 1] = "--within" argv[#argv + 1] = element(a.within) end
+            if type(a.role) == "string" and a.role:match("^[a-z_]+$") then argv[#argv + 1] = "--role" argv[#argv + 1] = a.role end
+            if a.since == true then argv[#argv + 1] = "--since" end
+            if tonumber(a.max) then argv[#argv + 1] = "--max" argv[#argv + 1] = tostring(math.floor(tonumber(a.max))) end
+            return argv
+        end
+        if tool == "desktop_find" then return { "agent", "find", pid, "--text", tostring(a.text or "") } end
+        if tool == "desktop_press" then
+            local argv = { "agent", "press", pid }
+            if element(a.element) then argv[#argv + 1] = element(a.element)
+            else argv[#argv + 1] = "--text" argv[#argv + 1] = tostring(a.text or "") argv[#argv + 1] = "--first" end
+            if a.button == "right" or a.button == "middle" then argv[#argv + 1] = a.button end
+            return argv
+        end
+        if tool == "desktop_fill" then
+            local argv = { "agent", "type", pid }
+            if element(a.element) then argv[#argv + 1] = element(a.element) end
+            if a.replace == true then argv[#argv + 1] = "--set" end
+            argv[#argv + 1] = "--"
+            argv[#argv + 1] = tostring(a.text or "")
+            return argv
+        end
+        if tool == "desktop_steps" then
+            local lines = {}
+            for _, line in ipairs(type(a.steps) == "table" and a.steps or {}) do
+                line = tostring(line):gsub("[\r\n]", " ")
+                --  `type -` and `run -` read the input, which these lines are.
+                if not line:match("^%s*type%s+%-%s*$") and not line:match("^%s*run%s+%-") then lines[#lines + 1] = line end
+            end
+            if #lines == 0 then return nil end
+            return { "agent", "do", pid }, table.concat(lines, "\n") .. "\n"
+        end
+        if tool == "desktop_wait" then
+            local until_ = tostring(a.until or "")
+            local seconds = tostring(math.max(1, math.min(30, math.floor(tonumber(a.seconds) or 10)))) .. "s"
+            if until_ == "has" or until_ == "gone" then return { "agent", "wait", pid, until_, "--text", tostring(a.text or ""), seconds } end
+            if until_ == "changed" or until_ == "dialog" then return { "agent", "wait", pid, until_, seconds } end
+            if until_ == "settled" then return { "agent", "wait", pid, "settled", "1s", seconds } end
+            return nil
+        end
+        if tool == "desktop_run" then
+            local seconds = tostring(math.max(1, math.min(300, math.floor(tonumber(a.seconds) or 30)))) .. "s"
+            return { "agent", "run", pid, "-", seconds }, tostring(a.command or "")
+        end
         if tool == "desktop_click" then return { "agent", "click", pid, n(a.x), n(a.y), tostring(a.button or "left"), tostring(math.floor(tonumber(a.count) or 1)) } end
         if tool == "desktop_type" then return { "agent", "type", pid, tostring(a.text or "") } end
         if tool == "desktop_key" then return { "agent", "key", pid, tostring(a.key or "") } end
@@ -343,7 +399,7 @@ return function(shared)
             end, HANDS)
             return
         end
-        local argv = agent_args(tool, args)
+        local argv, stdin = agent_args(tool, args)
         if not argv then
             finish_row(row, false)
             answer(id, false, "Marea does not know that tool.")
@@ -385,7 +441,7 @@ return function(shared)
             end
             finish_row(row, code == 0)
             answer(id, code == 0, code == 0 and (out ~= "" and tostring(out) or "Done.") or tostring(out))
-        end, HANDS)
+        end, stdin and { errors = true, env = HANDS.env, input = stdin } or HANDS)
     end
 
     -- ── her memory ──
@@ -795,7 +851,7 @@ return function(shared)
         elseif kind == "propose" then
             live = nil
             local tool, args = tostring(m.tool), (type(m.args) == "table" and m.args or {})
-            local looks_only = tool == "desktop_windows" or tool == "desktop_look"
+            local looks_only = tool == "desktop_windows" or tool == "desktop_look" or tool == "desktop_tree" or tool == "desktop_find" or tool == "desktop_wait"
             local verdict = builder and builder.owns(tool) and builder.propose(tool, args)
             --  Building: her own work on the creation is done at once; what it
             --  would newly ask the system for is a card, and what is
@@ -850,7 +906,9 @@ return function(shared)
                     detail = tr("A task of her own")
                     body = tostring(args.what or "") .. "\n" .. string.format(tr("%s, at %s"), task_days(args.days), tostring(args.time or "?"))
                 end
-                if tool == "desktop_type" then body = body .. "\n«" .. tostring(args.text or "") .. "»" end
+                if tool == "desktop_type" or tool == "desktop_fill" then body = body .. "\n«" .. tostring(args.text or "") .. "»" end
+                if tool == "desktop_run" then body = body .. "\n" .. tostring(args.command or "") end
+                if tool == "desktop_steps" and type(args.steps) == "table" then body = body .. "\n" .. table.concat(args.steps, "\n") end
                 if tool == "desktop_hotkey" then body = body .. "  (" .. tostring(args.keys or "") .. ")" end
                 if tool == "desktop_key" then body = body .. "  (" .. tostring(args.key or "") .. ")" end
                 local row = add(4, body, detail, 0)
