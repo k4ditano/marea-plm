@@ -130,10 +130,11 @@ part JoinRules {
     on key Escape while join.phase == sitting { emit chat_detach }
     //  A window carried by its title bar, told by the window manager: hers if the mouse is on
     //  its title bar, and then she goes with the mouse at once, from where it was taken.
-    on carry_start while join.phase == sitting and not carry.on and join.screen == host.i and cur.dx >= join.x and cur.dx < join.x + join.w and cur.dy >= join.y and cur.dy < join.y + 40 {
-        carry.gx = cur.dx - join.x
-        carry.gy = cur.dy - join.y
+    on carry_start while join.phase == sitting and not carry.on and join.screen == host.i and cl.x >= join.x - 20 and cl.x < join.x + join.w + 20 and cl.y >= join.y - 20 and cl.y < join.y + 56 {
+        carry.gx = clamp(cl.x - join.x, 0, join.w)
+        carry.gy = clamp(cl.y - join.y, 0, 34)
         carry.on = true
+        emit carry_grab
     }
     //  Let go: where it was left is where it is (the list of windows says so a moment later).
     on carry_end while carry.on {

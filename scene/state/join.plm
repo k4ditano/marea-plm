@@ -93,6 +93,14 @@ part Join {
     //  the mouse is on at that moment.
     event carry_start
     event carry_end
+    //  She asks the logic for where it was taken, exactly (`grab` of the window manager).
+    event carry_grab
+    //  Where the mouse was a moment before the window manager said a window was being carried:
+    //  the mouse a little late, which is about where it took the window.
+    prop cl.x = 0 ~55ms
+    prop cl.y = 0 ~55ms
+    follow cl.x = cur.dx
+    follow cl.y = cur.dy
     fact carry.on = false
     fact carry.gx = 0
     fact carry.gy = 0

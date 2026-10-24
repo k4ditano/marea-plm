@@ -1545,6 +1545,21 @@ return function(shared)
         end, HANDS)
     end)
     on("chat_detach", function() leave() end)
+    --  The scene started to follow a carried window with a guess of where it was taken; the exact
+    --  place is the window manager's (`grab`), and it is said as soon as it is asked.
+    on("carry_grab", function()
+        run("pleamar-wm", { "--say", "wm", "get dragging", "get grab.x", "get grab.y" }, function(out, code)
+            if code ~= 0 or fact["carry.on"] ~= true then return end
+            local v, i = {}, 0
+            for line in tostring(out):gmatch("[^\n]+") do
+                i = i + 1
+                v[i] = tonumber(line)
+            end
+            if v[1] and v[1] >= 0 and v[2] and v[3] then
+                fact["carry.gx"], fact["carry.gy"] = v[2], v[3]
+            end
+        end, { errors = false })
+    end)
 
     -- ── what the panel asks ──
     local function do_send()
