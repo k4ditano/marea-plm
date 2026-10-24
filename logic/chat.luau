@@ -176,6 +176,7 @@ return function(shared)
         desktop_steps = "Several steps in %s",
         desktop_wait = "Waiting for %s",
         desktop_run = "Run in %s",
+        terminal_wait = "Waiting for %s to finish",
         desktop_click = "Click in %s",
         desktop_type = "Type in %s",
         desktop_type_secret = "Type a saved password in %s",
@@ -200,7 +201,7 @@ return function(shared)
     end
     --  What touches a window other than the one she is joined to is refused
     --  here, whatever the model asks for; the model is only told.
-    local DESKTOP = { desktop_look = true, desktop_tree = true, desktop_find = true, desktop_press = true, desktop_fill = true, desktop_steps = true, desktop_wait = true, desktop_run = true, desktop_click = true, desktop_type = true, desktop_type_secret = true, desktop_key = true, desktop_hotkey = true, desktop_scroll = true, desktop_drag = true }
+    local DESKTOP = { desktop_look = true, desktop_tree = true, desktop_find = true, desktop_press = true, desktop_fill = true, desktop_steps = true, desktop_wait = true, terminal_wait = true, desktop_run = true, desktop_click = true, desktop_type = true, desktop_type_secret = true, desktop_key = true, desktop_hotkey = true, desktop_scroll = true, desktop_drag = true }
     local function joined_refuses(tool, args)
         if not joined then return nil end
         if tool == "open_app" or tool == "desktop_to_monitor" or tool == "desktop_focus" then
@@ -419,6 +420,72 @@ return function(shared)
                     answer(id, false, tostring(out))
                 end
             end, HANDS)
+            return
+        end
+        if tool == "terminal_wait" then
+            --  What runs in a terminal, waited for until it is done: an AI agent (the window
+            --  manager knows its state: working, ready, asking) by looking every two seconds;
+            --  anything else by the terminal being quiet.
+            local pid = window_name(args.pid)
+            local window = pid:match("^(%d+)")
+            local limit = math.max(5, math.min(600, math.floor(tonumber(args.seconds) or 60)))
+            local started, polls = 0, 0
+            local target = pid:find(":", 1, true) and pid or nil   -- PID:SHELL, said or found below
+            local function finish(ok, head)
+                --  And what it printed: the screen's lines.
+                run("pleamar-wm", { "agent", "tree", target or pid }, function(out, code)
+                    finish_row(row, ok)
+                    answer(id, ok, head .. "\n\n" .. (code == 0 and tostring(out) or ""))
+                end, HANDS)
+            end
+            local function look()
+                polls = polls + 1
+                run("pleamar-wm", { "term", "list" }, function(out, code)
+                    local state, program
+                    for line in tostring(out):gmatch("[^\n]+") do
+                        if line:match("terminal " .. window .. "%s") then
+                            program, state = line:match("terminal %d+%s+(%S+)%s*%((%w+)%)")
+                            program = program or line:match("terminal %d+%s+(%S+)")
+                            target = target or (window .. ":" .. tostring(line:match("^%s*(%d+)")))
+                            break
+                        end
+                    end
+                    if code ~= 0 or program == nil then
+                        finish(false, "That terminal is not there any more or is not one.")
+                        return
+                    end
+                    if state == nil then
+                        --  No AI agent there: a command in a shell, waited for until the shell is
+                        --  ready for another.
+                        run("pleamar-wm", { "agent", "wait", target or pid, "prompt", limit .. "s" }, function(o2, c2)
+                            if c2 == 0 then
+                                finish(true, "The terminal is ready again.")
+                            else
+                                finish(true, "Still running after " .. limit .. " s: wait again if it should take longer.")
+                            end
+                        end, { errors = false })
+                        return
+                    end
+                    if state ~= "working" then
+                        finish(true, program .. " is " .. state .. ".")
+                        return
+                    end
+                    if started >= limit then
+                        finish(true, program .. " is still working after " .. limit .. " s: wait again if it should take longer.")
+                        return
+                    end
+                    started = started + 2
+                    after(2000, look)
+                end, { errors = false })
+            end
+            fact["chat.state"] = "acting"
+            status(said(tool, args))
+            if not window then
+                finish_row(row, false)
+                answer(id, false, "That is no window.")
+                return
+            end
+            look()
             return
         end
         local argv, stdin = agent_args(tool, args)
@@ -894,7 +961,7 @@ return function(shared)
             live = nil
             local tool, args = tostring(m.tool), (type(m.args) == "table" and m.args or {})
             local refused = joined_refuses(tool, args)
-            local looks_only = tool == "desktop_windows" or tool == "desktop_look" or tool == "desktop_tree" or tool == "desktop_find" or tool == "desktop_wait"
+            local looks_only = tool == "desktop_windows" or tool == "desktop_look" or tool == "desktop_tree" or tool == "desktop_find" or tool == "desktop_wait" or tool == "terminal_wait"
             local verdict = builder and builder.owns(tool) and builder.propose(tool, args)
 
             --  Building: her own work on the creation is done at once; what it
