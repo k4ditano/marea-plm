@@ -122,7 +122,8 @@ part JoinRules {
     on press jsend_btn while not join.busy { emit join_send }
     //  Her answer comes up out of the water, letter by letter.
     on change join.said_on while join.said_on { join.rev: 0 ~0ms; join.rev: 320 ~7000ms after 40ms }
-    on key Escape while join.phase == sitting { emit chat_detach }
+    //  (Esc does not let go of the child: it closes the finder, the chat, the menus. The way to let
+    //  go of it is its ×, the box's button, `chat_detach`, or its window closing.)
     //  A window carried by its title bar, told by the window manager: hers if the mouse is on
     //  its title bar, and then she goes with the mouse at once, from where it was taken.
     on carry_start while join.phase == sitting and not carry.on and join.screen == host.i and cl.x >= join.x - 20 and cl.x < join.x + join.w + 20 and cl.y >= join.y - 20 and cl.y < join.y + 56 {
