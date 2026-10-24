@@ -1385,8 +1385,39 @@ return function(shared)
         local missed = 0
         local last = ""
         local calm = 99   -- rounds since it last moved
+        local cur         -- its box as `agent windows` last said it
+        local carried = false
+        local poll
+        --  Carried by its title bar, the window is drawn at the mouse and its own place waits
+        --  until it is let go, so the list above is a second late: while one is carried and it
+        --  is hers (it starts where she sits), her place is the mouse's, as the scene says it.
         local function tick()
             if gen ~= follow_gen or not joined then return end
+            if not cur then return poll() end
+            run("pleamar-wm", { "--say", "wm", "get dragging", "get mouse.x", "get mouse.y", "get grab.x", "get grab.y" }, function(out, code)
+                if gen ~= follow_gen or not joined then return end
+                local v, i = {}, 0
+                for line in tostring(out):gmatch("[^\n]+") do
+                    i = i + 1
+                    v[i] = tonumber(line)
+                end
+                if code == 0 and v[1] and v[1] >= 0 and v[2] and v[3] and v[4] and v[5] then
+                    local fx, fy = v[2] - v[4], v[3] - v[5]
+                    local f = frame(cur)
+                    if carried or (math.abs(fx - f.x) < 60 and math.abs(fy - f.y) < 60) then
+                        carried = true
+                        calm = 0
+                        local bar = bars[cur.screen or 0] or 0
+                        show_box({ x = math.floor(fx), y = math.floor(fy) + bar, w = cur.w, h = cur.h, screen = cur.screen })
+                        after(25, tick)
+                        return
+                    end
+                end
+                carried = false
+                poll()
+            end, { errors = false })
+        end
+        poll = function()
             run("pleamar-wm", { "agent", "windows" }, function(out, code)
                 if gen ~= follow_gen or not joined then return end
                 --  Close behind it while it moves (a round costs 10 ms), at ease when it is still.
@@ -1404,6 +1435,7 @@ return function(shared)
                         end
                     else
                         missed = 0
+                        cur = mine
                         local box = mine.x .. "," .. mine.y .. "," .. mine.w .. "," .. mine.h .. "," .. mine.screen
                         if box ~= last then
                             local moved_screen = last ~= "" and tostring(last):match(",(%d+)$") ~= tostring(mine.screen)
