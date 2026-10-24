@@ -61,6 +61,10 @@ part Join {
     //  a click in it gives it the keyboard, as any field.
     let join.shown = join.phase == sitting and pill > 0.5
     fact join.typing = false          // the box holds the keyboard
+    //  A moment of the scene not asking for the keyboard for the box, after the finder, the chat,
+    //  a menu or the card closes: it ends the keyboard that was lent to their field (marea.plm).
+    fact join.settle = false
+    let kb.others = searching or chatting or menu_open or open or tray_open or reel_open
     event join_grab ->                // she has been pulled out: look at the windows
     event join_drop ->                // let go: which window is she over?
     event join_send ->                // Enter in the box

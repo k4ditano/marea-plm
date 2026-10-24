@@ -18,8 +18,10 @@ part JoinSurface {
         open: join.phase != none and not join.hidden and (join.phase != sitting or screen.index == join.screen)
         //  The keyboard is asked for on demand while the box is shown: a click in the field
         //  gives it to the child, a click on another window to that one. Never exclusive: it would
-        //  keep his typing from every other window (rules/join.plm).
-        keyboard: on_demand while join.shown
+        //  keep his typing from every other window (rules/join.plm). Its condition, `join.shown`,
+        //  is in the main surface's `keyboard: … while` in marea.plm, not here: a scene has only
+        //  one condition for all its surfaces, and a second `while` here replaced the finder's.
+        keyboard: on_demand
         //  Sitting and not being written to, a breathing ring needs few frames.
         rate: 60, 30 while join.phase == sitting and not join.busy and not carry.on
 
