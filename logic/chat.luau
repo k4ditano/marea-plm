@@ -1292,6 +1292,7 @@ return function(shared)
         if not joined then return end
         local app = joined.app
         joined, joined_dialogs = nil, {}
+        fact["carry.on"] = false
         fact["chat.attached"] = false
         text["chat.joined"] = ""
         text["join.app"] = ""
@@ -1387,6 +1388,7 @@ return function(shared)
         local calm = 99   -- rounds since it last moved
         local cur         -- its box as `agent windows` last said it
         local carried = false
+        local carry_at
         local poll
         --  Carried by its title bar, the window is drawn at the mouse and its own place waits
         --  until it is let go, so the list above is a second late: while one is carried and it
@@ -1405,15 +1407,27 @@ return function(shared)
                     local fx, fy = v[2] - v[4], v[3] - v[5]
                     local f = frame(cur)
                     if carried or (math.abs(fx - f.x) < 60 and math.abs(fy - f.y) < 60) then
+                        if not carried then
+                            --  Where the window was taken: the scene follows the mouse from here.
+                            fact["carry.gx"], fact["carry.gy"] = v[4], v[5]
+                            fact["carry.on"] = true
+                        end
                         carried = true
                         calm = 0
-                        local bar = bars[cur.screen or 0] or 0
-                        show_box({ x = math.floor(fx), y = math.floor(fy) + bar, w = cur.w, h = cur.h, screen = cur.screen })
+                        carry_at = { x = fx, y = fy }
                         after(25, tick)
                         return
                     end
                 end
-                carried = false
+                if carried then
+                    --  Let go: it stays where the mouse left it until the list says it.
+                    carried = false
+                    if carry_at and cur then
+                        local bar = bars[cur.screen or 0] or 0
+                        show_box({ x = math.floor(carry_at.x), y = math.floor(carry_at.y) + bar, w = cur.w, h = cur.h, screen = cur.screen })
+                    end
+                    fact["carry.on"] = false
+                end
                 poll()
             end, { errors = false })
         end

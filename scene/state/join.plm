@@ -85,8 +85,14 @@ part Join {
     prop pb.y = 0 ~70ms
     prop pb.w = 0 ~70ms
     prop pb.h = 0 ~70ms
-    follow pb.x = join.x
-    follow pb.y = join.y
+    //  While the window she sits on is carried by its title bar, the logic says so (`carry.on`,
+    //  and where it was taken: `carry.gx`, `carry.gy`, from the window's corner) and the scene
+    //  follows the mouse itself, every frame: the logic's numbers come a few times a second.
+    fact carry.on = false
+    fact carry.gx = 0
+    fact carry.gy = 0
+    follow pb.x = jx
+    follow pb.y = jy
     follow pb.w = join.w
     follow pb.h = join.h
     //  The box that grows out of her once she is sitting.
@@ -108,6 +114,10 @@ part Join {
     let host.x = pick(host.i, mon.x.0, mon.x.1, mon.x.2)
     let host.y = pick(host.i, mon.y.0, mon.y.1, mon.y.2)
     let host.w = pick(host.i, mon.w.0, mon.w.1, mon.w.2)
+    let cur.dx = host.x + (host.w - 920) / 2 + cursor.x
+    let cur.dy = host.y + cursor.y
+    let jx = if(carry.on and join.screen == host.i, cur.dx - carry.gx, join.x)
+    let jy = if(carry.on and join.screen == host.i, cur.dy - carry.gy, join.y)
     //  Where she lands: along the top edge of the window, where she was let go,
     //  and a little over it, sunk 6 px, like a drop on a ledge; and if the window
     //  is up against the top of its monitor there is no ledge above it, so she
@@ -118,8 +128,8 @@ part Join {
     let sit.y = sit.my + max(pb.y - sit.my - 17, 14)
     //  The same place from the logic's own numbers, for sending her there: the
     //  window's box springs (`pb`) and has not arrived yet when she is sent.
-    let tgt.x = join.x + clamp(join.dx, 34, max(join.w - 34, 34))
-    let tgt.y = sit.my + max(join.y - sit.my - 17, 14)
+    let tgt.x = jx + clamp(join.dx, 34, max(join.w - 34, 34))
+    let tgt.y = sit.my + max(jy - sit.my - 17, 14)
     //  Let go inside a window she is BELOW its top edge, so she goes up to it (a
     //  drop drawn along the glass); told from the keyboard she starts above it and
     //  falls. `join.up` says which, when she is sent.
