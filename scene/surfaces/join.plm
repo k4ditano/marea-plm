@@ -30,7 +30,7 @@ part JoinSurface {
         let st.y = st.fy + (sit.y - st.fy) * seat - mo.y
         //  Is there a ledge to sit on? With room above the window she sits on its edge
         //  and has a foot there; at the top of a monitor she is astride it instead.
-        let st.ledge = clamp((sit.y - sit.my - 14) / 10, 0, 1)
+        let st.ledge = clamp((sit.y - sit.my - 24) / 10, 0, 1)
         //  The notch, where the thread is fixed.
         let join.pu = clamp(pulse, 0, 1)
         //  Joined, the ring on the window breathes: slow (5 s), and only a fifth of its light.
@@ -45,8 +45,8 @@ part JoinSurface {
         let nc.x = (nk.x + nt.x) / 2 - clamp(vel(ball.x) * 0.045, -90, 90) * (1 - retract)
         let nc.y = (nk.y + nt.y) / 2
         //  Thick at the notch, thin where she hangs from it, thinner the longer it is.
-        let nr.t = clamp(14 - nt.len / 45, 5.2, 14) * (1 - retract * 0.9)
-        let nr.b = 18 * (1 - retract * 0.6)
+        let nr.t = clamp(19 - nt.len / 38, 7.5, 19) * (1 - retract * 0.9)
+        let nr.b = 23 * (1 - retract * 0.6)
 
         //  The thread's points along the curve from the notch to her tip, and how wide it
         //  is at each: thick at the notch, thin where she hangs.
@@ -150,31 +150,48 @@ part JoinSurface {
         let tp.32y = (1 - (32/32)) * (1 - (32/32)) * nk.y + 2 * (1 - (32/32)) * (32/32) * nc.y + (32/32) * (32/32) * nt.y
         let tw.32 = 2 * (nr.t + (nr.b - nr.t) * (1 - (32/32)) * (1 - (32/32)) * (1 - (32/32)))
 
-        //  What she answered, under her box (and under the chip when that is below).
-        measure jsaid
-        let sd.y = if(st.y > 52, st.y + 32, st.y + 70)
 
-        //  The box: 410 wide, on the side of her with room for it. `pl.c.l` and
-        //  `pl.c.r` are where what is in it begins and ends, clear of her.
-        let pl.w = 410
-        let pl.side = if(st.x + 25 + pl.w > stick.width - 10, -1, 1)
-        let pl.cx = st.x + pl.side * (19 + pl.w * pill / 2)
-        let pl.c.l = if(pl.side > 0, st.x + 43, st.x - 19 - pl.w + 20)
-        let pl.c.r = if(pl.side > 0, st.x + 19 + pl.w - 14, st.x - 43)
+        //  How big she is, and how she squashes when her box opens (the spring of the
+        //  box leads it): the ball takes a breath in as the water goes into the box.
+        let st.sq = clamp(vel(pill) * 0.03, -0.12, 0.12)
+        //  The box: 470 wide, on the side of her with room for it, as tall as a line of
+        //  15 px with air; it breathes a little while she is idle. `pl.c.l` and `pl.c.r`
+        //  are where what is in it begins and ends, clear of her.
+        let pl.w = min(470, stick.width - 80)
+        let pl.h = 46 * (1 + 0.03 * join.breath * clamp(pill, 0, 1))
+        let pl.side = if(st.x + 32 + pl.w > stick.width - 10, -1, 1)
+        let pl.cx = st.x + pl.side * (22 + pl.w * pill / 2)
+        //  The send button is at the far end of the box, and the field between it and her.
+        let jb.x = if(pl.side > 0, st.x + 22 + pl.w - 28, st.x - 22 - pl.w + 28)
+        let pl.c.l = if(pl.side > 0, st.x + 54, jb.x + 26)
+        let pl.fw = if(pl.side > 0, jb.x - 26 - pl.c.l, st.x - 54 - pl.c.l)
         //  Where she looks: down when she is pulled, at her box when she sits.
-        let st.gx = if(join.phase == sitting, pl.side * 3.4 * clamp(pill * 2, 0, 1), clamp(vel(ball.x) * 0.004, -3.5, 3.5))
+        let st.gx = if(join.phase == sitting, pl.side * 4 * clamp(pill * 2, 0, 1), clamp(vel(ball.x) * 0.004, -3.5, 3.5))
         let st.gy = if(join.phase == sitting, 0, 3)
-        zone box pill_zone { at: pl.cx, st.y; size: pl.w * pill, 36; corner: 18; cursor: text; label: "Tell her what to do in this window"; active: join.phase == sitting and pill > 0.7 and not join.busy }
+        //  What she answered, hanging under the box like a drop: how formed it is, and how
+        //  many of its letters have come (they rise out of the water, as in the chat).
+        measure jsaid
+        let bub.w = pl.w - 36
+        let bub.t = st.y + pl.h / 2 + 7
+        let bub.h = jsaid.height + 30
+        //  Whose window it is, in a tab on the ring that the window has: «Kitty» and the
+        //  way out. It sits on the other side of her from the box, or past the end of it.
+        measure jname
+        let tb.w = jname.width + 64
+        let tb.room = st.x - 44 - tb.w > 10
+        let tb.cx = if(pl.side > 0, if(tb.room, st.x - 44 - tb.w / 2, pl.cx + pl.w * clamp(pill, 0, 1) / 2 + 12 + tb.w / 2), st.x + 44 + tb.w / 2)
+        let tb.cy = pb.y - mo.y
+        zone box pill_zone { at: pl.cx, st.y; size: pl.w * pill, pl.h; corner: 23; cursor: text; label: "Tell her what to do in this window"; active: join.phase == sitting and pill > 0.7 and not join.busy }
 
         //  The windows first, so she is over their edge: the one under her while she
-        //  is pulled, and the one she has joined.
+        //  is pulled, and the one she has joined (the same ring).
         group {
             show: hov.a > 0.01
             opacity: hov.a
-            box { at: hov.x - mo.x + hov.w / 2, hov.y - mo.y + hov.h / 2; size: hov.w + 8, hov.h + 8; corner: 18; color: mint; opacity: 9% }
+            box { at: hov.x - mo.x + hov.w / 2, hov.y - mo.y + hov.h / 2; size: hov.w + 8, hov.h + 8; corner: 18; color: mint; opacity: 8% }
             group {
                 glow: 9, 80%, #9ed6bd
-                box { at: hov.x - mo.x + hov.w / 2, hov.y - mo.y + hov.h / 2; size: hov.w + 6, hov.h + 6; corner: 17; stroke: 2.4; color: mint }
+                box { at: hov.x - mo.x + hov.w / 2, hov.y - mo.y + hov.h / 2; size: hov.w + 6, hov.h + 6; corner: 17; stroke: 2.2; color: mint; opacity: 90% }
             }
         }
         group {
@@ -183,34 +200,60 @@ part JoinSurface {
             box { at: pb.x - mo.x + pb.w / 2, pb.y - mo.y + pb.h / 2; size: pb.w + 6, pb.h + 6; corner: 17; color: mint; opacity: 4% + 1.5% * join.breath }
             group {
                 glow: 8, 55% + 15% * join.breath, #9ed6bd
-                box { at: pb.x - mo.x + pb.w / 2, pb.y - mo.y + pb.h / 2; size: pb.w + 6, pb.h + 6; corner: 17; stroke: 2; color: mint; opacity: 80% + 12% * join.breath }
+                box { at: pb.x - mo.x + pb.w / 2, pb.y - mo.y + pb.h / 2; size: pb.w + 6, pb.h + 6; corner: 17; stroke: 2.2; color: mint; opacity: 82% + 12% * join.breath }
             }
             //  Where she landed, the ring runs out along the edge once.
             box { at: pb.x - mo.x + pb.w / 2, pb.y - mo.y + pb.h / 2
                   size: pb.w + 6 + 90 * join.pu, pb.h + 6 + 90 * join.pu; corner: 17 + 45 * join.pu; stroke: 2.2; color: mint
                   opacity: 70% * (1 - join.pu) * (1 - join.pu) }
         }
-
         //  Where she touches the window's edge: a soft light on it and a dark point under
         //  her, so she is sitting on it and not floating over it.
         group {
             show: seat > 0.05 and st.ledge > 0.05
             opacity: seat * st.ledge
-            ellipse { at: st.x, pb.y - mo.y + 1; radius: 46; scale: 1, 0.12; color: mint; opacity: 34% }
-            ellipse { at: st.x, pb.y - mo.y + 3; radius: 21; scale: 1, 0.14; color: #05070a; opacity: 55% }
+            ellipse { at: st.x, pb.y - mo.y + 1; radius: 62; scale: 1, 0.11; color: mint; opacity: 36% }
+            ellipse { at: st.x, pb.y - mo.y + 3; radius: 26; scale: 1, 0.13; color: #05070a; opacity: 55% }
         }
-        //  Her: the water at the notch, the thread, her ball, the foot she has on
-        //  the edge and the box that grows from her, one silhouette. A soft halo of
-        //  her own mint and a lighter rim, so she reads over a dark window.
+
+        //  The tab on the ring: a swelling of the window's own edge that says whose it is.
         group {
-        glow: 7, 42%, #9ed6bd
+            opacity: clamp(pill * 3 - 2, 0, 1)
+            show: pill > 0.7
+            prop letgo.glow = 0 ~140ms
+            body {
+                color: #121a1a
+                rim: 26%
+                shadow: 0, 3, 10, 34%, #05070a
+                box { at: tb.cx, tb.cy; size: tb.w, 28; corner: 14 }
+            }
+            box { at: tb.cx, tb.cy; size: tb.w, 28; corner: 14; color: mint; opacity: 9% + 2% * join.breath }
+            box { at: tb.cx, tb.cy; size: tb.w, 28; corner: 14; stroke: 1.4; color: mint; opacity: 62% + 14% * join.breath }
+            ellipse { at: tb.cx - tb.w / 2 + 16, tb.cy; radius: 3.6; color: mint }
+            text join.name { at: tb.cx - tb.w / 2 + 28, tb.cy; anchor: left center; size: 13.5; weight: 600; color: ink; opacity: 1 - letgo.glow; measure: jname }
+            text "Let go" { at: tb.cx - tb.w / 2 + 28, tb.cy; anchor: left center; size: 13.5; weight: 600; color: mint; opacity: letgo.glow }
+            ellipse { at: tb.cx + tb.w / 2 - 17, tb.cy; radius: 10; color: #ffffff; opacity: 9% + 14% * letgo.glow }
+            line { from: tb.cx + tb.w / 2 - 21, tb.cy - 4; to: tb.cx + tb.w / 2 - 13, tb.cy + 4; width: 1.8; color: ink; opacity: 70% + 30% * letgo.glow }
+            line { from: tb.cx + tb.w / 2 - 21, tb.cy + 4; to: tb.cx + tb.w / 2 - 13, tb.cy - 4; width: 1.8; color: ink; opacity: 70% + 30% * letgo.glow }
+            zone ellipse letgo_btn { at: tb.cx + tb.w / 2 - 17, tb.cy; radius: 13; cursor: pointer; label: "Let go of the window"; active: join.phase == sitting and pill > 0.7 }
+            on enter letgo_btn { letgo.glow: 1 }
+            on leave letgo_btn { letgo.glow: 0 }
+            on press letgo_btn { emit chat_detach }
+        }
+
+        //  Her: the water at the notch, the thread, her ball, the box that grows from
+        //  her and the drop of her answer hanging from it: one body of water, with a
+        //  waist where the box leaves the ball. A faint halo of her own mint and a
+        //  bright thin rim, so she reads over a dark window and over a light one.
+        group {
+        glow: 8, 38%, #9ed6bd
         body {
-            color: skin
-            rim: 34%
+            gradient: 0, st.y - 36 to 0, st.y + 36, #3a4946, #182120
+            rim: 30%
             glass: glassiness
             lens: bends
-            shadow: 0, 4, 16, 36%, #05070a
-            ellipse { at: nk.x, nk.y - 8; radius: 21 * (1 - retract * 0.85); scale: 1.4, 0.8; blend: 14 }
+            shadow: 0, 4, 14, 34%, #05070a
+            ellipse { at: nk.x, nk.y - 8; radius: 22 * (1 - retract * 0.85); scale: 1.4, 0.8; blend: 14 }
             //  The thread: 32 capsules along the curve, each as wide as the middle of its
             //  span; their round ends hide the joins.
             line { from: tp.0x, tp.0y; to: tp.1x, tp.1y; width: (tw.0 + tw.1) / 2; blend: 2; show: retract < 0.97 }
@@ -247,80 +290,88 @@ part JoinSurface {
             line { from: tp.31x, tp.31y; to: tp.32x, tp.32y; width: (tw.31 + tw.32) / 2; blend: 2; show: retract < 0.97 }
             ellipse {
                 at: st.x, st.y
-                radius: 25
-                scale: sx * (1 - join.stretch * 0.5), sy * (1 + join.stretch)
-                blend: 16
+                radius: 32
+                scale: (sx + st.sq) * (1 - join.stretch * 0.5), (sy - st.sq) * (1 + join.stretch)
+                blend: 18
             }
-            //  And the box. It comes out of her on the side with room.
-            box pill_box {
+            //  The box: it leaves the ball through a waist, and is her water too.
+            box {
                 at: pl.cx, st.y
-                size: pl.w * pill, 36 * clamp(pill * 2.4, 0, 1)
-                corner: 18
-                blend: 26 * pill * (1 - pill) + 7 * pill
+                size: pl.w * pill, pl.h * clamp(pill * 2.4, 0, 1)
+                corner: 23
+                blend: 12 + 34 * clamp(pill * (1 - pill) * 4, 0, 1)
                 show: pill > 0.02
             }
+            //  And her answer: a drop that forms under the box and joins it by a short neck.
+            box {
+                at: pl.cx, bub.t + bub.h / 2
+                size: bub.w * join.bub, bub.h * clamp(join.bub * 1.6, 0, 1)
+                corner: 22
+                blend: 14 + 16 * clamp(join.bub * (1 - join.bub) * 4, 0, 1)
+            }
         }
         }
-        Face(st.x, st.y, st.gx, st.gy, 0)
+        //  The tide inside the box while she works: the light water throws on a pool's floor.
+        shader chat_tide { at: pl.cx - pl.w * pill / 2, st.y - pl.h / 2; size: pl.w * pill, pl.h; corner: 23; values: chat.stir * 2.4; colors: mint }
+        //  Her face, a third bigger with her.
+        group {
+            pivot: st.x, st.y
+            scale: 1.39, 1.39
+            Face(st.x, st.y, st.gx, st.gy, 0)
+        }
         //  The drops that go up where she lands, and fall back.
-        particles { at: st.x, sit.y + 20 - mo.y; area: 40, 2; count: 28; life: 0.35s .. 0.75s; speed: 90 .. 280
+        particles { at: st.x, sit.y + 24 - mo.y; area: 46, 2; count: 30; life: 0.35s .. 0.75s; speed: 90 .. 290
                     direction: -90deg; spread: 140deg; gravity: 0, 720; size: 4.5, 1; colors: #e8f6ff, #9ed6bd; opacity: 95%, 0%
                     shape: dot; burst: join_splash }
 
-        //  What she says under her while she is pulled: the name of the window she
-        //  is over, or that it has to be one.
+        //  What she says by her while she is pulled: the name of the window she is over,
+        //  or that it has to be one.
         group {
             show: join.phase == held
-            let h.y = st.y + 46
-            box { at: st.x, h.y; size: 170, 22; corner: 11; color: #101314; opacity: 88% }
-            box { at: st.x, h.y; size: 170, 22; corner: 11; stroke: 1; color: mint; opacity: hov.a * 60% }
-            text hov.app { at: st.x, h.y; anchor: center; size: 11.5; weight: 600; color: mint; width: 150; lines: 1; opacity: hov.a }
-            text "Drop me on a window" { at: st.x, h.y; anchor: center; size: 11; color: #8b8f95; opacity: 1 - hov.a }
+            measure hname
+            let h.y = st.y + 58
+            let h.w = if(hov.on, hname.width + 36, 188)
+            body {
+                color: #161e1d
+                rim: 34%
+                shadow: 0, 3, 10, 34%, #05070a
+                box { at: st.x, h.y; size: h.w, 30; corner: 15 }
+            }
+            box { at: st.x, h.y; size: h.w, 30; corner: 15; stroke: 1.2; color: mint; opacity: hov.a * 70% }
+            text hov.app { at: st.x, h.y; anchor: center; size: 14; weight: 600; color: mint; width: 260; lines: 1; opacity: hov.a; measure: hname }
+            text "Drop me on a window" { at: st.x, h.y; anchor: center; size: 13; color: #b9bcc0; opacity: 1 - hov.a }
         }
 
-        //  The box. Joined, with the window it is joined to; the task goes in it
-        //  and while she works it says what she is doing.
+        //  What is in the box. The task goes in it, and while she works it says what she
+        //  is doing, in words.
         group {
             opacity: clamp(pill * 3 - 2, 0, 1)
             show: pill > 0.7
-            //  Who she is joined to, above the box, and the way out.
-            let jc.y = if(st.y > 52, st.y - 38, st.y + 38)
-            box { at: pl.cx, jc.y; size: 232, 24; corner: 12; color: #101314; opacity: 90% }
-            box { at: pl.cx, jc.y; size: 232, 24; corner: 12; stroke: 1; color: mint; opacity: 30% }
-            ellipse { at: pl.cx - 104, jc.y; radius: 3.2; color: mint }
-            text "{upper(join.app)}" { at: pl.cx - 96, jc.y; anchor: left center; size: 9.5; weight: 700; color: mint; width: 100; lines: 1 }
-            prop letgo.glow = 0 ~140ms
-            box { at: pl.cx + 74, jc.y; size: 72, 18; corner: 9; color: #2a2b2c; opacity: 70% + 30% * letgo.glow }
-            text "Let go" { at: pl.cx + 74, jc.y; anchor: center; size: 10; weight: 600; color: ink }
-            zone box letgo_btn { at: pl.cx + 74, jc.y; size: 72, 18; corner: 9; cursor: pointer; label: "Let go of the window"; active: join.phase == sitting and pill > 0.7 }
-            on enter letgo_btn { letgo.glow: 1 }
-            on leave letgo_btn { letgo.glow: 0 }
-            on press letgo_btn { emit chat_detach }
-
-            //  What she said when she was done: it stays until the next task.
-            box { at: pl.cx, sd.y + jsaid.height / 2; size: pl.w - 16, jsaid.height + 18; corner: 14; color: #101314; opacity: 92%; show: join.said_on }
-            box { at: pl.cx, sd.y + jsaid.height / 2; size: pl.w - 16, jsaid.height + 18; corner: 14; stroke: 1; color: mint; opacity: 25%; show: join.said_on }
-            text join.said { at: pl.cx - pl.w / 2 + 18, sd.y - 6; anchor: left top; width: pl.w - 52; size: 12.5; line_height: 1.35; color: ink; measure: jsaid }
-            //  Where she writes. A password never goes through here: it is the
-            //  chat's field that turns into one.
-            input join.input { at: pl.c.l, st.y - 9; width: pl.c.r - pl.c.l - 40; size: 14; color: ink
+            //  Where she writes. A password never goes through here: it is the chat's
+            //  field that turns into one.
+            input join.input { at: pl.c.l, st.y - 10; width: pl.fw; size: 15; color: ink
                                placeholder: "Tell me what to do in this window…"
                                selection: #2f5f52; show: not join.busy }
             //  And while she works, what she is on.
-            text chat.status { at: pl.c.l, st.y; anchor: left center; size: 12.5; color: #b9bcc0; width: pl.c.r - pl.c.l - 40; lines: 1; show: join.busy }
-            text chat.status { at: pl.c.l, st.y; anchor: left center; size: 12.5; color: #ef7a66; width: pl.c.r - pl.c.l - 40; lines: 1; show: chat.state == offline }
+            text chat.status { at: pl.c.l, st.y; anchor: left center; size: 14.5; color: #cfd3d6; width: pl.fw; lines: 1; show: join.busy }
+            text chat.status { at: pl.c.l, st.y; anchor: left center; size: 14; color: #ef7a66; width: pl.fw; lines: 1; show: chat.state == offline }
+            //  Send: a mint drop with an arrow; Stop: a ring with a calm coral square.
             prop jsend.glow = 0 ~140ms
-            ellipse { at: pl.c.r - 15, st.y; radius: 15; color: mix(mint, #ef7a66, join.busy); opacity: 80% + 20% * jsend.glow }
-            path { at: pl.c.r - 21, st.y - 7; color: #0c0f12; stroke: 2; show: not join.busy
-                   move 6, 13; line 6, 1 }
-            path { at: pl.c.r - 21, st.y - 7; color: #0c0f12; stroke: 2; show: not join.busy
-                   move 1, 6; line 6, 1; line 11, 6 }
-            box { at: pl.c.r - 15, st.y; size: 10, 10; corner: 2; color: #0c0f12; show: join.busy }
-            zone ellipse jsend_btn { at: pl.c.r - 15, st.y; radius: 16; cursor: pointer; label: "Send"; active: join.phase == sitting and pill > 0.7 }
+            ellipse { at: jb.x, st.y; radius: 18 + 1 * jsend.glow; color: mint; opacity: 90% + 10% * jsend.glow; show: not join.busy }
+                        path { at: jb.x - 5.5, st.y - 7.5; color: #0c1311; stroke: 2.4; show: not join.busy
+                   move 5.5, 15; line 5.5, 1.5 }
+            path { at: jb.x - 5.5, st.y - 7.5; color: #0c1311; stroke: 2.4; show: not join.busy
+                   move 0.5, 6.5; line 5.5, 1.5; line 10.5, 6.5 }
+            ellipse { at: jb.x, st.y; radius: 18; stroke: 2; color: #ef8a78; opacity: 70% + 30% * jsend.glow; show: join.busy }
+            box { at: jb.x, st.y; size: 11, 11; corner: 3; color: #ef8a78; show: join.busy }
+            zone ellipse jsend_btn { at: jb.x, st.y; radius: 20; cursor: pointer; label: "Send"; active: join.phase == sitting and pill > 0.7 }
             on enter jsend_btn { jsend.glow: 1 }
             on leave jsend_btn { jsend.glow: 0 }
+            //  What she answered, in the drop under the box; its letters come up out of the water.
+            text join.said { at: pl.cx - bub.w / 2 + 22, bub.t + 15; anchor: left top; width: bub.w - 44; size: 14.5; line_height: 1.38; color: ink; measure: jsaid
+                             opacity: clamp(join.bub * 2 - 0.6, 0, 1)
+                             letter_opacity: clamp((join.rev - letter) / 10, 0, 1)
+                             letter_move: 0, (1 - clamp((join.rev - letter) / 10, 0, 1)) * 6 }
         }
-        //  Her: pressed, she lets go of the window.
-        zone ellipse her_perch { at: st.x, st.y; radius: 24; cursor: pointer; label: "Let go of the window"; active: join.phase == sitting and pill > 0.2 }
     }
 }

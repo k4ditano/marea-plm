@@ -399,5 +399,20 @@ library SpanishLogic {
         "%s closed: I let go of it." = "%s se ha cerrado: la suelto."
         "I could not see your windows." = "No he podido ver tus ventanas."
         "I found no window to join." = "No he encontrado ninguna ventana a la que unirme."
+        // what she is doing in a window she is joined to
+        "Looking at %s…" = "Mirando %s…"
+        "Reading %s…" = "Leyendo %s…"
+        "Searching in %s…" = "Buscando en %s…"
+        "Pressing a button in %s…" = "Pulsando un botón en %s…"
+        "Filling in %s…" = "Rellenando %s…"
+        "Working in %s…" = "Trabajando en %s…"
+        "Waiting for %s…" = "Esperando a %s…"
+        "Running a command in %s…" = "Ejecutando un comando en %s…"
+        "Clicking in %s…" = "Haciendo clic en %s…"
+        "Typing in %s…" = "Escribiendo en %s…"
+        "Typing a saved password in %s…" = "Escribiendo una contraseña guardada en %s…"
+        "Pressing keys in %s…" = "Pulsando teclas en %s…"
+        "Scrolling in %s…" = "Desplazándome en %s…"
+        "Dragging in %s…" = "Arrastrando en %s…"
     }
 }

@@ -54,6 +54,7 @@ part Join {
     fact join.screen = 0
     fact join.dx = 60
     text join.app = ""
+    text join.name = ""               // her window's name, as it is said (Kitty)
     text join.said = ""               // the last thing she answered, short
     fact join.said_on = false          // and whether there is one to show
     //  Where what you write in the box goes: the logic copies it into the
@@ -121,6 +122,10 @@ part Join {
     follow join.a = if(join.phase == sitting or join.phase == falling, 1, 0)
     //  The wave that runs out along the window's edge when she lands.
     prop pulse = 1 ~900ms
+    //  How formed the drop of her answer is, and how many letters of it have come.
+    prop join.bub = 0 ~spring(170, 15)
+    follow join.bub = if(join.said_on and join.phase == sitting and pill > 0.5, 1, 0)
+    prop join.rev = 0 ~2200ms
     //  And the slow breath of the ring on the window she is joined to (join surface).
     prop join.breath = 0
     //  She is chewing on a task (the box says what).
@@ -141,11 +146,11 @@ part Join {
     let sit.mx = pick(join.screen, mon.x.0, mon.x.1, mon.x.2)
     let sit.my = pick(join.screen, mon.y.0, mon.y.1, mon.y.2)
     let sit.x = pb.x + clamp(join.dx, 34, max(pb.w - 34, 34))
-    let sit.y = sit.my + max(pb.y - sit.my - 17, 14)
+    let sit.y = sit.my + max(pb.y - sit.my - 22, 24)
     //  The same place from the logic's own numbers, for sending her there: the
     //  window's box springs (`pb`) and has not arrived yet when she is sent.
     let tgt.x = jx + clamp(join.dx, 34, max(join.w - 34, 34))
-    let tgt.y = sit.my + max(jy - sit.my - 17, 14)
+    let tgt.y = sit.my + max(jy - sit.my - 22, 24)
     //  Let go inside a window she is BELOW its top edge, so she goes up to it (a
     //  drop drawn along the glass); told from the keyboard she starts above it and
     //  falls. `join.up` says which, when she is sent.

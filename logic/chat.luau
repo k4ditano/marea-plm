@@ -194,8 +194,16 @@ return function(shared)
         if name:match("^%d+$") or name:match("^%d+%.%d+$") or name:match("^%d+%.?%d*:[%w_-]+$") then return name end
         return "0"
     end
+    --  A program as it is said to a person: «kitty» is «Kitty», «org.mozilla.firefox» is
+    --  «Firefox».
+    local function nice(app)
+        local last = tostring(app or ""):match("([^%.]+)$") or tostring(app or "")
+        return (last:gsub("^%l", string.upper))
+    end
     local function program(args, tool)
         if args.name and tool ~= "desktop_type_secret" then return tostring(args.name) end
+        --  Joined, the window is the one she is on and is called by its name, never by a number.
+        if joined and tostring(args.pid or ""):match("^(%d+)") == joined.pid then return nice(joined.app) end
         return programs[window_name(args.pid)] or ("the window " .. tostring(args.pid or "?"))
     end
     --  What touches a window other than the one she is joined to is refused
@@ -215,8 +223,28 @@ return function(shared)
         end
         return nil
     end
+    --  What she says she is doing when she is joined to a window: the one thing she works
+    --  on, in the words of someone who is doing it.
+    local JOINED_WORDS = {
+        desktop_look = "Looking at %s…",
+        desktop_tree = "Reading %s…",
+        desktop_find = "Searching in %s…",
+        desktop_press = "Pressing a button in %s…",
+        desktop_fill = "Filling in %s…",
+        desktop_steps = "Working in %s…",
+        desktop_wait = "Waiting for %s…",
+        desktop_run = "Running a command in %s…",
+        desktop_click = "Clicking in %s…",
+        desktop_type = "Typing in %s…",
+        desktop_type_secret = "Typing a saved password in %s…",
+        desktop_key = "Pressing keys in %s…",
+        desktop_hotkey = "Pressing keys in %s…",
+        desktop_scroll = "Scrolling in %s…",
+        desktop_drag = "Dragging in %s…",
+    }
     local function said(tool, args)
         if builder and builder.owns(tool) then return builder.said(tool, args) end
+        if joined and JOINED_WORDS[tool] then return string.format(tr(JOINED_WORDS[tool]), program(args, tool)) end
         return string.format(tr(WORDS[tool] or tool), program(args, tool))
     end
     local function agent_args(tool, a)
@@ -1296,6 +1324,7 @@ return function(shared)
         fact["chat.attached"] = false
         text["chat.joined"] = ""
         text["join.app"] = ""
+        text["join.name"] = ""
         text["join.said"] = ""
         fact["join.said_on"] = false
         fact["join.typing"] = false
@@ -1511,6 +1540,7 @@ return function(shared)
         text["chat.joined"] = found.app
         text["chat.target"] = ""
         text["join.app"] = found.app
+        text["join.name"] = nice(found.app)
         text["join.said"] = ""
         fact["join.said_on"] = false
         text["join.input"] = ""

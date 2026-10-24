@@ -124,6 +124,8 @@ part JoinRules {
     on submit join.input { emit join_send }
     on press jsend_btn while join.busy { emit chat_stop }
     on press jsend_btn while not join.busy { emit join_send }
+    //  Her answer comes up out of the water, letter by letter.
+    on change join.said_on while join.said_on { join.rev: 0 ~16ms; join.rev: 700 ~2600ms after 40ms }
     on key Escape while join.phase == sitting { emit chat_detach }
     //  A window carried by its title bar, told by the window manager: hers if the mouse is on
     //  its title bar, and then she goes with the mouse at once, from where it was taken.
