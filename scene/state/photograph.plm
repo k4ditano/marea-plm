@@ -84,6 +84,7 @@ part Photograph {
     on gone while purpose == ride { away: 1 ~16ms }
     on ride_back { away: 0 ~lively; face = eye; purpose = shot }
     //  And if the logic did not answer, she does not stay up there forever.
-    on still away for 2.5s while away > 0.5 and purpose == shot { away: 0 ~lively; face = eye }
+    //  (Not while she is out on a window: that one is hers to bring back, join.plm.)
+    on still away for 2.5s while away > 0.5 and purpose == shot and join.phase == none { away: 0 ~lively; face = eye }
 
 }

@@ -1318,6 +1318,21 @@ return function(shared)
         end
         return list
     end
+    --  Free windows have a title bar above the box `agent windows` gives (30 px,
+    --  the window manager's `tb`); tiled ones have none. She sits on the top of
+    --  the whole frame, so each monitor's mode is asked of the window manager.
+    local bars = {}
+    local function read_bars(done)
+        local left = 3
+        for k = 0, 2 do
+            run("pleamar-wm", { "--say", "wm", "get free." .. k }, function(out, code)
+                local free = code == 0 and (tostring(out):match("^%s*1") ~= nil or tostring(out):match("true") ~= nil)
+                bars[k] = free and 30 or 0
+                left = left - 1
+                if left == 0 and done then done() end
+            end, { errors = false })
+        end
+    end
     local function read_monitors(done)
         run("pleamar-wm", { "agent", "monitors" }, function(out, code)
             if code == 0 then
@@ -1331,24 +1346,31 @@ return function(shared)
                     end
                 end
             end
-            if done then done() end
+            read_bars(done)
         end, HANDS)
+    end
+    --  The whole frame of a window: its box and the title bar over it.
+    local function frame(w)
+        local bar = bars[w.screen or 0] or 0
+        return { x = w.x, y = w.y - bar, w = w.w, h = w.h + bar }
     end
     --  The smallest window that holds the point: the one she is over. A dialog
     --  is not a window to join (it belongs to one), and a window that is one of
     --  a program's several (`PID.N`) has no name the hands could be held to.
     local function window_at(list, px, py)
-        local best
+        local best, best_f
         for _, w in ipairs(list) do
+            local f = frame(w)
             if not w.dialog and w.app ~= "marea" and not w.pid:find(".", 1, true)
-                and px >= w.x and px < w.x + w.w and py >= w.y and py < w.y + w.h then
-                if not best or w.w * w.h < best.w * best.h then best = w end
+                and px >= f.x and px < f.x + f.w and py >= f.y and py < f.y + f.h then
+                if not best or f.w * f.h < best_f.w * best_f.h then best, best_f = w, f end
             end
         end
-        return best
+        return best, best_f
     end
     local function show_box(w)
-        fact["join.x"], fact["join.y"], fact["join.w"], fact["join.h"] = w.x, w.y, w.w, w.h
+        local f = frame(w)
+        fact["join.x"], fact["join.y"], fact["join.w"], fact["join.h"] = f.x, f.y, f.w, f.h
         fact["join.screen"] = w.screen or 0
     end
     --  While she sits on a window she keeps up with it: a moved or resized
@@ -1384,6 +1406,8 @@ return function(shared)
                             last = box
                             show_box(mine)
                             joined.title = mine.title
+                            --  A change of box may be tiled turning free: look at the bars again.
+                            read_bars(function() if joined then show_box(mine) end end)
                         end
                     end
                 end
@@ -1472,9 +1496,9 @@ return function(shared)
             run("pleamar-wm", { "agent", "windows" }, function(out, code)
                 busy = false
                 if gen == grab_gen and fact["join.phase"] == "held" and code == 0 then
-                    local w = window_at(parse_windows(out), fact["ptr.x"] or 0, fact["ptr.y"] or 0)
+                    local w, f = window_at(parse_windows(out), fact["ptr.x"] or 0, fact["ptr.y"] or 0)
                     if w then
-                        fact["hov.x"], fact["hov.y"], fact["hov.w"], fact["hov.h"] = w.x, w.y, w.w, w.h
+                        fact["hov.x"], fact["hov.y"], fact["hov.w"], fact["hov.h"] = f.x, f.y, f.w, f.h
                         text["hov.app"] = w.app
                     end
                     fact["hov.on"] = w ~= nil

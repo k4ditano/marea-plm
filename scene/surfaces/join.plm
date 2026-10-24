@@ -31,6 +31,7 @@ part JoinSurface {
         //  and has a foot there; at the top of a monitor she is astride it instead.
         let st.ledge = clamp((sit.y - sit.my - 27) / 10, 0, 1)
         //  The notch, where the thread is fixed.
+        let join.pu = clamp(pulse, 0, 1)
         let nk.x = anc.x - mo.x
         let nk.y = anc.y - mo.y
         //  The tip of the thread: her, until it breaks; then it flies back up to the notch.
@@ -46,7 +47,7 @@ part JoinSurface {
 
         //  What she answered, under her box (and under the chip when that is below).
         measure jsaid
-        let sd.y = if(st.y > 66, st.y + 32, st.y + 70)
+        let sd.y = if(st.y > 52, st.y + 32, st.y + 70)
 
         //  A click anywhere else gives the keyboard back to whoever had it. It goes
         //  first: of two zones the later one is on top, and the box's own zones
@@ -86,8 +87,8 @@ part JoinSurface {
             }
             //  Where she landed, the ring runs out along the edge once.
             box { at: pb.x - mo.x + pb.w / 2, pb.y - mo.y + pb.h / 2
-                  size: pb.w + 6 + 90 * pulse, pb.h + 6 + 90 * pulse; corner: 17 + 45 * pulse; stroke: 2.2; color: mint
-                  opacity: 70% * (1 - pulse) * (1 - pulse) }
+                  size: pb.w + 6 + 90 * join.pu, pb.h + 6 + 90 * join.pu; corner: 17 + 45 * join.pu; stroke: 2.2; color: mint
+                  opacity: 70% * (1 - join.pu) * (1 - join.pu) }
         }
 
         //  Her: the water at the notch, the thread, her ball, the foot she has on
@@ -181,7 +182,7 @@ part JoinSurface {
             opacity: clamp(pill * 3 - 2, 0, 1)
             show: pill > 0.7
             //  Who she is joined to, above the box, and the way out.
-            let jc.y = if(st.y > 66, st.y - 38, st.y + 38)
+            let jc.y = if(st.y > 52, st.y - 38, st.y + 38)
             box { at: pl.cx, jc.y; size: 232, 24; corner: 12; color: #101314; opacity: 90% }
             box { at: pl.cx, jc.y; size: 232, 24; corner: 12; stroke: 1; color: mint; opacity: 30% }
             ellipse { at: pl.cx - 104, jc.y; radius: 3.2; color: mint }
