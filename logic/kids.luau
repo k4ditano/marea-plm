@@ -218,7 +218,9 @@ return function(shared)
             kid.ending = { ok = true, said = kid.live or "" }
             settle(kid, "idle")
         elseif kind == "cancelled" then
-            kid.ending = { ok = false, said = kid.stopped_by_pill and tr("You stopped her from the monitor.") or tr("Stopped.") }
+            --  Stopped by the user: nothing to say about it (a bubble for «Stopped.» was a big box for a
+            --  word he knows).
+            kid.ending = { ok = false, said = "" }
             kid.stopped_by_pill = false
             settle(kid, "idle")
         elseif kind == "failed" then
@@ -372,7 +374,10 @@ return function(shared)
         return best, best_f
     end
     local function show_box(kid, w)
-        local f = frame(w)
+        --  The window manager's own frame of the window (`kid.tf`, below) when it is known: it knows
+        --  whether the window has a title bar and where the window's own margin (a client-side
+        --  shadow, as Zen's) ends; the list of windows gives only its surface's box.
+        local f = kid.tf or frame(w)
         local k = kid.k
         F(k, "x", f.x); F(k, "y", f.y); F(k, "w", f.w); F(k, "h", f.h)
         F(k, "screen", w.screen or 0)
@@ -407,8 +412,9 @@ return function(shared)
     local function find_slots(list)
         if #list == 0 then return end
         local argv = { "--say", "wm" }
-        for k = 0, 9 do argv[#argv + 1] = "get x." .. k end
-        for k = 0, 9 do argv[#argv + 1] = "get y." .. k end
+        for _, n in ipairs({ "x", "y", "w", "h" }) do
+            for k = 0, 9 do argv[#argv + 1] = "get " .. n .. "." .. k end
+        end
         run("pleamar-wm", argv, function(out, code)
             if code ~= 0 then return end
             local v, i = {}, 0
@@ -419,10 +425,23 @@ return function(shared)
             for _, kid in ipairs(list) do
                 if kids[kid.k] == kid and kid.cur then
                     local f = frame(kid.cur)
+                    local sc = kid.cur.screen or 0
+                    local ox, oy = fact["mon.x." .. sc] or 0, fact["mon.y." .. sc] or 0
+                    local best, bd
                     for s = 0, 9 do
-                        local x, y = v[s + 1], v[s + 11]
-                        if x and y and math.abs(x - f.x) < 2.5 and math.abs(y - f.y) < 2.5 then kid.slot = s break end
+                        local x, y, w, h = v[s + 1], v[s + 11], v[s + 21], v[s + 31]
+                        if x and y and w and h and w > 1 and h > 1 then
+                            --  Its frame is the list's, or inside it: a window with a margin of its own
+                            --  (a client-side shadow) has a frame smaller than the box it is listed with.
+                            local dx, dy = ox + x - f.x, oy + y - f.y
+                            if dx > -2.5 and dx < 60 and dy > -2.5 and dy < 60 + (bars[sc] or 0)
+                                and w <= f.w + 2.5 and h <= f.h + 2.5 and w >= f.w - 80 and h >= f.h - 80 - (bars[sc] or 0) then
+                                local d = math.abs(dx) + math.abs(dy)
+                                if bd == nil or d < bd then best, bd = s, d end
+                            end
+                        end
                     end
+                    if best then kid.slot = best end
                 end
             end
         end, { errors = false })
@@ -445,13 +464,37 @@ return function(shared)
         local anycur = false
         for _, kid in pairs(kids) do if kid.cur then anycur = true end end
         if not anycur then return poll(my) end
-        run("pleamar-wm", { "--say", "wm", "get dragging", "get mouse.x", "get mouse.y", "get grab.x", "get grab.y" }, function(out, code)
+        --  One question for the carry and for the true frame of each child's window (x.N, y.N, w.N, h.N).
+        local argv = { "--say", "wm", "get dragging", "get mouse.x", "get mouse.y", "get grab.x", "get grab.y" }
+        local order = {}
+        for k = 0, 3 do
+            local kid = kids[k]
+            if kid and kid.slot and kid.cur and not kid.cur.hidden then
+                order[#order + 1] = kid
+                for _, n in ipairs({ "x", "y", "w", "h" }) do argv[#argv + 1] = "get " .. n .. "." .. kid.slot end
+            end
+        end
+        run("pleamar-wm", argv, function(out, code)
             if gen ~= loop.gen or my ~= loop.chain then return end
             if not any_kid() then loop.running = false; return end
             local v, i = {}, 0
             for line in tostring(out):gmatch("[^\n]+") do
                 i = i + 1
                 v[i] = tonumber(line)
+            end
+            --  The true frames, kept up with while the window is not the one carried.
+            for j, kid in ipairs(order) do
+                local x, y, w, h = v[5 + 4 * (j - 1) + 1], v[5 + 4 * (j - 1) + 2], v[5 + 4 * (j - 1) + 3], v[5 + 4 * (j - 1) + 4]
+                if code == 0 and x and y and w and h and w > 1 and h > 1 and not kid.carried and kids[kid.k] == kid and kid.cur then
+                    local sc = kid.cur.screen or 0
+                    local tf = { x = (fact["mon.x." .. sc] or 0) + x, y = (fact["mon.y." .. sc] or 0) + y, w = w, h = h }
+                    local o = kid.tf
+                    if not o or math.abs(o.x - tf.x) > 0.4 or math.abs(o.y - tf.y) > 0.4 or math.abs(o.w - tf.w) > 0.4 or math.abs(o.h - tf.h) > 0.4 then
+                        kid.tf = tf
+                        kid.calm = 0
+                        show_box(kid, kid.cur)
+                    end
+                end
             end
             local carrying = false
             local ok_drag = code == 0 and v[1] and v[1] >= 0 and v[2] and v[3] and v[4] and v[5]
@@ -487,8 +530,13 @@ return function(shared)
                     kid.carried = false
                     --  (Already let go in the scene when the window manager said it.)
                     if kid.carry_at and kid.cur and fact["ch." .. kid.k .. ".carry"] == true then
-                        local bar = bars[kid.cur.screen or 0] or 0
-                        show_box(kid, { x = math.floor(kid.carry_at.x), y = math.floor(kid.carry_at.y) + bar, w = kid.cur.w, h = kid.cur.h, screen = kid.cur.screen })
+                        if kid.tf then
+                            kid.tf = { x = math.floor(kid.carry_at.x), y = math.floor(kid.carry_at.y), w = kid.tf.w, h = kid.tf.h }
+                            show_box(kid, kid.cur)
+                        else
+                            local bar = bars[kid.cur.screen or 0] or 0
+                            show_box(kid, { x = math.floor(kid.carry_at.x), y = math.floor(kid.carry_at.y) + bar, w = kid.cur.w, h = kid.cur.h, screen = kid.cur.screen })
+                        end
                     end
                     F(kid.k, "carry", false)
                 elseif fact["ch." .. kid.k .. ".carry"] == true and not kid.carried then
