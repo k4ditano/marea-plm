@@ -11,12 +11,10 @@ return function(shared)
     --  Building a piece of the desktop (logic/builder.luau): while it is on,
     --  the thread is that creation's, and her engine has the builder's tools.
     local builder = shared.builder
-    local base = sys.ask("env", "XDG_STATE_HOME")
-    if base == nil or base == "" then base = home_dir .. "/.local/state" end
-    local STATE = base .. "/marea-plm/agent"
-    --  How her hands are run: what they say went wrong comes back too, and
-    --  the cursor on the desktop is labelled hers.
-    local HANDS = { errors = true, env = { PLEAMAR_AGENT_NAME = "Marea" } }
+    --  Her hands on the desktop (logic/hands.luau), shared with her children (logic/kids.luau).
+    local hands = require("logic/hands")({ home_dir = home_dir })
+    local STATE, HANDS = hands.STATE, hands.HANDS
+    local window_name, nice, agent_args = hands.window_name, hands.nice, hands.agent_args
     local DEFAULT_MODEL = "openai-codex/gpt-5.6-luna"
     local DEFAULT_BUILD_MODEL = "openai-codex/gpt-6-astra"
     local function chosen() return type(settings.chat_model) == "string" and settings.chat_model or DEFAULT_MODEL end
@@ -46,12 +44,6 @@ return function(shared)
     local revealing = false
     local asks = {}          -- proposal id -> { row, tool, args }
     local programs = {}      -- pid -> program, from the last list of windows
-    --  Joined to a window: she has that window (and its dialogs) and only that
-    --  one, with free hands. { pid, app, title }, nil when she has the desktop.
-    local joined = nil
-    local joined_dialogs = {}  -- the pids of dialogs that window opened
-    local leave                -- let go of it (defined with the panel's events)
-    local looks = 0
     local idle_timer = nil
     local stopped_by_pill = false
     --  How the turn ended, for her tasks (see «her tasks» below), and what
@@ -61,7 +53,7 @@ return function(shared)
     local running_task = nil  -- the task she is doing on her own now (its id)
     local task_do             -- her task tools (below)
     local task_days           -- «every day», «Mon, Wed»… (below)
-    local secrets, secret_named -- the passwords you saved for her (below)
+    local secrets, secret_named, type_secret -- the passwords you saved for her (below)
     local usable = false
 
     local function letters(s)
@@ -188,128 +180,13 @@ return function(shared)
         desktop_to_monitor = "Move %s to another monitor",
         open_app = "Open %s",
     }
-    --  A window as desktop_windows names it: «4521», or «4521.3» for one of
-    --  a program's several. Anything else is no window.
-    local function window_name(v)
-        local name = tostring(v or "")
-        if name:match("^%d+$") or name:match("^%d+%.%d+$") or name:match("^%d+%.?%d*:[%w_-]+$") then return name end
-        return "0"
-    end
-    --  A program as it is said to a person: «kitty» is «Kitty», «org.mozilla.firefox» is
-    --  «Firefox».
-    local function nice(app)
-        local last = tostring(app or ""):match("([^%.]+)$") or tostring(app or "")
-        return (last:gsub("^%l", string.upper))
-    end
     local function program(args, tool)
         if args.name and tool ~= "desktop_type_secret" then return tostring(args.name) end
-        --  Joined, the window is the one she is on and is called by its name, never by a number.
-        if joined and tostring(args.pid or ""):match("^(%d+)") == joined.pid then return nice(joined.app) end
         return programs[window_name(args.pid)] or ("the window " .. tostring(args.pid or "?"))
     end
-    --  What touches a window other than the one she is joined to is refused
-    --  here, whatever the model asks for; the model is only told.
-    local DESKTOP = { desktop_look = true, desktop_tree = true, desktop_find = true, desktop_press = true, desktop_fill = true, desktop_steps = true, desktop_wait = true, terminal_wait = true, desktop_run = true, desktop_click = true, desktop_type = true, desktop_type_secret = true, desktop_key = true, desktop_hotkey = true, desktop_scroll = true, desktop_drag = true }
-    local function joined_refuses(tool, args)
-        if not joined then return nil end
-        if tool == "open_app" or tool == "desktop_to_monitor" or tool == "desktop_focus" then
-            return "You are joined to one window (" .. joined.app .. "): you do not open programs or move windows. Do what is asked inside it."
-        end
-        if DESKTOP[tool] then
-            local base = tostring(args.pid or ""):match("^(%d+)")
-            local whole = tostring(args.pid or ""):match("^([%d%.]+)")
-            if base ~= joined.pid and not joined_dialogs[whole or ""] then
-                return "You are joined to window " .. joined.pid .. " (" .. joined.app .. ") only: you cannot touch another one. Use pid " .. joined.pid .. "."
-            end
-        end
-        return nil
-    end
-    --  What she says she is doing when she is joined to a window: the one thing she works
-    --  on, in the words of someone who is doing it.
-    local JOINED_WORDS = {
-        desktop_look = "Looking at %s…",
-        desktop_tree = "Reading %s…",
-        desktop_find = "Searching in %s…",
-        desktop_press = "Pressing a button in %s…",
-        desktop_fill = "Filling in %s…",
-        desktop_steps = "Working in %s…",
-        desktop_wait = "Waiting for %s…",
-        desktop_run = "Running a command in %s…",
-        desktop_click = "Clicking in %s…",
-        desktop_type = "Typing in %s…",
-        desktop_type_secret = "Typing a saved password in %s…",
-        desktop_key = "Pressing keys in %s…",
-        desktop_hotkey = "Pressing keys in %s…",
-        desktop_scroll = "Scrolling in %s…",
-        desktop_drag = "Dragging in %s…",
-    }
     local function said(tool, args)
         if builder and builder.owns(tool) then return builder.said(tool, args) end
-        if joined and JOINED_WORDS[tool] then return string.format(tr(JOINED_WORDS[tool]), program(args, tool)) end
         return string.format(tr(WORDS[tool] or tool), program(args, tool))
-    end
-    local function agent_args(tool, a)
-        local pid = window_name(a.pid)
-        local n = function(v) return tostring(tonumber(v) or 0) end
-        if tool == "desktop_windows" then return { "agent", "windows" } end
-        --  By element (@24, from the window's tree): `--` ends the options, so a
-        --  text that starts with @ or -- is text.
-        local function element(v) v = tostring(v or "") if v:match("^@%d+$") then return v end end
-        if tool == "desktop_tree" then
-            local argv = { "agent", "tree", pid }
-            if element(a.within) then argv[#argv + 1] = "--within" argv[#argv + 1] = element(a.within) end
-            if type(a.role) == "string" and a.role:match("^[a-z_]+$") then argv[#argv + 1] = "--role" argv[#argv + 1] = a.role end
-            if a.since == true then argv[#argv + 1] = "--since" end
-            if tonumber(a.max) then argv[#argv + 1] = "--max" argv[#argv + 1] = tostring(math.floor(tonumber(a.max))) end
-            return argv
-        end
-        if tool == "desktop_find" then return { "agent", "find", pid, "--text", tostring(a.text or "") } end
-        if tool == "desktop_press" then
-            local argv = { "agent", "press", pid }
-            if element(a.element) then argv[#argv + 1] = element(a.element)
-            else argv[#argv + 1] = "--text" argv[#argv + 1] = tostring(a.text or "") argv[#argv + 1] = "--first" end
-            if a.button == "right" or a.button == "middle" then argv[#argv + 1] = a.button end
-            return argv
-        end
-        if tool == "desktop_fill" then
-            local argv = { "agent", "type", pid }
-            if element(a.element) then argv[#argv + 1] = element(a.element) end
-            if a.replace == true then argv[#argv + 1] = "--set" end
-            argv[#argv + 1] = "--"
-            argv[#argv + 1] = tostring(a.text or "")
-            return argv
-        end
-        if tool == "desktop_steps" then
-            local lines = {}
-            for _, line in ipairs(type(a.steps) == "table" and a.steps or {}) do
-                line = tostring(line):gsub("[\r\n]", " ")
-                --  `type -` and `run -` read the input, which these lines are.
-                if not line:match("^%s*type%s+%-%s*$") and not line:match("^%s*run%s+%-") then lines[#lines + 1] = line end
-            end
-            if #lines == 0 then return nil end
-            return { "agent", "do", pid }, table.concat(lines, "\n") .. "\n"
-        end
-        if tool == "desktop_wait" then
-            local until_ = tostring(a["until"] or "")
-            local seconds = tostring(math.max(1, math.min(30, math.floor(tonumber(a.seconds) or 10)))) .. "s"
-            if until_ == "has" or until_ == "gone" then return { "agent", "wait", pid, until_, "--text", tostring(a.text or ""), seconds } end
-            if until_ == "changed" or until_ == "dialog" then return { "agent", "wait", pid, until_, seconds } end
-            if until_ == "settled" then return { "agent", "wait", pid, "settled", "1s", seconds } end
-            return nil
-        end
-        if tool == "desktop_run" then
-            local seconds = tostring(math.max(1, math.min(300, math.floor(tonumber(a.seconds) or 30)))) .. "s"
-            return { "agent", "run", pid, "-", seconds }, tostring(a.command or "")
-        end
-        if tool == "desktop_click" then return { "agent", "click", pid, n(a.x), n(a.y), tostring(a.button or "left"), tostring(math.floor(tonumber(a.count) or 1)) } end
-        if tool == "desktop_type" then return { "agent", "type", pid, tostring(a.text or "") } end
-        if tool == "desktop_key" then return { "agent", "key", pid, tostring(a.key or "") } end
-        if tool == "desktop_hotkey" then return { "agent", "hotkey", pid, tostring(a.keys or "") } end
-        if tool == "desktop_scroll" then return { "agent", "scroll", pid, n(a.x), n(a.y), tostring(a.direction or "down"), tostring(math.floor(tonumber(a.steps) or 3)) } end
-        if tool == "desktop_drag" then return { "agent", "drag", pid, n(a.x1), n(a.y1), n(a.x2), n(a.y2) } end
-        if tool == "desktop_focus" then return { "agent", "focus", pid } end
-        if tool == "desktop_to_monitor" then return { "agent", "send", pid, tostring(math.floor(tonumber(a.monitor) or 0)) } end
-        return nil
     end
     --  A program by what the model calls it: its name, its .desktop id, its
     --  command or its class; or what it is («a file manager», «archivos»),
@@ -409,172 +286,27 @@ return function(shared)
             return
         end
         if tool == "desktop_type_secret" then
-            --  From your keyring straight to the window: never in her words,
-            --  never on a command line (the agent reads it from its input).
-            local name = tostring(args.name or "")
-            local _, known = secret_named(name)
-            if not known then
-                finish_row(row, false)
-                answer(id, false, "There is no password saved under «" .. name .. "». The names there are: " .. (#secrets > 0 and table.concat(secrets, ", ") or "none"))
-                return
-            end
-            run("secret-tool", { "lookup", "service", "marea-plm", "name", known }, function(out, code)
-                local secret = tostring(out or ""):gsub("\n$", "")
-                if code ~= 0 or secret == "" then
-                    finish_row(row, false)
-                    answer(id, false, "Marea could not read that password from the keyring.")
-                    return
-                end
-                run("pleamar-wm", { "agent", "type", window_name(args.pid), "-" }, function(o2, c2)
-                    finish_row(row, c2 == 0)
-                    answer(id, c2 == 0, c2 == 0 and ("Typed the password saved as «" .. known .. "».") or tostring(o2))
-                end, { errors = true, env = { PLEAMAR_AGENT_NAME = "Marea" }, input = secret })
-            end)
+            type_secret(args, function(ok, words) finish_row(row, ok); answer(id, ok, words) end)
             return
         end
-        if tool == "desktop_look" then
-            looks += 1
-            fact["chat.looking"] = true
-            local name = "look-" .. (looks % 3) .. ".png"
-            run("pleamar-wm", { "agent", "look", window_name(args.pid), STATE .. "/" .. name }, function(out, code)
-                --  The glass stays on her face a moment: the look is seen.
-                after(600, function() fact["chat.looking"] = false end)
-                if code == 0 then
-                    local w, h = tostring(out):match("(%d+)x(%d+)")
-                    finish_row(row, true)
-                    answer(id, true, string.format("A picture of %s, %sx%s pixels.", program(args), w or "?", h or "?"), { image = { path = "/state/" .. name } })
-                else
-                    finish_row(row, false)
-                    answer(id, false, tostring(out))
-                end
-            end, HANDS)
-            return
-        end
-        if tool == "terminal_wait" then
-            --  What runs in a terminal, waited for until it is done: an AI agent (the window
-            --  manager knows its state: working, ready, asking) by looking every two seconds;
-            --  anything else by the terminal being quiet.
-            local pid = window_name(args.pid)
-            local window = pid:match("^(%d+)")
-            local limit = math.max(5, math.min(600, math.floor(tonumber(args.seconds) or 60)))
-            local started, polls = 0, 0
-            local target = pid:find(":", 1, true) and pid or nil   -- PID:SHELL, said or found below
-            local function finish(ok, head)
-                --  And what it printed: the screen's lines.
-                run("pleamar-wm", { "agent", "tree", target or pid }, function(out, code)
-                    finish_row(row, ok)
-                    answer(id, ok, head .. "\n\n" .. (code == 0 and tostring(out) or ""))
-                end, HANDS)
-            end
-            local function look()
-                polls = polls + 1
-                run("pleamar-wm", { "term", "list" }, function(out, code)
-                    local state, program
-                    for line in tostring(out):gmatch("[^\n]+") do
-                        if line:match("terminal " .. window .. "%s") then
-                            program, state = line:match("terminal %d+%s+(%S+)%s*%((%w+)%)")
-                            program = program or line:match("terminal %d+%s+(%S+)")
-                            target = target or (window .. ":" .. tostring(line:match("^%s*(%d+)")))
-                            break
-                        end
-                    end
-                    if code ~= 0 or program == nil then
-                        finish(false, "That terminal is not there any more or is not one.")
-                        return
-                    end
-                    if state == nil then
-                        --  No AI agent there: a command in a shell, waited for until the shell is
-                        --  ready for another.
-                        run("pleamar-wm", { "agent", "wait", target or pid, "prompt", limit .. "s" }, function(o2, c2)
-                            if c2 == 0 then
-                                finish(true, "The terminal is ready again.")
-                            else
-                                finish(true, "Still running after " .. limit .. " s: wait again if it should take longer.")
-                            end
-                        end, { errors = false })
-                        return
-                    end
-                    if state ~= "working" then
-                        finish(true, program .. " is " .. state .. ".")
-                        return
-                    end
-                    if started >= limit then
-                        finish(true, program .. " is still working after " .. limit .. " s: wait again if it should take longer.")
-                        return
-                    end
-                    started = started + 2
-                    after(2000, look)
-                end, { errors = false })
-            end
-            fact["chat.state"] = "acting"
-            status(said(tool, args))
-            if not window then
-                finish_row(row, false)
-                answer(id, false, "That is no window.")
-                return
-            end
-            look()
-            return
-        end
-        local argv, stdin = agent_args(tool, args)
-        if not argv then
-            finish_row(row, false)
-            answer(id, false, "Marea does not know that tool.")
-            return
-        end
-        if tool == "desktop_windows" then
-            run("pleamar-wm", argv, function(out, code)
-                if code ~= 0 then
-                    finish_row(row, false)
-                    answer(id, false, tostring(out))
-                    return
-                end
-                programs = {}
-                joined_dialogs = {}
-                local kept = {}
-                for line in tostring(out):gmatch("[^\n]+") do
-                    local lp = line:match("^%s*([%d%.]+)%s")
-                    if joined and lp then
-                        local owner = line:match("dialog of ([%d%.]+)")
-                        if owner and owner:match("^%d+") == joined.pid then joined_dialogs[lp] = true end
-                        if lp:match("^%d+") == joined.pid or joined_dialogs[lp] then kept[#kept + 1] = line end
-                    end
-                end
-                if joined then out = table.concat(kept, "\n") end
-                for line in tostring(out):gmatch("[^\n]+") do
-                    local pid, app = line:match("^%s*([%d%.]+)%s+(%S+)%s+«")
-                    if pid then
-                        --  A dialog is called by what it is, not by the
-                        --  program that draws it (a portal's).
-                        if line:find("dialog of", 1, true) then app = tr("a dialog") end
-                        programs[pid] = app
-                    end
-                end
-                run("pleamar-wm", { "agent", "monitors" }, function(screens)
-                    finish_row(row, true)
-                    answer(id, true, tostring(out) .. "\n\nMonitors:\n" .. tostring(screens))
-                end, HANDS)
-            end, HANDS)
-            return
-        end
-        run("pleamar-wm", argv, function(out, code)
-            --  Stopped from the monitor's pill: the whole turn ends, not
-            --  only this step.
-            if code ~= 0 and tostring(out):find("stopped the agent", 1, true) then
-                finish_row(row, false)
-                answer(id, false, "The user stopped you from the monitor. Stop now.")
+        --  The other desktop tools: pleamar-wm's hands, shared with her children (logic/hands.luau).
+        hands.exec(tool, args, {
+            programs = programs,
+            name = function(a) return program(a) end,
+            prefix = "look",
+            looking = function(on) fact["chat.looking"] = on end,
+            secret = function(a, done) type_secret(a, done) end,
+        }, function(ok, words, extra, flags)
+            finish_row(row, ok)
+            answer(id, ok, words, extra)
+            --  Stopped from the monitor's pill: the whole turn ends, not only this step.
+            if flags and flags.stopped then
                 stopped_by_pill = true
                 send({ type = "cancel" })
-                return
             end
-            finish_row(row, code == 0)
-            answer(id, code == 0, code == 0 and (out ~= "" and tostring(out) or "Done.") or tostring(out))
-            --  Its window closed: she has nothing to hold on to any more.
-            if joined and code ~= 0 and tostring(out):find("window gone", 1, true) then
-                leave(string.format(tr("%s closed: I let go of it."), joined.app))
-            end
-        end, stdin and { errors = true, env = HANDS.env, input = stdin } or HANDS)
+        end)
     end
+
 
     -- ── her memory ──
     --  What she keeps between conversations, in her folder: facts about you
@@ -655,6 +387,26 @@ return function(shared)
             if string.lower(tostring(n)) == string.lower(tostring(name or "")) then return k, n end
         end
         return nil
+    end
+    --  From your keyring straight to the window: never in her words,
+    --  never on a command line (the agent reads it from its input).
+    type_secret = function(args, done)
+        local name = tostring(args.name or "")
+        local _, known = secret_named(name)
+        if not known then
+            done(false, "There is no password saved under «" .. name .. "». The names there are: " .. (#secrets > 0 and table.concat(secrets, ", ") or "none"))
+            return
+        end
+        run("secret-tool", { "lookup", "service", "marea-plm", "name", known }, function(out, code)
+            local secret = tostring(out or ""):gsub("\n$", "")
+            if code ~= 0 or secret == "" then
+                done(false, "Marea could not read that password from the keyring.")
+                return
+            end
+            run("pleamar-wm", { "agent", "type", window_name(args.pid), "-" }, function(o2, c2)
+                done(c2 == 0, c2 == 0 and ("Typed the password saved as «" .. known .. "».") or tostring(o2))
+            end, { errors = true, env = { PLEAMAR_AGENT_NAME = "Marea" }, input = secret })
+        end)
     end
     on("keys_keep", function()
         local name = tostring(text["keys.name"] or ""):match("^%s*(.-)%s*$")
@@ -933,16 +685,12 @@ return function(shared)
         status("")
         live = nil
         paint()
-        run("pleamar-wm", { "agent", "done" }, function() end, HANDS)
+        --  (Not while one of her children still works: «an agent is using this monitor» is theirs too.)
+        if (fact["ch.working"] or 0) == 0 then run("pleamar-wm", { "agent", "done" }, function() end, HANDS) end
         save()
         rest_later()
         local how = ending or { ok = false, said = "" }
         ending = nil
-        --  Joined, what she says goes where you are looking: under her box.
-        if joined and tostring(how.said or "") ~= "" then
-            text["join.said"] = first_letters(tostring(how.said), 260)
-            fact["join.said_on"] = true
-        end
         if turn_over then turn_over(how) end
     end
     local function on_event(m)
@@ -988,16 +736,13 @@ return function(shared)
         elseif kind == "propose" then
             live = nil
             local tool, args = tostring(m.tool), (type(m.args) == "table" and m.args or {})
-            local refused = joined_refuses(tool, args)
             local looks_only = tool == "desktop_windows" or tool == "desktop_look" or tool == "desktop_tree" or tool == "desktop_find" or tool == "desktop_wait" or tool == "terminal_wait"
             local verdict = builder and builder.owns(tool) and builder.propose(tool, args)
 
             --  Building: her own work on the creation is done at once; what it
             --  would newly ask the system for is a card, and what is
             --  dangerous is refused before anything is written.
-            if refused then
-                answer(m.id, false, refused)
-            elseif builder and builder.owns(tool) then
+            if builder and builder.owns(tool) then
                 if verdict and verdict.refuse then
                     if verdict.note ~= "" then add(5, verdict.note) end
                     answer(m.id, false, verdict.refuse)
@@ -1032,7 +777,7 @@ return function(shared)
             --  Free hands: no card at all, the final step (it sends, buys,
             --  deletes…) included: you let her do it on her own. A task of
             --  her own is kept at once too, and the chat says so.
-            elseif looks_only or fact["chat.free"] == true or joined then
+            elseif looks_only or fact["chat.free"] == true then
                 local line, why = said(tool, args), looks_only and "" or tostring(args.why or "")
                 if tool == "task_schedule" then
                     line = string.format(tr("Kept as a task: %s, at %s"), task_days(args.days), tostring(args.time or "?"))
@@ -1378,315 +1123,6 @@ return function(shared)
     end)
     show_tasks()
 
-    -- ── joined to a window ──
-    --  `marea attach` (a key, or the drop on a window): she has THAT window,
-    --  and everything in it, with free hands, and nothing else of the desktop.
-    --  The window is the one in `chat.target` (a pid from desktop_windows), or,
-    --  said «focus» or empty, the one that has the keyboard.
-    function leave(why)
-        if not joined then return end
-        local app = joined.app
-        joined, joined_dialogs = nil, {}
-        fact["carry.on"] = false
-        fact["join.hidden"] = false
-        fact["chat.attached"] = false
-        text["chat.joined"] = ""
-        text["join.app"] = ""
-        text["join.name"] = ""
-        text["join.said"] = ""
-        fact["join.said_on"] = false
-        fact["join.typing"] = false
-        add(5, why or string.format(tr("Let go of %s."), app))
-        paint()
-    end
-    --  Where the windows and the monitors are, as pleamar-wm's `agent` says it:
-    --  the perch (scene/surfaces/join.plm) draws in desktop pixels.
-    local function parse_windows(out)
-        local list = {}
-        for line in tostring(out):gmatch("[^\n]+") do
-            local pid, app, title, w, h, x, y = line:match("^%s*([%d%.]+)%s+(%S+)%s+«(.-)»%s+(%d+)x(%d+) at (-?%d+),(-?%d+)")
-            if not pid then
-                --  Not shown (another workspace, minimised): no box, but it is there.
-                local hpid, happ, htitle = line:match("^%s*([%d%.]+)%s+(%S+)%s+«(.-)»%s+hidden")
-                if hpid then
-                    list[#list + 1] = { pid = hpid, app = happ, title = htitle, w = 0, h = 0, x = 0, y = 0, screen = 0, hidden = true, dialog = line:find("dialog of", 1, true) ~= nil, keyboard = false }
-                end
-            end
-            if pid then
-                list[#list + 1] = {
-                    pid = pid, app = app, title = title, w = tonumber(w), h = tonumber(h), x = tonumber(x), y = tonumber(y),
-                    screen = tonumber(line:match("monitor (%d+)") or "0"),
-                    dialog = line:find("dialog of", 1, true) ~= nil,
-                    keyboard = line:find("has the keyboard", 1, true) ~= nil,
-                }
-            end
-        end
-        return list
-    end
-    --  Free windows have a title bar above the box `agent windows` gives (30 px,
-    --  the window manager's `tb`); tiled ones have none. She sits on the top of
-    --  the whole frame, so each monitor's mode is asked of the window manager.
-    local bars = {}
-    local nmon = 1
-    local function read_bars(done)
-        local left = 3
-        for k = 0, 2 do
-            run("pleamar-wm", { "--say", "wm", "get free." .. k }, function(out, code)
-                local free = code == 0 and (tostring(out):match("^%s*1") ~= nil or tostring(out):match("true") ~= nil)
-                bars[k] = free and 30 or 0
-                left = left - 1
-                if left == 0 and done then done() end
-            end, { errors = false })
-        end
-    end
-    local function read_monitors(done)
-        run("pleamar-wm", { "agent", "monitors" }, function(out, code)
-            if code == 0 then
-                for line in tostring(out):gmatch("[^\n]+") do
-                    local k, w, x, y = line:match("^%s*(%d+)%s+%S+%s+(%d+)x%d+ at (-?%d+),(-?%d+)")
-                    k = tonumber(k)
-                    if k and k < 3 then
-                        nmon = math.max(nmon, k + 1)
-                        fact["mon.x." .. k] = tonumber(x)
-                        fact["mon.y." .. k] = tonumber(y)
-                        fact["mon.w." .. k] = tonumber(w)
-                    end
-                end
-            end
-            read_bars(done)
-        end, HANDS)
-    end
-    --  The whole frame of a window: its box and the title bar over it.
-    local function frame(w)
-        local bar = bars[w.screen or 0] or 0
-        return { x = w.x, y = w.y - bar, w = w.w, h = w.h + bar }
-    end
-    --  The smallest window that holds the point: the one she is over. A dialog
-    --  is not a window to join (it belongs to one), and a window that is one of
-    --  a program's several (`PID.N`) has no name the hands could be held to.
-    local function window_at(list, px, py)
-        local best, best_f
-        for _, w in ipairs(list) do
-            local f = frame(w)
-            if not w.dialog and w.app ~= "marea" and not w.pid:find(".", 1, true)
-                and px >= f.x and px < f.x + f.w and py >= f.y and py < f.y + f.h then
-                if not best or f.w * f.h < best_f.w * best_f.h then best, best_f = w, f end
-            end
-        end
-        return best, best_f
-    end
-    local function show_box(w)
-        local f = frame(w)
-        fact["join.x"], fact["join.y"], fact["join.w"], fact["join.h"] = f.x, f.y, f.w, f.h
-        fact["join.screen"] = w.screen or 0
-    end
-    --  While she sits on a window she keeps up with it: a moved or resized
-    --  window carries her, one that is gone lets her go. Every 300 ms while it
-    --  changes, every second when it is still.
-    local follow_gen = 0
-    local function follow_window()
-        follow_gen = follow_gen + 1
-        local gen = follow_gen
-        local missed = 0
-        local last = ""
-        local calm = 99   -- rounds since it last moved
-        local cur         -- its box as `agent windows` last said it
-        local carried = false
-        local carry_at
-        local rounds = 0
-        local chain = 0       -- which round of the loop is the live one: a round that never heard back is left behind
-        local slot            -- the window manager's place for her window, to know it is the one carried
-        local poll
-        --  Which of the window manager's slots her window is: the one whose place (`x.N`, `y.N`, where
-        --  the window is, its title bar included) is where `agent windows` says it, asked when it is
-        --  still. A carried window is told apart by this, however fast it goes.
-        local function find_slot()
-            if not cur then return end
-            local names = {}
-            for k = 0, 9 do names[#names + 1] = "get x." .. k end
-            for k = 0, 9 do names[#names + 1] = "get y." .. k end
-            local argv = { "--say", "wm" }
-            for _, n in ipairs(names) do argv[#argv + 1] = n end
-            run("pleamar-wm", argv, function(out, code)
-                if gen ~= follow_gen or not joined or code ~= 0 or not cur then return end
-                local v, i = {}, 0
-                for line in tostring(out):gmatch("[^\n]+") do
-                    i = i + 1
-                    v[i] = tonumber(line)
-                end
-                local f = frame(cur)
-                for k = 0, 9 do
-                    local x, y = v[k + 1], v[k + 11]
-                    if x and y and math.abs(x - f.x) < 2.5 and math.abs(y - f.y) < 2.5 then slot = k break end
-                end
-            end, { errors = false })
-        end
-        --  Carried by its title bar, the window is drawn at the mouse and its own place waits
-        --  until it is let go, so the list above is a second late: while one is carried and it
-        --  is hers (it starts where she sits), her place is the mouse's, as the scene says it.
-        local function tick()
-            if gen ~= follow_gen or not joined then return end
-            chain = chain + 1
-            local my = chain
-            if not cur then return poll(my) end
-            run("pleamar-wm", { "--say", "wm", "get dragging", "get mouse.x", "get mouse.y", "get grab.x", "get grab.y" }, function(out, code)
-                if gen ~= follow_gen or not joined or my ~= chain then return end
-                local v, i = {}, 0
-                for line in tostring(out):gmatch("[^\n]+") do
-                    i = i + 1
-                    v[i] = tonumber(line)
-                end
-                if code == 0 and v[1] and v[1] >= 0 and v[2] and v[3] and v[4] and v[5] then
-                    local fx, fy = v[2] - v[4], v[3] - v[5]
-                    local f = frame(cur)
-                    if carried or (slot and v[1] == slot) or (not slot and math.abs(fx - f.x) < 60 and math.abs(fy - f.y) < 60) then
-                        if not carried and fact["carry.on"] ~= true then
-                            --  Where the window was taken: the scene follows the mouse from here
-                            --  (a window manager that does not say it starts it here, a little late).
-                            fact["carry.gx"], fact["carry.gy"] = v[4], v[5]
-                            fact["carry.on"] = true
-                        end
-                        carried = true
-                        calm = 0
-                        carry_at = { x = fx, y = fy }
-                        after(25, tick)
-                        return
-                    end
-                end
-                if carried then
-                    --  Let go: it stays where the mouse left it until the list says it.
-                    carried = false
-                    --  (Already let go in the scene when the window manager said it.)
-                    if carry_at and cur and fact["carry.on"] == true then
-                        local bar = bars[cur.screen or 0] or 0
-                        show_box({ x = math.floor(carry_at.x), y = math.floor(carry_at.y) + bar, w = cur.w, h = cur.h, screen = cur.screen })
-                    end
-                    fact["carry.on"] = false
-                end
-                --  Still, the window is looked at every fifth round; the carry, every one.
-                rounds = rounds + 1
-                if calm < 25 or rounds % 5 == 0 then poll(my) else after(120, tick) end
-            end, { errors = false })
-        end
-        poll = function(my)
-            run("pleamar-wm", { "agent", "windows" }, function(out, code)
-                if gen ~= follow_gen or not joined or my ~= chain then return end
-                --  Close behind it while it moves (a round costs 10 ms), at ease when it is still.
-                local wait = calm < 25 and 45 or 120
-                if code == 0 then
-                    local mine
-                    for _, w in ipairs(parse_windows(out)) do
-                        if w.pid == joined.pid then mine = w end
-                    end
-                    if not mine then
-                        missed = missed + 1
-                        if missed >= 2 then
-                            leave(string.format(tr("%s closed: I let go of it."), joined.app))
-                            return
-                        end
-                    elseif mine.hidden then
-                        --  On another workspace (or minimised): she is not shown, and she is not let go.
-                        missed = 0
-                        if fact["join.hidden"] ~= true then fact["join.hidden"] = true end
-                        carried = false
-                        fact["carry.on"] = false
-                        wait = 300
-                    else
-                        missed = 0
-                        if fact["join.hidden"] == true then fact["join.hidden"] = false end
-                        cur = mine
-                        local box = mine.x .. "," .. mine.y .. "," .. mine.w .. "," .. mine.h .. "," .. mine.screen
-                        if box ~= last then
-                            local moved_screen = last ~= "" and tostring(last):match(",(%d+)$") ~= tostring(mine.screen)
-                            if last ~= "" then wait = 45; calm = 0 end
-                            last = box
-                            show_box(mine)
-                            joined.title = mine.title
-                            --  Tiled turning free changes the title bar: the bars are looked at again
-                            --  when it changes monitor or after it has been still for a moment.
-                            if moved_screen then read_bars(function() if joined then show_box(mine) end end) end
-                        else
-                            calm = calm + 1
-                            if slot == nil or calm == 3 then find_slot() end
-                            if calm == 25 then read_bars(function() if joined then show_box(mine) end end) end
-                            if calm < 25 then wait = 45 end
-                        end
-                    end
-                end
-                after(wait, tick)
-            end, HANDS)
-        end
-        after(600, tick)
-        --  And if a round never heard back (the window manager busy while a window is
-        --  resized), the loop is started again instead of standing still for good.
-        local seen = -1
-        local function watch()
-            if gen ~= follow_gen or not joined then return end
-            if chain == seen then tick() end
-            seen = chain
-            after(2500, watch)
-        end
-        after(2500, watch)
-    end
-    --  Joined: she holds that window and only it, and the perch brings her down
-    --  onto its top edge (`dx`: how far along it).
-    local function attach(found, dx)
-        joined, joined_dialogs = found, {}
-        fact["chat.attached"] = true
-        text["chat.joined"] = found.app
-        text["chat.target"] = ""
-        text["join.app"] = found.app
-        text["join.name"] = nice(found.app)
-        text["join.said"] = ""
-        fact["join.said_on"] = false
-        text["join.input"] = ""
-        show_box(found)
-        fact["join.dx"] = dx or math.floor(found.w / 2)
-        add(5, string.format(tr("Joined to %s: «%s». I only touch this window."), found.app, found.title))
-        paint()
-        follow_window()
-        emit("join_land")
-    end
-    on("chat_attach", function()
-        local want = tostring(text["chat.target"] or ""):gsub("%s", "")
-        run("pleamar-wm", { "agent", "windows" }, function(out, code)
-            if code ~= 0 then
-                add(5, tr("I could not see your windows."))
-                return
-            end
-            local found
-            for _, w in ipairs(parse_windows(out)) do
-                if not w.dialog and w.app ~= "marea" then
-                    if (want == "" or want == "focus") and w.keyboard or want == w.pid then
-                        found = w
-                        break
-                    end
-                end
-            end
-            if not found then
-                add(5, tr("I found no window to join."))
-                return
-            end
-            read_monitors(function() attach(found) end)
-        end, HANDS)
-    end)
-    on("chat_detach", function() leave() end)
-    --  The scene started to follow a carried window with a guess of where it was taken; the exact
-    --  place is the window manager's (`grab`), and it is said as soon as it is asked.
-    on("carry_grab", function()
-        run("pleamar-wm", { "--say", "wm", "get dragging", "get grab.x", "get grab.y" }, function(out, code)
-            if code ~= 0 or fact["carry.on"] ~= true then return end
-            local v, i = {}, 0
-            for line in tostring(out):gmatch("[^\n]+") do
-                i = i + 1
-                v[i] = tonumber(line)
-            end
-            if v[1] and v[1] >= 0 and v[2] and v[3] then
-                fact["carry.gx"], fact["carry.gy"] = v[2], v[3]
-            end
-        end, { errors = false })
-    end)
-
     -- ── what the panel asks ──
     local function do_send()
         local words = tostring(text["chat.input"] or "")
@@ -1703,82 +1139,10 @@ return function(shared)
         start_worker()
         fact["chat.state"] = "thinking"
         status(tr("Thinking…"))
-        send({ type = "prompt", text = words, now = os.date("%Y-%m-%d %H:%M, %A"), free = fact["chat.free"] == true or joined ~= nil, joined = joined, secrets = secrets, images = images })
+        send({ type = "prompt", text = words, now = os.date("%Y-%m-%d %H:%M, %A"), free = fact["chat.free"] == true, secrets = secrets, images = images })
     end
     on("chat_send", do_send)
 
-    -- ── dropped on a window ──
-    --  She is pulled out of the notch (scene/rules/join.plm) and, while she is
-    --  held, the windows are looked at to light the one under her. Let go over
-    --  one, and she joins it.
-    local grab_gen = 0
-    on("join_grab", function()
-        grab_gen = grab_gen + 1
-        local gen = grab_gen
-        read_monitors()
-        --  Which monitors give their windows a title bar, before she is let go over one
-        --  (the drop on a title bar is the natural one): asked only once she joined before.
-        read_bars()
-        local busy = false
-        local function tick()
-            if gen ~= grab_gen or fact["join.phase"] ~= "held" then return end
-            if busy then after(120, tick) return end
-            busy = true
-            run("pleamar-wm", { "agent", "windows" }, function(out, code)
-                busy = false
-                if gen == grab_gen and fact["join.phase"] == "held" and code == 0 then
-                    local w, f = window_at(parse_windows(out), fact["ptr.x"] or 0, fact["ptr.y"] or 0)
-                    if w then
-                        fact["hov.x"], fact["hov.y"], fact["hov.w"], fact["hov.h"] = f.x, f.y, f.w, f.h
-                        text["hov.app"] = w.app
-                    end
-                    fact["hov.on"] = w ~= nil
-                end
-                after(160, tick)
-            end, HANDS)
-        end
-        tick()
-    end)
-    on("join_drop", function()
-        grab_gen = grab_gen + 1
-        local px, py = fact["ptr.x"] or 0, fact["ptr.y"] or 0
-        --  The pointer that crosses to another monitor stops being told to her (the
-        --  press belongs to her surface): the last place she knows is at the edge
-        --  she was pulled across. That is not a window; she goes back.
-        local hx, hw = 0, 0
-        for k = 0, 2 do
-            if px >= (fact["mon.x." .. k] or 0) and px < (fact["mon.x." .. k] or 0) + (fact["mon.w." .. k] or 0) then
-                hx, hw = fact["mon.x." .. k], fact["mon.w." .. k]
-            end
-        end
-        if nmon > 1 and hw > 0 and (px - hx <= 24 or px - hx >= hw - 24) then
-            fact["hov.on"] = false
-            emit("join_none")
-            return
-        end
-        run("pleamar-wm", { "agent", "windows" }, function(out, code)
-            local target = code == 0 and window_at(parse_windows(out), px, py) or nil
-            if not target then
-                fact["hov.on"] = false
-                emit("join_none")
-                return
-            end
-            if joined then leave() end
-            attach(target, math.floor(px - target.x))
-        end, HANDS)
-    end)
-    --  What is written in her box on the window is the chat's own message.
-    on("join_send", function()
-        local words = tostring(text["join.input"] or "")
-        if words:match("^%s*$") then return end
-        local state = fact["chat.state"]
-        if state == "thinking" or state == "acting" or state == "awaiting" or state == "starting" then return end
-        text["join.input"] = ""
-        text["join.said"] = ""
-        fact["join.said_on"] = false
-        text["chat.input"] = words
-        do_send()
-    end)
     local function decide(i, yes)
         local first = math.max(1, #rows - ROWS + 1)
         local row = first + (i or 0)
@@ -1910,4 +1274,12 @@ return function(shared)
             show = function() fact.chatting = true; paint() end,
         })
     end
+
+    --  What her children use of hers (logic/kids.luau): the hands, the keyring's names and the
+    --  one that types a password.
+    return {
+        hands = hands,
+        secrets = function() return secrets end,
+        type_secret = function(args, done) type_secret(args, done) end,
+    }
 end

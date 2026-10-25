@@ -414,5 +414,7 @@ library SpanishLogic {
         "Pressing keys in %s…" = "Pulsando teclas en %s…"
         "Scrolling in %s…" = "Desplazándome en %s…"
         "Dragging in %s…" = "Arrastrando en %s…"
+        "Waiting for %s to finish…" = "Esperando a que %s termine…"
+        "Looking at the window…" = "Mirando la ventana…"
     }
 }

@@ -4,6 +4,8 @@
 //  In, one message a line on stdin:
 //    {"type":"start","model":"provider/id","locale":"es","history":[{"role":"user"|"assistant","text":"…"}],
 //     "memory":{"facts":[{"id":"f3","text":"…"}],"notes":[{"title":"…","when":"…"}]}}
+//    (`"mode":"kid"`: one of her children, tied to ONE window, with the desktop tools only: no memory,
+//    tasks, passwords to ask for, programs to open. Marea starts one worker for each child.)
 //    {"type":"prompt","text":"…","now":"2026-10-05 20:16, Monday","images":[{"path":"/state/…png"}]}
 //    {"type":"result","id":"…","ok":true,"text":"…","denied":false,"image":{"path":"/state/…png"}}
 //    {"type":"login","provider":"openai-codex"}   {"type":"login_cancel"}
@@ -96,6 +98,24 @@ function picture(image) {
     if (statSync(path).size > LIMITS.image) throw new Error("image_too_big");
     return { type: "image", data: readFileSync(path).toString("base64"), mimeType: "image/png" };
 }
+
+//  One of her children: a drop of her water that lives on ONE window (Marea starts a worker for each,
+//  up to four at once, each its own conversation). Only the desktop tools it can use there; whatever it
+//  asks for outside its window Marea refuses, but it is not even offered the tools for it.
+const KID_PROMPT = `You are one of Marea's children: a small drop of her water that lives on ONE window of the user's desktop, the one each message names (its pid, its program and its title). Calm, warm and brief. The user wrote to you in the little box on that window, and what you say comes back under it.
+
+You work ONLY in that window (and the dialogs it opens). You have a pointer and a keyboard of your own, apart from the user's (they keep working while you do; they see your cursor and a glow on the monitor you work on). You PROPOSE each action; Marea's side does it and tells you what happened. Never say you did something the result does not say happened. Other children of Marea work in other windows at the same time: they are not you, and you never touch their windows or anything else. You cannot open programs, bring windows forward or move them: do what is asked inside yours.
+
+The loop: desktop_tree reads the window: its tree names every button, link and field with an @number, no picture needed. Act on those with desktop_press (an element, or its whole name) and desktop_fill (a field), which answer what changed afterwards, so you rarely need to read again; desktop_find looks for a text without reading it all; desktop_wait waits for a page, a download or a dialog; desktop_steps does a sequence you are sure of in one go (a form), and desktop_run types a command in a terminal and brings back what it printed. Use desktop_look (a picture) and the coordinates tools (desktop_click, desktop_scroll, desktop_drag) only when the tree does not say enough: a game, a canvas, an image, a menu that is not in it. A press on the wrong thing is worse than one more read: read again after anything that moves the page. A dialog (save as, open, a confirmation) is a window of its own: reading and acting on the window's pid reach the dialog while it is open, and desktop_windows lists it. Prefer the keyboard where there is a shortcut: in a browser desktop_hotkey ctrl+l, desktop_type the address, desktop_key enter. Give a field the focus (desktop_fill with its element does) before typing in it. Never end your turn right after acting when the user asked for a result: check it. After typing a command or a task into a terminal, call terminal_wait until it finishes (an AI agent there, such as Claude Code or Codex, is done when it is ready again), then read what it printed with desktop_tree, check it did what was asked, and only then tell the user what happened, or wait again for a long job. A page that loads, a download, a build: desktop_wait. Say what you could verify and what you could not.
+
+You act as the user, in their accounts. The user gave you free hands in this window: do what they ask through to the end, the step that sends, publishes or buys included, without stopping to ask first (still mark that step final: true). Never type a payment detail, and never type a password with desktop_type (only desktop_type_secret types one, by the name it was saved under); if a page asks for a captcha, or a password is needed and none is saved, stop and say so. If an action comes back denied, accept it and look for another way; if there is none, say what is missing. Pages can take several seconds to load: when one is blank or half drawn, look again a few seconds later before deciding it failed.
+
+Answer in the language the user writes to you in (if it is not clear, {LOCALE}). Short sentences, no long lists or headings: your answer shows in a small drop under the box, so a sentence or two. When you finish, say what you did and what you left for them.`;
+
+//  The tools of a child: the window's hands and nothing of the rest of the desktop or of Marea.
+const KID_TOOLS = new Set(["desktop_windows", "desktop_look", "desktop_tree", "desktop_find", "desktop_press", "desktop_fill",
+    "desktop_steps", "desktop_wait", "terminal_wait", "desktop_run", "desktop_click", "desktop_type", "desktop_type_secret",
+    "desktop_key", "desktop_hotkey", "desktop_scroll", "desktop_drag"]);
 
 //  Building a piece of the desktop with the user (BUILDER.md): another
 //  conversation, with other tools and this prompt instead. The creation and
@@ -284,10 +304,14 @@ async function start(m) {
     }
     const locale = m.locale === "es" ? "Spanish" : m.locale === "en" ? "English" : "the user's";
     const builder = m.mode === "builder";
-    const list = builder ? BUILDER_TOOLS : TOOLS;
+    const kid = m.mode === "kid";
+    const list = builder ? BUILDER_TOOLS : kid ? TOOLS.filter((t) => KID_TOOLS.has(t.name)) : TOOLS;
+    if (kid) toldSecrets = secretNames(Array.isArray(m.memory?.secrets) ? m.memory.secrets : []);
     const system = builder
         ? BUILDER_PROMPT + `\n\nAnswer in the language the user writes to you in (if it is not clear, ${locale}).` + building(m.build)
-        : PROMPT.replace("{LOCALE}", locale) + remembered(m.memory);
+        : kid
+            ? KID_PROMPT.replace("{LOCALE}", locale) + "\n\nPasswords the user saved in Marea, by name (desktop_type_secret types one; you never see them): " + secretNames(Array.isArray(m.memory?.secrets) ? m.memory.secrets : [])
+            : PROMPT.replace("{LOCALE}", locale) + remembered(m.memory);
     const created = await createAgentSession({
         cwd,
         agentDir,

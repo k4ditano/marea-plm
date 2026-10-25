@@ -1593,4 +1593,8 @@ require("logic/software")({ hooks = hooks, say = say })
 -- Building the desktop is pleamar-wm's own now (`pleamar-wm build`, Super+B):
 -- the finder only opens it.
 local builder = nil
-require("logic/chat")({ hooks = hooks, settings = settings, save_settings = save_settings, home_dir = home_dir, apps = function() return apps end, builder = builder })
+local chat_part = require("logic/chat")({ hooks = hooks, settings = settings, save_settings = save_settings, home_dir = home_dir, apps = function() return apps end, builder = builder })
+
+-- ── her children: a drop of her water on each of up to four windows ─
+--  In logic/kids.luau: each has a conversation and a worker of its own.
+require("logic/kids")({ chat = chat_part, settings = settings })

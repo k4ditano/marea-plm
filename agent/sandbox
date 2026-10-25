@@ -84,8 +84,19 @@ args=(
   --chdir /state
 )
 
+#  Her children (logic/kids.luau) each run a worker of their own, up to four at once: they ask for
+#  a smaller heap (MAREA_AGENT_HEAP, in MB: Node collects instead of growing) and a lower
+#  priority (MAREA_AGENT_NICE) so that four of them never make the desktop wait.
+if [ -n "${MAREA_AGENT_HEAP:-}" ] && [ -n "${MAREA_AGENT_HEAP//[^0-9]/}" ]; then
+  args+=(--setenv NODE_OPTIONS "--max-old-space-size=${MAREA_AGENT_HEAP//[^0-9]/}")
+fi
+runner=()
+if [ -n "${MAREA_AGENT_NICE:-}" ] && [ -n "${MAREA_AGENT_NICE//[^0-9]/}" ]; then
+  runner=(nice -n "${MAREA_AGENT_NICE//[^0-9]/}")
+fi
+
 if (($#)); then
   [ "$1" = "--" ] && shift
-  exec bwrap "${args[@]}" -- /marea-node "$@"
+  exec "${runner[@]}" bwrap "${args[@]}" -- /marea-node "$@"
 fi
-exec bwrap "${args[@]}" -- /marea-node /marea/worker.mjs
+exec "${runner[@]}" bwrap "${args[@]}" -- /marea-node /marea/worker.mjs
