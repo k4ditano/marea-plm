@@ -79,6 +79,21 @@ return function(shared)
     --  What only a child has, done here and not by the hands (agent/tools.mjs: KID_ONLY_TOOLS): its watches, and
     --  its notes in one folder.
     local OWN = { watch_start = true, watch_list = true, watch_stop = true, notes_write = true, notes_read = true }
+    --  A file chooser (save, open, upload) that a program opens is a window of its own, often of another
+    --  program (Sonda, a portal's), and the window manager lists it as a dialog of the window only when it
+    --  is one: a window that appears while a child works, and looks like one, is adopted as its dialog.
+    local CHOOSER_APPS = { ["sonda"] = true, ["xdg-desktop-portal-gtk"] = true, ["xdg-desktop-portal-kde"] = true,
+        ["xdg-desktop-portal-gnome"] = true, ["xdg-desktop-portal-hyprland"] = true, ["zenity"] = true, ["kdialog"] = true, ["yad"] = true }
+    local CHOOSER_TITLES = { "^save", "^open", "^choose", "^select", "^upload", "^guardar", "^abrir", "^elegir", "^selecci", "^descargar", "^subir", "file chooser" }
+    local function is_chooser(w)
+        local app = tostring(w.app or ""):lower()
+        local title = tostring(w.title or ""):lower()
+        if CHOOSER_APPS[app] or title == "sonda" then return true end
+        for _, pat in ipairs(CHOOSER_TITLES) do
+            if title:find(pat) then return true end
+        end
+        return false
+    end
     local function refuses(kid, tool, args)
         if tool ~= "desktop_windows" and not DESKTOP[tool] and not OWN[tool] then
             return "You are tied to one window (" .. kid.window.app .. "): you do not open programs, move windows or do anything else outside it. Do what is asked inside it."
@@ -294,6 +309,10 @@ return function(shared)
     end
     local function answer(kid, id, ok, words, extra)
         local m = { type = "result", id = id, ok = ok, text = words or "" }
+        if kid.notice then
+            m.text = tostring(m.text) .. "\n\n[Marea: " .. kid.notice .. "]"
+            kid.notice = nil
+        end
         if extra then for k, v in pairs(extra) do m[k] = v end end
         send(kid, m)
     end
@@ -392,6 +411,7 @@ return function(shared)
     --  The tool it proposed: free hands in its window (or, when it is asked to ask first, once you
     --  allowed it).
     local function perform(kid, id, tool, args, row)
+        kid.last_tool = os.time()
         row.state = 0
         paint_panel(kid)
         set_state(kid, "acting")
@@ -1233,6 +1253,34 @@ return function(shared)
             local wait = 120
             if code == 0 then
                 local list = parse_windows(out)
+                --  New windows that look like a file chooser while a child works: its dialogs.
+                local now_pids, mine_base = {}, {}
+                for _, kk in pairs(kids) do mine_base[tostring(kk.window.pid):match("^%d+")] = true end
+                for _, w in ipairs(list) do now_pids[w.pid] = true end
+                if loop.prev_pids then
+                    for _, w in ipairs(list) do
+                        local base = tostring(w.pid):match("^%d+")
+                        if not loop.prev_pids[w.pid] and not w.hidden and not w.dialog and not mine_base[base] and is_chooser(w) then
+                            local best
+                            for _, kk in pairs(kids) do
+                                if (kk.state == "thinking" or kk.state == "acting") and (not best or (kk.last_tool or 0) > (best.last_tool or 0)) then best = kk end
+                            end
+                            if best then
+                                best.scope.adopted[w.pid] = true
+                                best.scope.dialogs[w.pid] = true
+                                best.notice = string.format("A window opened: pid %s, %s «%s». It is a dialog of your window (a save, open or file chooser): it is yours to use, with desktop_look and the other tools, until it closes.", tostring(w.pid), tostring(w.app), tostring(w.title))
+                                log("kids · child " .. best.k .. " adopted the window " .. tostring(w.pid) .. " (" .. tostring(w.app) .. ") as its dialog")
+                            end
+                        end
+                    end
+                end
+                loop.prev_pids = now_pids
+                --  And the ones that closed are no longer its.
+                for _, kk in pairs(kids) do
+                    for p in pairs(kk.scope.adopted) do
+                        if not now_pids[p] then kk.scope.adopted[p] = nil; kk.scope.dialogs[p] = nil end
+                    end
+                end
                 local need_slot, need_bars = {}, false
                 local gone = {}
                 for _, kid in pairs(kids) do
@@ -1357,7 +1405,7 @@ return function(shared)
     local function attach(k, found, dx)
         local kid = {
             k = k, window = { pid = found.pid, app = found.app, title = found.title },
-            scope = { pid = found.pid, dialogs = {} }, programs = {},
+            scope = { pid = found.pid, dialogs = {}, adopted = {} }, programs = {},
             queue = {}, history = {}, state = "idle", ready = false,
             rows = {}, asks = {}, ask_order = {}, next = {}, held = {},
             watches = {}, watch_order = {}, notes_made = {},

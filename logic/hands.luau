@@ -204,6 +204,9 @@ return function(shared)
                 if scope then
                     --  One window and the dialogs it opened: nothing else of the desktop is seen.
                     for k in pairs(scope.dialogs) do scope.dialogs[k] = nil end
+                    --  And the windows Marea adopted as its dialogs (a file chooser the program opened that
+                    --  the window manager does not list as its dialog: Sonda, a portal's).
+                    for k in pairs(scope.adopted or {}) do scope.dialogs[k] = true end
                     local kept = {}
                     for line in tostring(out):gmatch("[^\n]+") do
                         local lp = line:match("^%s*([%d%.]+)%s")
