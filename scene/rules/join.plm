@@ -30,6 +30,11 @@ part JoinRules {
     //  (Esc does not let go of a child: it closes the finder, the chat, the menus. The way to let go
     //  of one is its ×, its box's button, `chat_detach`, or its window closing.)
 
+    // ── a child's panel ──────────────────────────────────────────
+    //  Open while that child sits on a window that is shown, and the whole chat (hers) is not in the way.
+    let kp.on = kp.k >= 0 and not chatting and pick(clamp(kp.k, 0, 3), ch.0.phase == sitting and not ch.0.hidden, ch.1.phase == sitting and not ch.1.hidden, ch.2.phase == sitting and not ch.2.hidden, ch.3.phase == sitting and not ch.3.hidden)
+    follow kp.o = if(kp.on, 1, 0)
+
     repeat k in 0..4 {
         // ── where it is ──────────────────────────────────────────
         //  The geometry, in desktop pixels (the perch's drawing works out the same, for itself).
@@ -71,8 +76,10 @@ part JoinRules {
         //  The tab is there while it sits and the chat is shut; the chip stands in for the answer (minimised) or the box (put away).
         let k.bz = ch.$k.state == thinking or ch.$k.state == acting or ch.$k.state == awaiting or ch.$k.state == starting
         follow ch.$k.tab = if(ch.$k.phase == sitting and not chatting and (ch.$k.pill > 0.5 or ch.$k.shut), 1, 0)
-        follow ch.$k.chip = if(ch.$k.phase == sitting and ch.$k.tab > 0.5 and (ch.$k.shut or (ch.$k.min and (ch.$k.said_on or k.bz))), 1, 0)
+        follow ch.$k.chip = if(ch.$k.phase == sitting and ch.$k.tab > 0.5 and kp.k != k and (ch.$k.shut or (ch.$k.min and (ch.$k.said_on or k.bz))), 1, 0)
         follow ch.$k.rev = ch.$k.letters
+        follow ch.$k.cardo = if(ch.$k.cards > 0, 108, 0)
+        follow ch.$k.qo = min(ch.$k.q, 3) * 28
         follow ch.$k.bub = if(ch.$k.said_on and ch.$k.phase == sitting and ch.$k.pill > 0.5 and not ch.$k.min, 1, 0)
 
         // ── pulling it ───────────────────────────────────────────
@@ -183,6 +190,12 @@ part JoinRules {
         on change ch.$k.shut while not ch.$k.shut { ch.$k.new = false }
         on change ch.$k.min while not ch.$k.min { ch.$k.new = false }
         on kid_min.$k { ch.$k.min = true }
+        on kid_exp.$k { emit kp_open(k) }
+        on kid_yes.$k { emit kid_allow(k) }
+        on kid_no.$k { emit kid_deny(k) }
+        //  Its panel open takes the place of its box, its answer and its chip; closed, they come back.
+        on change kp.k while kp.k == k and ch.$k.phase == sitting { ch.$k.pill: 0 ~200ms }
+        on change kp.k while kp.k != k and ch.$k.phase == sitting and not chatting and not ch.$k.shut { ch.$k.pill: 1 after 40ms }
         on still ch.$k.dbl for 380ms while ch.$k.dbl { ch.$k.dbl = false }
         //  A window carried by its title bar, told by the window manager: its child's if the mouse is on
         //  its title bar (the first one that fits), and then it goes with the mouse at once, from where

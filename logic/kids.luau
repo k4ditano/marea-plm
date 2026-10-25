@@ -15,6 +15,10 @@
 --      .worker        the process id of its worker, nil while it has none (it sleeps after three
 --                     minutes of silence and wakes with its history)
 --      .history       what is handed back to a fresh worker: { role, text }
+--      .rows          its conversation and what it did, for its panel (scene/draw/kidpanel.plm)
+--      .next          what you wrote while it worked: it runs one after another when it has answered
+--      .paused .held  a pause holds what it would do next (the proposal or the result of a step)
+--      .askfirst      a card for each step that is not only looking, `.asks` the ones that wait for you
 --      .cur .slot …   what the follow loop knows of its window
 --  Everything the scene sends carries the number (`emit join_send(k)`); everything the workers
 --  say stays with the child whose worker said it. A tool that is not for the child's window is
@@ -106,6 +110,39 @@ return function(shared)
         if tostring(args.pid or ""):match("^(%d+)") == kid.window.pid then return nice(kid.window.app) end
         return kid.programs[window_name(args.pid)] or ("the window " .. tostring(args.pid or "?"))
     end
+    --  What it did, in a line of the activity log (the words of someone telling what they did).
+    local function one_line(v, n)
+        local w = tostring(v or ""):gsub("%s+", " "):match("^%s*(.-)%s*$")
+        if letters(w) > n then w = first_letters(w, n) .. "…" end
+        return w
+    end
+    local function did(kid, tool, args)
+        local app = program(kid, args)
+        local t = one_line(args.text, 40)
+        if tool == "desktop_windows" or tool == "desktop_look" then return string.format(tr("Looked at %s"), app) end
+        if tool == "desktop_tree" then return string.format(tr("Read %s"), app) end
+        if tool == "desktop_find" then return string.format(tr("Searched «%s» in %s"), t, app) end
+        if tool == "desktop_press" then
+            if t ~= "" then return string.format(tr("Pressed «%s»"), t) end
+            return string.format(tr("Pressed a button in %s"), app)
+        end
+        if tool == "desktop_fill" or tool == "desktop_type" then
+            if t ~= "" then return string.format(tr("Typed «%s»"), t) end
+            return string.format(tr("Typed in a field of %s"), app)
+        end
+        if tool == "desktop_type_secret" then return tr("Typed a saved password") end
+        if tool == "desktop_steps" then return string.format(tr("Several steps in %s"), app) end
+        if tool == "desktop_wait" or tool == "terminal_wait" then return string.format(tr("Waited for %s"), app) end
+        if tool == "desktop_run" then return string.format(tr("Ran a command in %s"), app) end
+        if tool == "desktop_click" then return string.format(tr("Clicked in %s"), app) end
+        if tool == "desktop_key" then return string.format(tr("Pressed %s"), one_line(args.key, 20)) end
+        if tool == "desktop_hotkey" then return string.format(tr("Pressed %s"), one_line(args.keys, 20)) end
+        if tool == "desktop_scroll" then return string.format(tr("Scrolled in %s"), app) end
+        if tool == "desktop_drag" then return string.format(tr("Dragged in %s"), app) end
+        return string.format(tr("Worked in %s"), app)
+    end
+    --  Tools that only look: never a card, even when it asks before acting.
+    local LOOKS = { desktop_windows = true, desktop_look = true, desktop_tree = true, desktop_find = true, desktop_wait = true, terminal_wait = true }
     local function said(kid, tool, args)
         if tool == "desktop_windows" then return tr("Looking at the window…") end
         return string.format(tr(JOINED_WORDS[tool] or "Working in %s…"), program(kid, args))
@@ -120,7 +157,12 @@ return function(shared)
         count()
         relabel(kid)
     end
-    local function status(kid, words) T(kid.k, "status", words or "") end
+    --  Its panel (one at a time, `kp.k` says whose) shows its title and status too.
+    local function panel_of(kid) return tonumber(fact["kp.k"]) == kid.k end
+    local function status(kid, words)
+        T(kid.k, "status", words or "")
+        if panel_of(kid) then text["kp.status"] = words or "" end
+    end
 
     --  What its tab says: the program, and while a task runs the first words of it.
     relabel = function(kid)
@@ -128,6 +170,7 @@ return function(shared)
         local task = kid.task and tostring(kid.task):gsub("%s+", " "):match("^%s*(.-)%s*$") or ""
         if task ~= "" and BUSY[kid.state] then name = name .. " · " .. first_letters(task, 22) .. (letters(task) > 22 and "…" or "") end
         T(kid.k, "label", name)
+        if panel_of(kid) then text["kp.title"] = name end
     end
 
     -- ── what it says, let out at a reading pace ──────────────────────
@@ -135,6 +178,7 @@ return function(shared)
     --  (hurrying when far behind), as the main chat does, in the child's answer: the scene gets the part
     --  that has come (`said`) and how many letters it is (`letters`, for the ones that rise out of the
     --  water). The whole text is kept, up to a limit that no answer reaches.
+    local paint_panel   -- the panel's thread (below)
     local SHOW_MAX = 20000
     local TAIL = 12
     local revealing = false
@@ -148,6 +192,7 @@ return function(shared)
                     kid.shown = kid.shown + math.max(2, math.min(40, math.floor((total - kid.shown) / 10)))
                     T(kid.k, "said", kid.shown >= total and seg or first_letters(seg, kid.shown))
                     F(kid.k, "letters", kid.shown)
+                    paint_panel(kid)
                     again = true
                 end
             end
@@ -174,6 +219,54 @@ return function(shared)
         F(kid.k, "letters", 0)
     end
 
+    -- ── its conversation, for its panel ──────────────────────────────
+    --  What was said and done, as the main chat shows its thread: 1 you, 2 the child, 3 something it did
+    --  (state 0 going, 1 done, 2 failed, 3 denied, 4 held by a pause), 4 a card that asks you, 5 a note.
+    --  Kept for the child's life (the last ROWS_MAX); the panel is painted with the last PANEL_ROWS.
+    local ROWS_MAX, PANEL_ROWS = 80, 40
+    local function add_row(kid, kind, words, detail, state)
+        local r = { kind = kind, text = words or "", detail = detail or "", state = state or 0 }
+        kid.rows[#kid.rows + 1] = r
+        if #kid.rows > ROWS_MAX then table.remove(kid.rows, 1) end
+        return r
+    end
+    paint_panel = function(kid)
+        if not panel_of(kid) or kid.painting then return end
+        kid.painting = true
+        after(16, function()
+            kid.painting = false
+            if not panel_of(kid) or kids[kid.k] ~= kid then return end
+            local first = math.max(1, #kid.rows - PANEL_ROWS + 1)
+            kid.first = first
+            local out = {}
+            for i = first, #kid.rows do
+                local r = kid.rows[i]
+                local words = r.text
+                if r == kid.live_row and kid.shown then words = first_letters(words, kid.shown) end
+                out[#out + 1] = { kind = r.kind, text = words, detail = r.detail, state = r.state }
+            end
+            model["kp.rows"] = out
+        end)
+    end
+    --  What waits to be run after the current task, and the cards that ask you.
+    local function sync_queue(kid)
+        F(kid.k, "q", #kid.next)
+        for i = 0, 2 do
+            local w = kid.next[i + 1]
+            T(kid.k, "n." .. i, w and first_letters((tostring(w):gsub("%s+", " ")), 60) or "")
+        end
+    end
+    local function sync_cards(kid)
+        local n = 0
+        local first
+        for _, a in ipairs(kid.ask_order) do
+            if kid.asks[a] then n = n + 1; first = first or kid.asks[a] end
+        end
+        F(kid.k, "cards", n)
+        T(kid.k, "card", first and first.row.detail or "")
+        T(kid.k, "cardbody", first and first.row.text or "")
+    end
+
     local function send(kid, m)
         local line = json.encode(m) .. "\n"
         if kid.worker and kid.ready then
@@ -198,10 +291,19 @@ return function(shared)
             end
         end)
     end
+    local ask   -- (below)
+    local function notify(kid, words)
+        run("notify-send", { "-a", "Marea", "-i", "dialog-information", string.format(tr("%s: done"), nice(kid.window.app)), one_line(words, 140) }, function() end)
+    end
     local function settle(kid, st)
         set_state(kid, st or "idle")
         status(kid, "")
-        kid.live = nil
+        kid.live, kid.live_row = nil, nil
+        kid.held, kid.paused = {}, false
+        F(kid.k, "paused", false)
+        for id, a in pairs(kid.asks) do a.row.state = 2; kid.asks[id] = nil end
+        kid.ask_order = {}
+        sync_cards(kid)
         agent_done()
         rest_later(kid)
         local how = kid.ending or { ok = false, said = "" }
@@ -211,13 +313,52 @@ return function(shared)
         local words = tostring(how.said or "")
         if words ~= "" and words ~= kid.seg then say(kid, words, true) end
         --  An answer that came while the bubble was minimised or the box put away: the chip says so.
-        if words ~= "" and (fact["ch." .. kid.k .. ".min"] == true or fact["ch." .. kid.k .. ".shut"] == true) then
-            F(kid.k, "new", true)
+        local away = fact["ch." .. kid.k .. ".min"] == true or fact["ch." .. kid.k .. ".shut"] == true
+        if words ~= "" and away then F(kid.k, "new", true) end
+        paint_panel(kid)
+        --  What waited in line goes next (only after an answer: a stopped or failed task does not carry
+        --  on to the next); and when all is done and nobody is looking at it, a word on the desktop.
+        if how.ok and #kid.next > 0 then
+            local nxt = table.remove(kid.next, 1)
+            sync_queue(kid)
+            after(400, function()
+                if kids[kid.k] == kid and not BUSY[kid.state] then ask(kid, nxt) end
+            end)
+        elseif how.ok and words ~= "" and (away or fact["ch." .. kid.k .. ".hidden"] == true) then
+            notify(kid, words)
         end
     end
 
-    --  The tool it proposed: free hands in its window, no cards.
-    local function perform(kid, id, tool, args)
+    --  A pause: what it would do next waits (a proposal is not answered, the result of a step is not
+    --  handed back) until it is resumed.
+    local function hold_or(kid, fn)
+        if kid.paused then
+            kid.held[#kid.held + 1] = fn
+            status(kid, tr("Paused"))
+        else
+            fn()
+        end
+    end
+    local function set_paused(kid, on)
+        if (kid.paused == true) == on then return end
+        if on and not BUSY[kid.state] then return end
+        kid.paused = on
+        F(kid.k, "paused", on)
+        if on then
+            status(kid, tr("Paused"))
+        else
+            status(kid, kid.state == "idle" and "" or tr("Thinking…"))
+            local list = kid.held
+            kid.held = {}
+            for _, fn in ipairs(list) do fn() end
+        end
+    end
+
+    --  The tool it proposed: free hands in its window (or, when it is asked to ask first, once you
+    --  allowed it).
+    local function perform(kid, id, tool, args, row)
+        row.state = 0
+        paint_panel(kid)
         set_state(kid, "acting")
         status(kid, said(kid, tool, args))
         hands.exec(tool, args, {
@@ -228,8 +369,14 @@ return function(shared)
             secret = function(a, done) chat.type_secret(a, done) end,
         }, function(ok, words, extra, flags)
             if kids[kid.k] ~= kid then return end
-            answer(kid, id, ok, words, extra)
-            if kid.state == "acting" then set_state(kid, "thinking") end
+            row.state = ok and 1 or 2
+            if not ok then row.detail = one_line(words, 70) end
+            paint_panel(kid)
+            hold_or(kid, function()
+                answer(kid, id, ok, words, extra)
+                if kid.state == "acting" then set_state(kid, "thinking") end
+                status(kid, kid.state == "thinking" and tr("Thinking…") or "")
+            end)
             --  Stopped from the monitor's pill: the whole turn ends, not only this step.
             if flags and flags.stopped then
                 kid.stopped_by_pill = true
@@ -240,6 +387,42 @@ return function(shared)
                 leave(kid.k, string.format(tr("%s closed: I let go of it."), kid.window.app))
             end
         end)
+    end
+
+    --  A card for a step that is not only looking (when it asks first): what it would do, with its words.
+    local function card_body(tool, args)
+        local body = tostring(args.why or "")
+        if tool == "desktop_type" or tool == "desktop_fill" then body = body .. "\n«" .. tostring(args.text or "") .. "»" end
+        if tool == "desktop_run" then body = body .. "\n" .. tostring(args.command or "") end
+        if tool == "desktop_steps" and type(args.steps) == "table" then body = body .. "\n" .. table.concat(args.steps, "\n") end
+        if tool == "desktop_hotkey" then body = body .. "  (" .. tostring(args.keys or "") .. ")" end
+        if tool == "desktop_key" then body = body .. "  (" .. tostring(args.key or "") .. ")" end
+        return (body:gsub("^%s+", ""))
+    end
+    local function decide(kid, id, yes)
+        local a = kid.asks[id]
+        if not a then return end
+        kid.asks[id] = nil
+        sync_cards(kid)
+        if yes then
+            a.row.state = 3
+            local row = add_row(kid, 3, did(kid, a.tool, a.args), tostring(a.args.why or ""), 0)
+            perform(kid, id, a.tool, a.args, row)
+        else
+            a.row.state = 2
+            paint_panel(kid)
+            answer(kid, id, false, "", { denied = true })
+            set_state(kid, "thinking")
+        end
+        if next(kid.asks) ~= nil then
+            set_state(kid, "awaiting")
+            status(kid, tr("Waiting for you"))
+        end
+    end
+    local function first_ask(kid)
+        for _, id in ipairs(kid.ask_order) do
+            if kid.asks[id] then return id end
+        end
     end
 
     local function on_event(kid, m)
@@ -265,17 +448,37 @@ return function(shared)
                 status(kid, tr("Thinking…"))
                 --  A new piece of its words: the bubble starts it over, at its top, following it.
                 kid.seg, kid.shown = "", 0
+                kid.live_row = add_row(kid, 2, "")
             end
             kid.live = kid.live .. (m.text or "")
+            if kid.live_row then kid.live_row.text = kid.live end
             say(kid, kid.live, false)
         elseif kind == "propose" then
-            kid.live = nil
+            kid.live, kid.live_row = nil, nil
             local tool, args = tostring(m.tool), (type(m.args) == "table" and m.args or {})
             local refused = refuses(kid, tool, args)
             if refused then
+                add_row(kid, 3, did(kid, tool, args), one_line(refused, 70), 2)
+                paint_panel(kid)
                 answer(kid, m.id, false, refused)
             else
-                perform(kid, m.id, tool, args)
+                local why = LOOKS[tool] and "" or tostring(args.why or "")
+                local row = add_row(kid, 3, did(kid, tool, args), why, kid.paused and 4 or 0)
+                paint_panel(kid)
+                hold_or(kid, function()
+                    if kid.askfirst and not LOOKS[tool] then
+                        --  It asks first: a card with the step, and it waits for you.
+                        row.kind, row.state, row.text, row.detail = 4, 0, card_body(tool, args), did(kid, tool, args)
+                        kid.asks[m.id] = { row = row, tool = tool, args = args }
+                        kid.ask_order[#kid.ask_order + 1] = m.id
+                        set_state(kid, "awaiting")
+                        status(kid, tr("Waiting for you"))
+                        sync_cards(kid)
+                        paint_panel(kid)
+                    else
+                        perform(kid, m.id, tool, args, row)
+                    end
+                end)
             end
         elseif kind == "done" then
             if kid.live and kid.live ~= "" then kid.history[#kid.history + 1] = { role = "assistant", text = kid.live } end
@@ -285,6 +488,7 @@ return function(shared)
             --  Stopped by the user: nothing to say about it (a bubble for «Stopped.» was a big box for a
             --  word he knows).
             kid.ending = { ok = false, said = "" }
+            add_row(kid, 5, kid.stopped_by_pill and tr("You stopped it from the monitor.") or tr("Stopped."))
             kid.stopped_by_pill = false
             settle(kid, "idle")
         elseif kind == "failed" then
@@ -293,6 +497,7 @@ return function(shared)
             else
                 kid.ending = { ok = false, said = tr("Something went wrong: ") .. tostring(m.reason or "?") }
             end
+            add_row(kid, 5, kid.ending.said)
             settle(kid, kid.usable and "idle" or "offline")
         end
     end
@@ -347,10 +552,12 @@ return function(shared)
         end)
     end
 
-    local function ask(kid, words)
-        if kid.state == "thinking" or kid.state == "acting" or kid.state == "awaiting" or kid.state == "starting" then return end
+    ask = function(kid, words)
+        if BUSY[kid.state] then return end
         unsay(kid)
         kid.task = words
+        add_row(kid, 1, words)
+        paint_panel(kid)
         kid.history[#kid.history + 1] = { role = "user", text = words }
         if kid.idle_timer then cancel(kid.idle_timer); kid.idle_timer = nil end
         start_worker(kid)
@@ -718,6 +925,10 @@ return function(shared)
         F(k, "said_on", false)
         F(k, "state", "idle")
         F(k, "letters", 0); F(k, "min", false); F(k, "shut", false); F(k, "new", false)
+        F(k, "paused", false); F(k, "askfirst", false); F(k, "q", 0); F(k, "cards", 0)
+        for i = 0, 2 do T(k, "n." .. i, "") end
+        T(k, "card", ""); T(k, "cardbody", "")
+        if tonumber(fact["kp.k"]) == k then fact["kp.k"] = -1 end
         T(k, "app", ""); T(k, "name", ""); T(k, "label", ""); T(k, "said", ""); T(k, "status", ""); T(k, "input", "")
         count()
         agent_done()
@@ -737,6 +948,7 @@ return function(shared)
             k = k, window = { pid = found.pid, app = found.app, title = found.title },
             scope = { pid = found.pid, dialogs = {} }, programs = {},
             queue = {}, history = {}, state = "idle", ready = false,
+            rows = {}, asks = {}, ask_order = {}, next = {}, held = {},
         }
         kids[k] = kid
         T(k, "app", found.app)
@@ -744,6 +956,7 @@ return function(shared)
         T(k, "said", ""); T(k, "status", ""); T(k, "input", "")
         F(k, "said_on", false); F(k, "letters", 0); F(k, "min", false); F(k, "shut", false); F(k, "new", false)
         F(k, "state", "idle")
+        F(k, "paused", false); F(k, "askfirst", false); F(k, "q", 0); F(k, "cards", 0)
         relabel(kid)
         F(k, "hidden", false)
         F(k, "carry", false)
@@ -890,14 +1103,135 @@ return function(shared)
         local words = tostring(text["ch." .. kid.k .. ".input"] or "")
         if words:match("^%s*$") then return end
         T(kid.k, "input", "")
+        --  While it works, what you write waits for its turn (and can be cancelled).
+        if BUSY[kid.state] then
+            if #kid.next < 5 then
+                kid.next[#kid.next + 1] = words
+                sync_queue(kid)
+            end
+            return
+        end
         ask(kid, words)
     end)
-    on("kid_stop", function(k)
-        local kid = kids[tonumber(k)]
-        if not kid then return end
+    --  Stop: what it does ends, and so does what was waiting for it.
+    local function stop(kid)
+        kid.next = {}
+        sync_queue(kid)
+        kid.held = {}
+        kid.paused = false
+        F(kid.k, "paused", false)
+        for id, a in pairs(kid.asks) do a.row.state = 2; kid.asks[id] = nil end
+        kid.ask_order = {}
+        sync_cards(kid)
+        paint_panel(kid)
         send(kid, { type = "cancel" })
         status(kid, tr("Stopping…"))
         if not kid.worker then settle(kid, "idle") end
+    end
+    on("kid_stop", function(k)
+        local kid = kids[tonumber(k)]
+        if kid then stop(kid) end
+    end)
+    on("kid_pause", function(k)
+        local kid = kids[tonumber(k)]
+        if kid then set_paused(kid, not kid.paused) end
+    end)
+    on("kid_askfirst", function(k)
+        local kid = kids[tonumber(k)]
+        if not kid then return end
+        kid.askfirst = not kid.askfirst
+        F(kid.k, "askfirst", kid.askfirst)
+    end)
+    --  A queued message taken back out of the line (`n`: child * 3 + its place).
+    on("kid_unq", function(n)
+        n = tonumber(n)
+        if not n then return end
+        local kid = kids[n // 3]
+        if kid and kid.next[n % 3 + 1] then
+            table.remove(kid.next, n % 3 + 1)
+            sync_queue(kid)
+        end
+    end)
+    --  The card under a box: its first pending step is allowed or not.
+    on("kid_allow", function(k) local kid = kids[tonumber(k)]; local id = kid and first_ask(kid); if id then decide(kid, id, true) end end)
+    on("kid_deny", function(k) local kid = kids[tonumber(k)]; local id = kid and first_ask(kid); if id then decide(kid, id, false) end end)
+
+    -- ── its panel ────────────────────────────────────────────────────
+    --  One child's whole conversation at a time (scene/draw/kidpanel.plm): what was said, what it did, and
+    --  the controls of that child.
+    local function panel_kid()
+        return kids[tonumber(fact["kp.k"]) or -1]
+    end
+    on("kp_open", function(k)
+        k = tonumber(k)
+        local kid = kids[k]
+        if not kid then return end
+        fact["kp.k"] = k
+        text["kp.title"] = text["ch." .. k .. ".label"]
+        text["kp.status"] = text["ch." .. k .. ".status"]
+        text["kp.input"] = ""
+        paint_panel(kid)
+    end)
+    on("kp_close", function() fact["kp.k"] = -1 end)
+    on("kp_send", function()
+        local kid = panel_kid()
+        if not kid then return end
+        local words = tostring(text["kp.input"] or "")
+        if words:match("^%s*$") then return end
+        text["kp.input"] = ""
+        if BUSY[kid.state] then
+            if #kid.next < 5 then kid.next[#kid.next + 1] = words; sync_queue(kid) end
+        else
+            ask(kid, words)
+        end
+    end)
+    on("kp_stop", function() local kid = panel_kid(); if kid then stop(kid) end end)
+    on("kp_pause", function() local kid = panel_kid(); if kid then set_paused(kid, not kid.paused) end end)
+    on("kp_ask", function()
+        local kid = panel_kid()
+        if kid then
+            kid.askfirst = not kid.askfirst
+            F(kid.k, "askfirst", kid.askfirst)
+        end
+    end)
+    --  The card in the thread: its place in the model (first + i).
+    local function ask_of_row(kid, i)
+        local row = kid.rows[(kid.first or 1) + (tonumber(i) or 0)]
+        for id, a in pairs(kid.asks) do
+            if a.row == row then return id end
+        end
+    end
+    on("kp_allow", function(i) local kid = panel_kid(); local id = kid and ask_of_row(kid, i); if id then decide(kid, id, true) end end)
+    on("kp_deny", function(i) local kid = panel_kid(); local id = kid and ask_of_row(kid, i); if id then decide(kid, id, false) end end)
+    --  A new conversation: what was said is forgotten, and its engine starts over.
+    on("kp_new", function()
+        local kid = panel_kid()
+        if not kid then return end
+        if BUSY[kid.state] then stop(kid) end
+        kid.history, kid.rows, kid.next, kid.held, kid.asks, kid.ask_order = {}, {}, {}, {}, {}, {}
+        kid.task, kid.live, kid.live_row = nil, nil, nil
+        unsay(kid)
+        if kid.worker then
+            local id = kid.worker
+            kid.worker, kid.ready = nil, false
+            write(id, json.encode({ type = "shutdown" }) .. "\n")
+            after(600, function() kill(id) end)
+        end
+        set_state(kid, "idle")
+        status(kid, "")
+        sync_queue(kid)
+        sync_cards(kid)
+        paint_panel(kid)
+    end)
+    --  Its last answer, to the clipboard.
+    on("kp_copy", function()
+        local kid = panel_kid()
+        if not kid then return end
+        local last
+        for i = #kid.rows, 1, -1 do
+            if kid.rows[i].kind == 2 and kid.rows[i].text ~= "" then last = kid.rows[i].text; break end
+        end
+        if last then run("wl-copy", {}, function() end, { input = last }) end
     end)
     --  The next word wakes up the model it is told about in Settings: a child's worker follows the
     --  main chat's model; one that is awake finishes its sentence with the old one.

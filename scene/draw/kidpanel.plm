@@ -1,0 +1,174 @@
+// Marea's scene, in pieces: a child's own panel. marea.plm includes it.
+part KidPanel {
+    // ── the panel of a child ─────────────────────────────────────
+    //  The small drop under a child's box shows its last answer. This is the whole of it: the child's
+    //  conversation (what you asked, what it answered in markdown), a log of what it did in its window with
+    //  a mark for each step (going, done, failed, denied, held by a pause) and, when it asks first, the
+    //  cards that wait for you; and the controls of that child: Stop, Pause and Resume, Ask first, a new
+    //  conversation, copy the last answer. One at a time, over its window (scene/surfaces/join.plm places
+    //  it, and the field where you write); what it shows is the logic's (`kp.rows`, `kp.title`, `kp.status`, logic/kids.luau).
+
+    //  A row of the thread: yours, a bubble on the right; the child's, loose on the water, in markdown;
+    //  what it did, a line with its mark (the step it is on is lit); a card that asks you, in amber,
+    //  beating, with its two answers; a note.
+    component KRow(r: record, w: number, ring: color, allow: event, deny: event) {
+        measure said
+        measure hers
+        measure asked
+        size: w, if(r.kind == 1, said.height + 18, if(r.kind == 2, hers.height + 6, if(r.kind == 4, asked.height + 74, 26)))
+        prop allow.glow = 0 ~140ms
+        prop deny.glow = 0 ~140ms
+        //  1 · yours
+        group {
+            show: r.kind == 1
+            box { from: w - said.width - 26, 0; size: said.width + 26, said.height + 14; corner: 14; color: ring; opacity: 24% }
+            text r.text { at: w - 13, 7; anchor: right top; width: w - 90; size: 13; color: ink; align: right; measure: said; selectable: true; selection: #3d6b5e }
+        }
+        //  2 · the child's
+        text r.text { at: 2, 2; anchor: left top; width: w - 8; size: 13.5; line_height: 1.4; color: ink; measure: hers; show: r.kind == 2; markdown: true
+                      selectable: true; selection: #2f5a50 }
+        //  3 · something it did
+        group {
+            show: r.kind == 3
+            box { from: -4, 0; size: w + 8, 26; corner: 8; color: ring; opacity: 15%; show: r.state == 0 }
+            ellipse { at: 10, 13; radius: 5.5; stroke: 1.4; color: ring; show: r.state == 0 }
+            arc { at: 10, 13; radius: 5.5; span: 110deg; width: 1.8; rotate: kid.t * 360deg; color: ink; show: r.state == 0 }
+            path { at: 5, 8.5; color: ring; stroke: 1.8; show: r.state == 1
+                   move 0, 5; line 3.4, 8.4; line 10, 0.6 }
+            line { from: 5.5, 8.5; to: 14.5, 17.5; width: 1.7; color: #ef7a66; show: r.state == 2 }
+            line { from: 5.5, 17.5; to: 14.5, 8.5; width: 1.7; color: #ef7a66; show: r.state == 2 }
+            line { from: 5, 13; to: 15, 13; width: 1.7; color: #8b8f95; show: r.state == 3 }
+            box { at: 8, 13; size: 2.6, 10; corner: 1; color: amber; show: r.state == 4 }
+            box { at: 13, 13; size: 2.6, 10; corner: 1; color: amber; show: r.state == 4 }
+            text r.text { at: 26, 13; anchor: left center; size: 12; weight: if(r.state == 0, 600, 400); color: if(r.state == 0, ink, #b9bcc0); width: w - 190; lines: 1 }
+            text r.detail { at: w - 4, 13; anchor: right center; size: 10.5; color: if(r.state == 2, #ef9a8a, #8b8f95); width: 160; lines: 1; align: right }
+        }
+        //  4 · it asks you
+        group {
+            show: r.kind == 4
+            box { from: 0, 0; size: w, asked.height + 66; corner: 14; color: #24211a }
+            box { from: 0, 0; size: w, asked.height + 66; corner: 14; stroke: 1 + 1.2 * (r.state == 0); color: amber
+                  opacity: if(r.state == 0, 45% + 35% * (0.5 + 0.5 * sin(kid.t * 220)), 25%) }
+            text r.detail { at: 16, 16; anchor: left center; size: 10; weight: 700; color: amber; width: w - 40; lines: 1 }
+            text r.text { at: 16, 30; anchor: left top; width: w - 32; size: 12.5; color: ink; measure: asked; selectable: true; selection: #5a4a2a }
+            group {
+                show: r.state == 0
+                box { from: w - 240, asked.height + 34; size: 110, 28; corner: 9; color: #2a2b2c; opacity: 80% + 20% * deny.glow }
+                text "Not this" { at: w - 185, asked.height + 48; anchor: center; size: 11.5; weight: 600; color: ink }
+                box { from: w - 124, asked.height + 34; size: 110, 28; corner: 9; color: amber; opacity: 85% + 15% * allow.glow }
+                text "Allow" { at: w - 69, asked.height + 48; anchor: center; size: 11.5; weight: 700; color: #0c0f12 }
+                zone box deny_zone { from: w - 240, asked.height + 34; size: 110, 28; corner: 9; cursor: pointer; active: kp.o > 0.7 }
+                zone box allow_zone { from: w - 124, asked.height + 34; size: 110, 28; corner: 9; cursor: pointer; active: kp.o > 0.7 }
+            }
+            text pick(r.state == 2, "Allowed", "Not allowed") { at: w - 14, asked.height + 48; anchor: right center; size: 11; color: #8b8f95; show: r.state != 0 }
+        }
+        //  5 · a note: what failed, what was stopped.
+        text r.text { at: 2, 13; anchor: left center; size: 11.5; color: #ef7a66; width: w - 8; lines: 2; show: r.kind == 5; selectable: true; selection: #5a3a34 }
+        on enter allow_zone { allow.glow: 1 }
+        on leave allow_zone { allow.glow: 0 }
+        on enter deny_zone { deny.glow: 1 }
+        on leave deny_zone { deny.glow: 0 }
+        on press allow_zone { emit allow(r.index) }
+        on press deny_zone { emit deny(r.index) }
+    }
+
+    //  A small button with words: a toggle shows whether it is on.
+    component KPill(label: text, press: event, x: number, y: number, w: number, o: number, ring: color, on: number = 0, dim: number = 0, toggle: number = 0, warn: number = 0) {
+        prop glow = 0 ~140ms
+        box { at: x, y; size: w, 28; corner: 14; color: if(warn, #ef7a66, ring); opacity: (if(warn, 22%, 16%) + 14% * glow) * (1 - 0.6 * dim) }
+        box { at: x, y; size: w, 28; corner: 14; stroke: 1.1; color: if(warn, #ef7a66, ring); opacity: (50% + 30% * on) * (1 - 0.6 * dim) }
+        ellipse { at: x - w / 2 + 15, y; radius: 4; color: amber; opacity: 90% * on; show: toggle > 0.5 }
+        ellipse { at: x - w / 2 + 15, y; radius: 4; stroke: 1.2; color: ink; opacity: 55%; show: toggle > 0.5 and on < 0.5 }
+        text label { at: x + toggle * 7, y; anchor: center; size: 12; weight: 600; color: if(warn, #ffb4a6, ink); opacity: 1 - 0.55 * dim }
+        zone box z { at: x, y; size: w, 28; corner: 14; cursor: pointer; active: o > 0.7 and dim < 0.5 }
+        on enter z { glow: 1 }
+        on leave z { glow: 0 }
+        on press z { emit press }
+    }
+
+    //  The panel: `x`, `y` its top left corner, `w` by `h`; `o` how open it is; the colours are the child's
+    //  hue; `k` is the child's number, and `paused`, `working`, `asking`, `queued` its state.
+    component KidPanel(x: number, y: number, w: number, h: number, o: number, k: number, ring: color, mid: color, deep: color, ink: color, working: number, paused: number, asking: number, queued: number) {
+        prop stuck = 1 ~0ms
+        prop blen = 0 ~0ms
+        prop bscroll = 0 ~0ms
+        prop close.glow = 0 ~140ms
+        prop send.glow = 0 ~140ms
+        let vh = h - 210
+        let ty = y + 112
+        //  The drop itself.
+        group {
+            show: o > 0.02
+            opacity: o
+            glow: 8, 30%, ring
+            body {
+                gradient: 0, y to 0, y + h, mid, deep
+                rim: 26%
+                glass: glassiness
+                lens: bends
+                tint: 70%
+                shadow: 0, 8, 26, 40%, deep
+                box { at: x + w / 2, y + h / 2; size: w, h; corner: 24 }
+            }
+        }
+        group {
+            show: o > 0.3
+            opacity: clamp(o * 2 - 0.8, 0, 1)
+            //  It holds the clicks that land on it: they do not reach the window below.
+            zone box bg { at: x + w / 2, y + (h - 56) / 2; size: w, h - 56; corner: 24; active: o > 0.7 }
+            //  The head: who it is and what it is on.
+            ellipse { at: x + 24, y + 24; radius: 5; color: ring }
+            text kp.title { at: x + 38, y + 24; anchor: left center; size: 15; weight: 600; color: ink; width: w - 230; lines: 1 }
+            text kp.status { at: x + 38, y + 46; anchor: left center; size: 11.5; color: ink; opacity: 70%; width: w - 80; lines: 1 }
+            KPill("Stop", kp_stop, x + w - 98, y + 24, 66, o, ring, warn: 1, dim: 1 - working)
+            //  Close.
+            ellipse { at: x + w - 26, y + 24; radius: 12; color: #ffffff; opacity: 10% + 16% * close.glow }
+            line { from: x + w - 30.5, y + 19.5; to: x + w - 21.5, y + 28.5; width: 1.7; color: ink; opacity: 75% }
+            line { from: x + w - 30.5, y + 28.5; to: x + w - 21.5, y + 19.5; width: 1.7; color: ink; opacity: 75% }
+            zone ellipse close_btn { at: x + w - 26, y + 24; radius: 15; cursor: pointer; label: "Close"; active: o > 0.7 }
+            on enter close_btn { close.glow: 1 }
+            on leave close_btn { close.glow: 0 }
+            on press close_btn { emit kp_close }
+            //  Its controls.
+            KPill(pick(paused, "Pause", "Resume"), kp_pause, x + 16 + 36, y + 76, 72, o, ring, dim: 1 - working)
+            KPill("Ask first", kp_ask, x + 16 + 80 + 52, y + 76, 104, o, ring, on: asking, toggle: 1)
+            KPill("New conversation", kp_new, x + 16 + 80 + 112 + 74, y + 76, 148, o, ring)
+            KPill("Copy answer", kp_copy, x + 16 + 80 + 112 + 156 + 56, y + 76, 112, o, ring)
+            line { from: x + 16, y + 100; to: x + w - 16, y + 100; width: 1; color: ink; opacity: 10% }
+            //  The thread: it scrolls with the wheel, follows what arrives while the reader is at the bottom.
+            zone box area { from: x + 8, ty - 4; size: w - 16, vh + 8; active: o > 0.7 }
+            column list { at: x + 16, ty; view: w - 32, vh; gap: 10
+                for r in kp.rows { KRow(r, w - 44, ring, kp_allow, kp_deny) }
+            }
+            follow blen = list.content
+            follow bscroll = list.scroll
+            group {
+                show: blen > vh + 2
+                box { at: x + w - 11, ty + vh / 2; size: 3, vh; corner: 1.5; color: ink; opacity: 12% }
+                box { from: x + w - 12.5, ty + bscroll / max(blen, 1) * vh; size: 3, max(vh * vh / max(blen, 1), 18); corner: 1.5; color: ink; opacity: 50% }
+            }
+            text "Nothing yet: tell it what to do in this window." { at: x + w / 2, ty + 60; anchor: center; size: 13; color: ink; opacity: 60%; width: w - 80; align: center; show: kp.rows.count < 1 }
+            on scroll area while wheel > 0 { stuck: 0 ~0ms }
+            on drag area while drag.dy > 12 { stuck: 0 ~0ms }
+            on change list.scroll while list.content - list.scroll < vh + 16 { stuck: 1 ~0ms }
+            on change list.content while stuck > 0.5 { list.scroll: max(0, list.content - vh) ~0ms }
+            on change k { stuck: 1 ~0ms }
+            every 150ms while o > 0.5 and stuck > 0.5 and abs(max(0, list.content - vh) - list.scroll) > 1 {
+                list.scroll: max(0, list.content - vh) ~quick
+            }
+            //  What waits for its turn, and where you write.
+            text pick(queued > 0.5, "", "{queued} waiting for its turn") { at: x + 18, y + h - 66; anchor: left center; size: 11; color: ink; opacity: 65%; width: w - 40; lines: 1 }
+            box { from: x + 12, y + h - 52; size: w - 24, 40; corner: 20; color: #000000; opacity: 28% }
+            //  (Where you write is the surface's: an input is a field of the scene, not of a copy.)
+            ellipse { at: x + w - 36, y + h - 32; radius: 14; color: ring; opacity: 88% + 12% * send.glow }
+            path { at: x + w - 42, y + h - 39; color: deep; stroke: 2.1
+                   move 6, 13; line 6, 1 }
+            path { at: x + w - 42, y + h - 39; color: deep; stroke: 2.1
+                   move 1, 6; line 6, 1; line 11, 6 }
+            zone ellipse send_btn { at: x + w - 36, y + h - 32; radius: 16; cursor: pointer; label: "Send"; active: o > 0.7 }
+            on enter send_btn { send.glow: 1 }
+            on leave send_btn { send.glow: 0 }
+            on press send_btn { emit kp_send }
+        }
+    }
+}

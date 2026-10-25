@@ -19,6 +19,9 @@ part Join {
     //      state    what its worker is doing; said_on, and the texts app name said input status
     //    properties (the springs, below): bx by (the drop), seat, retract, px py pw ph (the window's
     //      frame, followed), pill (its box), lit, pulse, bub, rev, bud, kpulse, look, stir, dirx diry
+    //  A child's drop is a component of its own (scene/draw/kidsay.plm: the answer, scrolling, minimised to a
+    //  chip, put away with a double press), and so is its panel (scene/draw/kidpanel.plm: its conversation, what
+    //  it did, Stop, Pause, Ask first, a new conversation; one at a time, `kp.k`).
     //  The same number goes with every event the scene sends (`emit join_send(k)`), and is in the name
     //  of the logic's answers (`join_land.<k>`, `join_none.<k>`: an event of the logic reaches the
     //  rules without a payload). Its hue is the slot's: kid, kid1, kid2, kid3 (common/palette.plm).
@@ -74,6 +77,19 @@ part Join {
     fact ch.0.new = false; fact ch.1.new = false; fact ch.2.new = false; fact ch.3.new = false
     fact ch.0.dbl = false; fact ch.1.dbl = false; fact ch.2.dbl = false; fact ch.3.dbl = false
     //
+    //  Its management: paused (what it would do next waits), asking first (a card for each step that is not
+    //  only looking), how many of your messages wait for its turn, and how many cards ask you.
+    fact ch.0.paused = false; fact ch.1.paused = false; fact ch.2.paused = false; fact ch.3.paused = false
+    fact ch.0.askfirst = false; fact ch.1.askfirst = false; fact ch.2.askfirst = false; fact ch.3.askfirst = false
+    fact ch.0.q = 0; fact ch.1.q = 0; fact ch.2.q = 0; fact ch.3.q = 0
+    fact ch.0.cards = 0; fact ch.1.cards = 0; fact ch.2.cards = 0; fact ch.3.cards = 0
+    //  What waits (up to three shown) and the first card's step and words.
+    text ch.0.n.0 = ""; text ch.1.n.0 = ""; text ch.2.n.0 = ""; text ch.3.n.0 = ""
+    text ch.0.n.1 = ""; text ch.1.n.1 = ""; text ch.2.n.1 = ""; text ch.3.n.1 = ""
+    text ch.0.n.2 = ""; text ch.1.n.2 = ""; text ch.2.n.2 = ""; text ch.3.n.2 = ""
+    text ch.0.card = ""; text ch.1.card = ""; text ch.2.card = ""; text ch.3.card = ""
+    text ch.0.cardbody = ""; text ch.1.cardbody = ""; text ch.2.cardbody = ""; text ch.3.cardbody = ""
+    //
     //  The words.
     text ch.0.app = ""; text ch.1.app = ""; text ch.2.app = ""; text ch.3.app = ""
     //  Its window's name, as it is said (Kitty).
@@ -118,11 +134,37 @@ part Join {
     //  The chip that stands in for the answer while it is minimised (or the box, put away), and the tab on the window's ring.
     prop ch.0.chip = 0 ~200ms; prop ch.1.chip = 0 ~200ms; prop ch.2.chip = 0 ~200ms; prop ch.3.chip = 0 ~200ms
     prop ch.0.tab = 0 ~200ms; prop ch.1.tab = 0 ~200ms; prop ch.2.tab = 0 ~200ms; prop ch.3.tab = 0 ~200ms
+    //  How far its answer hangs below its box: the card that asks you and the queue's chips are above it.
+    prop ch.0.cardo = 0 ~160ms; prop ch.1.cardo = 0 ~160ms; prop ch.2.cardo = 0 ~160ms; prop ch.3.cardo = 0 ~160ms
+    prop ch.0.qo = 0 ~160ms; prop ch.1.qo = 0 ~160ms; prop ch.2.qo = 0 ~160ms; prop ch.3.qo = 0 ~160ms
     //  How much it works (the tide in its box, the light of her ring for it).
     prop ch.0.stir = 0 ~900ms; prop ch.1.stir = 0 ~900ms; prop ch.2.stir = 0 ~900ms; prop ch.3.stir = 0 ~900ms
     //  The way from her to it (a vector of one): where she looks and where her dot goes.
     prop ch.0.dirx = 0 ~gentle; prop ch.1.dirx = 0 ~gentle; prop ch.2.dirx = 0 ~gentle; prop ch.3.dirx = 0 ~gentle
     prop ch.0.diry = 1 ~gentle; prop ch.1.diry = 1 ~gentle; prop ch.2.diry = 1 ~gentle; prop ch.3.diry = 1 ~gentle
+    //  ── a child's panel ──
+    //  Its whole conversation, what it did and its controls, over its window (scene/draw/kidpanel.plm):
+    //  one at a time. `kp.k` says whose it is (-1 none) and the logic fills `kp.rows` with that child's
+    //  thread: 1 you, 2 the child, 3 something it did (`state`: 0 going, 1 done, 2 failed, 3 denied, 4 held
+    //  by a pause), 4 a card that asks you, 5 a note.
+    fact kp.k = -1
+    text kp.title = ""
+    text kp.status = ""
+    text kp.input = ""
+    model kp.rows max 40 { kind: number; text: text; detail: text; state: number }
+    event kp_open ->                  // `emit kp_open(2)`: the third child's panel
+    event kp_close ->
+    event kp_send ->
+    event kp_stop ->
+    event kp_pause ->
+    event kp_ask ->
+    event kp_new ->
+    event kp_copy ->
+    event kp_allow ->                 // a card in the thread (its place in it)
+    event kp_deny ->
+    //  How open it is, and whether the thread follows what arrives.
+    prop kp.o = 0 ~220ms
+    fact kp.stuck = true
     //  Where the monitors are, in desktop pixels. Three copies at most.
     fact mon.x.0 = 0
     fact mon.y.0 = 0
@@ -171,6 +213,15 @@ part Join {
     event join_drop ->                // let go: which window is it over?
     event join_send ->                // Enter in a box
     event kid_stop ->                 // a box's Stop
+    event kid_pause ->                // a box's Pause or Resume
+    event kid_askfirst ->             // a child asks before each step (Ask first), from its panel
+    event kid_allow ->                // the card under a box: yes
+    event kid_deny ->                 // and no
+    event kid_unq ->                  // a queued message taken out of the line (child * 3 + its place)
+    //  The buttons of a child's drop, by child (a component's events): its panel, and its minimise.
+    event kid_exp.0; event kid_exp.1; event kid_exp.2; event kid_exp.3
+    event kid_yes.0; event kid_yes.1; event kid_yes.2; event kid_yes.3
+    event kid_no.0; event kid_no.1; event kid_no.2; event kid_no.3
     //  An answer's minimise button, with the child's number in the name (a component's event).
     event kid_min.0; event kid_min.1; event kid_min.2; event kid_min.3
     //  What the logic tells a child, with the child's number in the name (the logic's events reach the

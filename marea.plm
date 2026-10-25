@@ -139,6 +139,7 @@ scene Marea {
     include "scene/draw/face.plm"
     include "scene/draw/kid.plm"
     include "scene/draw/kidsay.plm"
+    include "scene/draw/kidpanel.plm"
     include "scene/draw/haven.plm"
     include "scene/draw/drops.plm"
     include "scene/draw/stones.plm"

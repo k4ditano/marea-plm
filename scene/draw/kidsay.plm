@@ -8,12 +8,13 @@ part KidSay {
     //  while the reader is at the bottom, and a chip takes them down again when they went up. Its letters
     //  come up out of the water as `rev` lets them out. It is a component because a layout's name is not
     //  one for each of the four children that `repeat` makes: its list is its own here.
-    component KidSay(x: number, t: number, w: number, open: number, said: text, rev: number, minimise: event, maxh: number, ring: color, mid: color, deep: color, ink: color, sel: color) {
+    component KidSay(x: number, t: number, w: number, open: number, said: text, rev: number, minimise: event, expand: event, maxh: number, ring: color, mid: color, deep: color, ink: color, sel: color) {
         prop stuck = 1 ~0ms
         prop blen = 0 ~0ms
         prop bscroll = 0 ~0ms
         prop bh = 0 ~120ms
         prop min.glow = 0 ~140ms
+        prop exp.glow = 0 ~140ms
         prop bot.glow = 0 ~140ms
         let h = bh
         let vh = max(bh - 46, 20)
@@ -41,6 +42,16 @@ part KidSay {
             on enter min_btn { min.glow: 1 }
             on leave min_btn { min.glow: 0 }
             on press min_btn { emit minimise }
+            //  Expand: its whole panel.
+            ellipse { at: x + w / 2 - 44, t + 15; radius: 9.5; color: #ffffff; opacity: 10% + 16% * exp.glow }
+            path { at: x + w / 2 - 49, t + 10; color: ink; stroke: 1.5; opacity: 70% + 30% * exp.glow
+                   move 6, 0; line 10, 0; line 10, 4 }
+            path { at: x + w / 2 - 49, t + 10; color: ink; stroke: 1.5; opacity: 70% + 30% * exp.glow
+                   move 4, 10; line 0, 10; line 0, 6 }
+            zone ellipse exp_btn { at: x + w / 2 - 44, t + 15; radius: 12; cursor: pointer; label: "Open its panel"; active: open > 0.7 }
+            on enter exp_btn { exp.glow: 1 }
+            on leave exp_btn { exp.glow: 0 }
+            on press exp_btn { emit expand }
             //  The wheel reaches the list through this, which is under it.
             zone box wheel_area { from: x - w / 2 + 8, top - 2; size: w - 16, vh + 6; active: open > 0.7 }
             column list {
@@ -81,5 +92,36 @@ part KidSay {
                 on press bot_btn { list.scroll: max(0, list.content - vh) ~quick; stuck: 1 ~0ms }
             }
         }
+    }
+    //  A card under a child's box when it asks first and a step waits for you: what it would do, in amber,
+    //  beating, with its two answers. Its height is 100.
+    component KidCard(x: number, t: number, w: number, open: number, detail: text, body: text, allow: event, deny: event, ink: color) {
+        prop allow.glow = 0 ~140ms
+        prop deny.glow = 0 ~140ms
+        group {
+            show: open > 0.02
+            opacity: open
+            body {
+                color: #2a2316
+                rim: 14%
+                shadow: 0, 3, 10, 30%, #000000
+                box { at: x, t + 48; size: w, 96; corner: 17 }
+            }
+            box { at: x, t + 48; size: w, 96; corner: 17; stroke: 1.3; color: amber; opacity: 45% + 35% * (0.5 + 0.5 * sin(kid.t * 220)) }
+            text detail { at: x - w / 2 + 20, t + 16; anchor: left center; size: 10; weight: 700; color: amber; width: w - 40; lines: 1 }
+            text body { at: x - w / 2 + 20, t + 28; anchor: left top; width: w - 40; size: 12.5; color: ink; lines: 2 }
+            box { at: x + w / 2 - 190, t + 74; size: 100, 26; corner: 9; color: #3a3a3b; opacity: 80% + 20% * deny.glow }
+            text "Not this" { at: x + w / 2 - 190, t + 74; anchor: center; size: 11.5; weight: 600; color: ink }
+            box { at: x + w / 2 - 82, t + 74; size: 100, 26; corner: 9; color: amber; opacity: 85% + 15% * allow.glow }
+            text "Allow" { at: x + w / 2 - 82, t + 74; anchor: center; size: 11.5; weight: 700; color: #0c0f12 }
+            zone box deny_zone { at: x + w / 2 - 190, t + 74; size: 100, 26; corner: 9; cursor: pointer; active: open > 0.7 }
+            zone box allow_zone { at: x + w / 2 - 82, t + 74; size: 100, 26; corner: 9; cursor: pointer; active: open > 0.7 }
+        }
+        on enter allow_zone { allow.glow: 1 }
+        on leave allow_zone { allow.glow: 0 }
+        on enter deny_zone { deny.glow: 1 }
+        on leave deny_zone { deny.glow: 0 }
+        on press allow_zone { emit allow }
+        on press deny_zone { emit deny }
     }
 }
