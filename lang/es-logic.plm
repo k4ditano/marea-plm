@@ -204,6 +204,7 @@ library SpanishLogic {
         "Her engine stopped." = "Su motor se paró."
         "Her engine cannot start: " = "Su motor no puede arrancar: "
         "Waking up…" = "Despertando…"
+        "No news for two minutes: Stop cancels it" = "Sin novedades desde hace dos minutos: Detener lo cancela"
         "Her engine could not start: " = "Su motor no pudo arrancar: "
         // her memory
         "Remembered: " = "Recordado: "

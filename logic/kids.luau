@@ -307,8 +307,16 @@ return function(shared)
             kid.queue[#kid.queue + 1] = line
         end
     end
+    --  A trace of what a child does, a line each, in marea.log (`kids · 0 · …`): so «it stopped» can be read.
+    local function trace(kid, ...)
+        local parts = { ... }
+        for i = 1, #parts do parts[i] = tostring(parts[i]):gsub("[\r\n]+", " "):sub(1, 140) end
+        log("kids · " .. kid.k .. " · " .. os.date("%H:%M:%S") .. " · " .. table.concat(parts, " "))
+    end
     local function answer(kid, id, ok, words, extra)
         local m = { type = "result", id = id, ok = ok, text = words or "" }
+        kid.last_event = os.time()
+        trace(kid, "result:", ok and "ok" or "FAILED", tostring(words or ""):sub(1, 90))
         if kid.notice then
             m.text = tostring(m.text) .. "\n\n[Marea: " .. kid.notice .. "]"
             kid.notice = nil
@@ -318,6 +326,27 @@ return function(shared)
     end
     --  A worker that has nothing to do for three minutes goes (a hundred MB of Node); the next
     --  message starts it again with the child's history.
+    --  A child that is working and has heard nothing from its worker for two minutes says so (and the
+    --  log does): the stop button is there, and what it was doing is in the trace above.
+    local stall_gen = 0
+    local function stall_watch()
+        stall_gen = stall_gen + 1
+        local gen = stall_gen
+        local function look()
+            if gen ~= stall_gen then return end
+            for _, kid in pairs(kids) do
+                if (kid.state == "thinking" or kid.state == "acting") and not kid.paused and kid.last_event and os.time() - kid.last_event > 120 and not kid.stall_said then
+                    kid.stall_said = true
+                    trace(kid, "STALLED:", "nothing from its worker for", os.time() - kid.last_event, "s in", kid.state)
+                    status(kid, tr("No news for two minutes: Stop cancels it"))
+                elseif kid.stall_said and kid.last_event and os.time() - kid.last_event < 60 then
+                    kid.stall_said = false
+                end
+            end
+            after(30000, look)
+        end
+        after(30000, look)
+    end
     local function rest_later(kid)
         if kid.idle_timer then cancel(kid.idle_timer) end
         kid.idle_timer = after(3 * 60 * 1000, function()
@@ -507,6 +536,10 @@ return function(shared)
 
     local function on_event(kid, m)
         local kind = m.type
+        kid.last_event = os.time()
+        if kind ~= "delta" then
+            trace(kid, "worker:", kind, m.tool or "", type(m.args) == "table" and (m.args.pid or m.args.element or m.args.text or m.args.why or "") or "", m.reason or "")
+        end
         if kind == "ready" then
             kid.ready = true
             kid.retried = false
@@ -661,6 +694,8 @@ return function(shared)
 
     ask = function(kid, words)
         if BUSY[kid.state] then return end
+        kid.last_event = os.time()
+        trace(kid, "asked:", words)
         unsay(kid)
         kid.task = words
         add_row(kid, 1, words)
@@ -1705,4 +1740,5 @@ return function(shared)
     end)
     --  The next word wakes up the model it is told about in Settings: a child's worker follows the
     --  main chat's model; one that is awake finishes its sentence with the old one.
+    stall_watch()
 end
