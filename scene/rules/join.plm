@@ -1,185 +1,227 @@
-// Marea's scene, in pieces: pulling her onto a window and letting go of it. marea.plm includes it.
+// Marea's scene, in pieces: pulling a child out of her and letting go of it. marea.plm includes it.
 part JoinRules {
-    // ── pulling her ──────────────────────────────────────────────
+    // ── pulling one out ──────────────────────────────────────────
     //  Pressing her and not moving is the click that opens her card (mouse.plm).
     //  Moving more than 10 px is pulling: a drop of her water buds off her and the surface of
     //  the perch takes it, with a thread back to her, while she stays where she lives and watches
-    //  it; and the logic starts to look at which window is under it.
+    //  it; and the logic starts to look at which window is under it. It is the first slot that is
+    //  empty (`ch.free`), and it takes that slot's hue.
     on drag body_zone while drag.dx * drag.dx + drag.dy * drag.dy > 100 { dragged = true }
-    on drag body_zone while join.can and drag.dx * drag.dx + drag.dy * drag.dy > 100 {
-        join.phase = held
-        needed = true
-        wanted = true
-        ball.x: hm.dx ~16ms
-        ball.y: hm.dy ~16ms
-        retract: 0 ~16ms
-        seat: 0 ~16ms
-        kid.bud: 0 ~16ms
-        kid.bud: 1 after 40ms
-        face = eye
-        emit join_grab
+    //  Four are out already: she lets the drop go back into her at once, and says so beside her.
+    on drag body_zone while join.can and ch.free == 4 and kid.warn == none and drag.dx * drag.dx + drag.dy * drag.dy > 100 {
+        kid.warn = full
+        face = alert
+        impulse bounce -80
+        impulse wobble -140
     }
-    //  She follows the pointer, which keeps pulling even when it has left her
-    //  surface: the position is told in the surface that was pressed.
-    on drag body_zone while join.phase == held {
-        ptr.x = host.x + (host.w - 920) / 2 + pointer.x
-        ptr.y = host.y + pointer.y
-        ball.x: host.x + (host.w - 920) / 2 + pointer.x ~lively
-        ball.y: host.y + pointer.y ~lively
-    }
-    //  Let go: over a window she falls; over nothing she goes back up.
-    //  (Where she is let go is where the pull last told it: the release itself comes
-    //  with no place in some compositors, 0,0, and that is the corner of her surface.)
-    on release body_zone while join.phase == held {
-        join.phase = waiting
-        emit join_drop
-    }
-    on release body_zone while join.phase == none and not dragged { toggle open }
-    //  If the logic does not answer she does not hang there.
-    on still join.phase for 3s while join.phase == waiting { emit join_none }
+    on still kid.warn for 2800ms while kid.warn == full { kid.warn = none }
+    //  The click opens her card, with whatever is perched (they are not her).
+    on release body_zone while not ch.pulling and not dragged { toggle open }
 
-    // ── the fall ─────────────────────────────────────────────────
-    //  The logic found the window (its box is in `join.x…`). Pulled, she is
-    //  already out and just falls from where she was let go; told from the
-    //  keyboard, with nobody pulling her, she starts from the notch: the thread
-    //  gives, and she drops down it.
-    on join_land while join.phase == waiting {
-        face = happy
-        impulse wobble -200
-        join.up = ball.y > tgt.y
-        join.phase = falling
-        pb.x: join.x ~16ms
-        pb.y: join.y ~16ms
-        pb.w: join.w ~16ms
-        pb.h: join.h ~16ms
-        ball.x: tgt.x ~spring(70, 11)
-        ball.y: tgt.y ~spring(130, 21)
-    }
-    on join_land while join.phase == none {
-        needed = true
-        wanted = true
-        face = happy
-        impulse wobble -200
-        retract: 0 ~16ms
-        seat: 0 ~16ms
-        kid.bud: 0 ~16ms
-        kid.bud: 1 after 30ms
-        join.up = false
-        join.phase = falling
-        pb.x: join.x ~16ms
-        pb.y: join.y ~16ms
-        pb.w: join.w ~16ms
-        pb.h: join.h ~16ms
-        ball.x: hm.dx ~16ms
-        ball.y: hm.dy ~16ms
-        ball.x: tgt.x ~spring(70, 11) after 120ms
-        ball.y: tgt.y ~plunge after 120ms
-    }
-    //  It touches. The thread breaks and flies back into her, the water she lives in
-    //  gives its tug, the child squashes and a spray goes up.
-    on change join.hit while join.hit and join.phase == falling {
-        join.phase = sitting
-        seat: 1 ~140ms after 150ms
-        play land
-        retract: 1 ~240ms
-        impulse bounce -150
-        impulse wobble -340
-        ripple: 0 ~16ms
-        ripple: 1 ~900ms after 30ms
-        pulse: 0 ~16ms
-        pulse: 1 ~900ms after 30ms
-        emit join_splash
-        pill: 1 after 100ms
-        face = happy
-    }
-    //  A fall that never arrived (a window that moved out from under her).
-    on still join.phase for 1600ms while join.phase == falling { join.phase = sitting; seat: 1 ~140ms; retract: 1 ~240ms; pill: 1 after 120ms }
-    //  The box has no exclusive hold on the keyboard: it asks for it on demand while it is
-    //  shown (scene/surfaces/join.plm), so a click in the field gives it to her and a click on
-    //  any window gives it to that window; she never keeps it from him. (A `focus` on the field
-    //  asks for all of it as long as the surface may have it: it stayed asked for as long as she
-    //  sat, so nothing was typed anywhere else.) Typing is therefore started by a click in the
-    //  field; the first key after the drop still goes to the window that had the keyboard.
+    // ── a face for whoever works ─────────────────────────────────
+    //  Her waves are theirs while any of them works; a hop when the last one is done.
+    on change ch.working while ch.working > 0 { face = reading }
+    on change ch.working while ch.working == 0 and face == reading { face = eye; play happy }
+    //  The boxes stop asking for the keyboard for a moment (500 ms, more than the 300 ms pleamar keeps a
+    //  lent keyboard) when one of the others (finder, chat, a menu, the card) closes while a child sits:
+    //  so that what they were lent is let go instead of being held by a box.
+    on change kb.others while not kb.others and ch.sit { ch.settle = true }
+    on still ch.settle for 500ms while ch.settle { ch.settle = false }
+    //  (Esc does not let go of a child: it closes the finder, the chat, the menus. The way to let go
+    //  of one is its ×, its box's button, `chat_detach`, or its window closing.)
 
-    // ── what she does while she is there ─────────────────────────
-    //  Her face, as in the chat: waves while she thinks, a start when she
-    //  needs you, and a hop when she is done.
-    on change chat.state while chat.state == thinking and join.phase == sitting { face = reading }
-    on change chat.state while chat.state == awaiting and join.phase == sitting { face = alert; impulse bounce -60 }
-    on change chat.state while chat.state == idle and face == reading and join.phase == sitting { face = eye; play happy }
-    //  Joined to a window: she stops being happy about falling after a moment.
-    on still join.phase for 1400ms while join.phase == sitting and face == happy { face = eye }
-    //  The whole chat, opened while she sits on a window, takes the box's place; closed,
-    //  the box comes back.
-    on change chatting while chatting and join.phase == sitting { pill: 0 ~200ms; join.typing = false }
-    on change chatting while not chatting and join.phase == sitting { pill: 1 after 260ms }
-    //  Enter in the box sends it, and the box gives the keyboard back; the chat
-    //  panel stays closed: what she says is under her.
-    //  (The box keeps the keyboard, so the next thing is typed at once; a click
-    //  outside gives it back.)
-    on submit join.input { emit join_send }
-    on press jsend_btn while join.busy { emit chat_stop }
-    on press jsend_btn while not join.busy { emit join_send }
-    //  Her answer comes up out of the water, letter by letter.
-    on change join.said_on while join.said_on { join.rev: 0 ~0ms; join.rev: 320 ~7000ms after 40ms }
-    //  One of the others (finder, chat, a menu, the card) closed while she sits: the box stops asking
-    //  for the keyboard for a moment (500 ms, more than the 300 ms pleamar keeps a lent keyboard),
-    //  so that what they were lent is let go instead of being held by the box.
-    on change kb.others while not kb.others and join.phase == sitting { join.settle = true }
-    on still join.settle for 500ms while join.settle { join.settle = false }
-    //  (Esc does not let go of the child: it closes the finder, the chat, the menus. The way to let
-    //  go of it is its ×, the box's button, `chat_detach`, or its window closing.)
-    //  A window carried by its title bar, told by the window manager: hers if the mouse is on
-    //  its title bar, and then she goes with the mouse at once, from where it was taken.
-    on carry_start while join.phase == sitting and not carry.on and join.screen == host.i and cl.x >= join.x - 20 and cl.x < join.x + join.w + 20 and cl.y >= join.y - 20 and cl.y < join.y + 56 {
-        carry.gx = clamp(cl.x - join.x, 0, join.w)
-        carry.gy = clamp(cl.y - join.y, 0, 34)
-        carry.on = true
-        emit carry_grab
-    }
-    //  Let go: where it was left is where it is (the list of windows says so a moment later).
-    on carry_end while carry.on {
-        join.x = cur.dx - carry.gx
-        join.y = cur.dy - carry.gy
-        carry.on = false
-    }
+    repeat k in 0..4 {
+        // ── where it is ──────────────────────────────────────────
+        //  The geometry, in desktop pixels (the perch's drawing works out the same, for itself).
+        //  The window's frame, but where the mouse takes it while it is carried by its title bar:
+        let k.jx = if(ch.$k.carry and ch.$k.screen == host.i, cur.dx - ch.$k.gx, ch.$k.x)
+        let k.jy = if(ch.$k.carry and ch.$k.screen == host.i, cur.dy - ch.$k.gy, ch.$k.y)
+        follow ch.$k.px = k.jx
+        follow ch.$k.py = k.jy
+        follow ch.$k.pw = ch.$k.w
+        follow ch.$k.ph = ch.$k.h
+        //  Where it sits: along the top edge of the window, where it was let go, and a little over
+        //  it, sunk 6 px, like a drop on a ledge; and if the window is up against the top of its
+        //  monitor there is no ledge above it, so it sits astride the edge as high as its own body
+        //  allows. Where along it: where it was let go, unless the box (450) would fit on neither
+        //  side of it inside the window: then at the window's left end, so the box has all the rest.
+        let k.my = pick(ch.$k.screen, mon.y.0, mon.y.1, mon.y.2)
+        let k.sdx0 = clamp(ch.$k.dx, 34, max(ch.$k.pw - 34, 34))
+        let k.sdx = if(k.sdx0 >= 480 or ch.$k.pw - k.sdx0 >= 480, k.sdx0, 34)
+        let k.sx = ch.$k.px + k.sdx
+        let k.sy = k.my + max(ch.$k.py - k.my - 22, 24)
+        //  The same place from the logic's own numbers, for sending it there: the window's frame
+        //  springs (`px…`) have not arrived yet when it is sent.
+        let k.td0 = clamp(ch.$k.dx, 34, max(ch.$k.w - 34, 34))
+        let k.tx = k.jx + if(k.td0 >= 480 or ch.$k.w - k.td0 >= 480, k.td0, 34)
+        let k.ty = k.my + max(k.jy - k.my - 22, 24)
+        //  It reaches the ledge: the moment the thread breaks. And it is home when it has reached her.
+        let k.hit = if(ch.$k.up, ch.$k.by < k.sy + 2, ch.$k.by > k.sy - 1.5)
+        let k.home = length(ch.$k.bx - hm.dx, ch.$k.by - hm.dy) < 11
+        //  Where it is, in HER surface's pixels, and the way from her to it: where she looks.
+        let k.mx = ch.$k.bx + (k.sx - ch.$k.bx) * ch.$k.seat - host.x - (host.w - 920) / 2
+        let k.my2 = ch.$k.by + (k.sy - ch.$k.by) * ch.$k.seat - host.y
+        let k.d = max(length(k.mx - cx, k.my2 - cy_actual), 1)
+        follow ch.$k.dirx = (k.mx - cx) / k.d
+        follow ch.$k.diry = (k.my2 - cy_actual) / k.d
+        //  How lit the ring of its window is, how much she looks at it, and its answer's drop.
+        follow ch.$k.lit = if(ch.$k.phase == sitting or ch.$k.phase == falling, 1, 0)
+        follow ch.$k.look = if(ch.$k.phase != none, 1, 0)
+        follow ch.$k.stir = if(ch.$k.state == thinking or ch.$k.state == acting or ch.$k.state == starting, 1, if(ch.$k.state == awaiting, 0.45, 0))
+        follow ch.$k.bub = if(ch.$k.said_on and ch.$k.phase == sitting and ch.$k.pill > 0.5, 1, 0)
 
-    // ── letting go ───────────────────────────────────────────────
-    //  The logic let go of the window (her button, Esc, `chat_detach`, the
-    //  window closing): the child lifts off, a thread grows from her to meet it and it goes
-    //  back into her, the way it came; she gives a happy little bob.
-    on change chat.attached while not chat.attached and (join.phase == sitting or join.phase == falling) { join.phase = leaving }
-    on join_none while join.phase == waiting { join.phase = leaving }
-    on change join.phase while join.phase == leaving {
-        join.typing = false
-        hov.on = false
-        pill: 0 ~220ms
-        seat: 0 ~16ms
-        ball.x: sit.x ~16ms
-        ball.y: sit.y ~16ms
-        retract: 0 ~200ms
-        ball.x: hm.dx ~spring(70, 13) after 60ms
-        ball.y: hm.dy ~spring(70, 13) after 60ms
-        kid.bud: 0 ~spring(110, 15) after 260ms
+        // ── pulling it ───────────────────────────────────────────
+        on drag body_zone while join.can and ch.free == k and drag.dx * drag.dx + drag.dy * drag.dy > 100 {
+            ch.$k.phase = held
+            needed = true
+            wanted = true
+            ch.$k.bx: hm.dx ~16ms
+            ch.$k.by: hm.dy ~16ms
+            ch.$k.retract: 0 ~16ms
+            ch.$k.seat: 0 ~16ms
+            ch.$k.bud: 0 ~16ms
+            ch.$k.bud: 1 after 40ms
+            face = eye
+            emit join_grab(k)
+        }
+        //  It follows the pointer, which keeps pulling even when it has left her surface: the
+        //  position is told in the surface that was pressed.
+        on drag body_zone while ch.$k.phase == held {
+            ptr.x = host.x + (host.w - 920) / 2 + pointer.x
+            ptr.y = host.y + pointer.y
+            ch.$k.bx: host.x + (host.w - 920) / 2 + pointer.x ~lively
+            ch.$k.by: host.y + pointer.y ~lively
+        }
+        //  Let go: over a window it falls; over nothing it goes back up.
+        //  (Where it is let go is where the pull last told it: the release itself comes with no place
+        //  in some compositors, 0,0, and that is the corner of her surface.)
+        on release body_zone while ch.$k.phase == held {
+            ch.$k.phase = waiting
+            emit join_drop(k)
+        }
+        //  If the logic does not answer it does not hang there.
+        on still ch.$k.phase for 3s while ch.$k.phase == waiting { emit join_none(k) }
+
+        // ── the fall ─────────────────────────────────────────────
+        //  The logic found the window (its frame is in `ch.<k>.x…`). Pulled, it is already out and
+        //  just falls from where it was let go; told from the keyboard, with nobody pulling it, it
+        //  starts from the notch: the thread gives, and it drops down it.
+        on join_land(q) while q == k and ch.$k.phase == waiting {
+            face = happy
+            impulse wobble -200
+            ch.$k.up = ch.$k.by > k.ty
+            ch.$k.phase = falling
+            ch.$k.px: ch.$k.x ~16ms
+            ch.$k.py: ch.$k.y ~16ms
+            ch.$k.pw: ch.$k.w ~16ms
+            ch.$k.ph: ch.$k.h ~16ms
+            ch.$k.bx: k.tx ~spring(70, 11)
+            ch.$k.by: k.ty ~spring(130, 21)
+        }
+        on join_land(q) while q == k and ch.$k.phase == none {
+            needed = true
+            wanted = true
+            face = happy
+            impulse wobble -200
+            ch.$k.retract: 0 ~16ms
+            ch.$k.seat: 0 ~16ms
+            ch.$k.bud: 0 ~16ms
+            ch.$k.bud: 1 after 30ms
+            ch.$k.up = false
+            ch.$k.phase = falling
+            ch.$k.px: ch.$k.x ~16ms
+            ch.$k.py: ch.$k.y ~16ms
+            ch.$k.pw: ch.$k.w ~16ms
+            ch.$k.ph: ch.$k.h ~16ms
+            ch.$k.bx: hm.dx ~16ms
+            ch.$k.by: hm.dy ~16ms
+            ch.$k.bx: k.tx ~spring(70, 11) after 120ms
+            ch.$k.by: k.ty ~plunge after 120ms
+        }
+        //  It touches. The thread breaks and flies back into her, the water she lives in gives its
+        //  tug, the child squashes and a spray goes up.
+        on change k.hit while k.hit and ch.$k.phase == falling {
+            ch.$k.phase = sitting
+            ch.$k.seat: 1 ~140ms after 150ms
+            play land
+            ch.$k.retract: 1 ~240ms
+            impulse bounce -150
+            impulse wobble -340
+            ripple: 0 ~16ms
+            ripple: 1 ~900ms after 30ms
+            ch.$k.pulse: 0 ~16ms
+            ch.$k.pulse: 1 ~900ms after 30ms
+            emit splash.$k
+            ch.$k.pill: 1 after 100ms
+            face = happy
+        }
+        //  A fall that never arrived (a window that moved out from under it).
+        on still ch.$k.phase for 1600ms while ch.$k.phase == falling { ch.$k.phase = sitting; ch.$k.seat: 1 ~140ms; ch.$k.retract: 1 ~240ms; ch.$k.pill: 1 after 120ms }
+        //  The box has no exclusive hold on the keyboard: it asks for it on demand while it is shown
+        //  (marea.plm), so a click in the field gives it to the child and a click on any window gives it
+        //  to that one; it never keeps it from him. (A `focus` on the field asks for all of it as long as
+        //  the surface may have it: it stayed asked for as long as the child sat, so nothing was typed
+        //  anywhere else.) Typing is therefore started by a click in the field; the first key after the
+        //  drop still goes to the window that had the keyboard.
+
+        // ── what it does while it is there ───────────────────────
+        //  Joined to a window it stops being happy about falling after a moment.
+        on still ch.$k.phase for 1400ms while ch.$k.phase == sitting and face == happy { face = eye }
+        //  The whole chat, opened while a child sits, takes the boxes' place; closed, they come back.
+        on change chatting while chatting and ch.$k.phase == sitting { ch.$k.pill: 0 ~200ms }
+        on change chatting while not chatting and ch.$k.phase == sitting { ch.$k.pill: 1 after 260ms }
+        //  Its answer comes up out of the water, letter by letter.
+        on change ch.$k.said_on while ch.$k.said_on { ch.$k.rev: 0 ~0ms; ch.$k.rev: 320 ~7000ms after 40ms }
+        //  A window carried by its title bar, told by the window manager: its child's if the mouse is on
+        //  its title bar (the first one that fits), and then it goes with the mouse at once, from where
+        //  it was taken. Let go: where it was left is where it is (the list of windows says so a moment
+        //  later).
+        on carry_start while carry.who == k {
+            ch.$k.gx = clamp(cl.x - ch.$k.x, 0, ch.$k.w)
+            ch.$k.gy = clamp(cl.y - ch.$k.y, 0, 34)
+            ch.$k.carry = true
+            emit carry_grab(k)
+        }
+        on carry_end while ch.$k.carry {
+            ch.$k.x = cur.dx - ch.$k.gx
+            ch.$k.y = cur.dy - ch.$k.gy
+            ch.$k.carry = false
+        }
+
+        // ── letting go ───────────────────────────────────────────
+        //  The logic let go of the window (its ×, its box's button, `chat_detach`, the window closing):
+        //  the child lifts off, a thread grows from her to meet it and it goes back into her, the way it
+        //  came; she gives a happy little bob.
+        on change ch.$k.on while not ch.$k.on and (ch.$k.phase == sitting or ch.$k.phase == falling) { ch.$k.phase = leaving }
+        on join_none(q) while q == k and ch.$k.phase == waiting { ch.$k.phase = leaving }
+        on change ch.$k.phase while ch.$k.phase == leaving {
+            hov.on = false
+            ch.$k.pill: 0 ~220ms
+            ch.$k.seat: 0 ~16ms
+            ch.$k.bx: k.sx ~16ms
+            ch.$k.by: k.sy ~16ms
+            ch.$k.retract: 0 ~200ms
+            ch.$k.bx: hm.dx ~spring(70, 13) after 60ms
+            ch.$k.by: hm.dy ~spring(70, 13) after 60ms
+            ch.$k.bud: 0 ~spring(110, 15) after 260ms
+        }
+        //  It is in her when it has reached her. (And a rule that waits for a time is not safe against a
+        //  reload of the scene, so the second one is the fallback: it just sends it the last few pixels.)
+        on change k.home while k.home and ch.$k.phase == leaving {
+            ch.$k.phase = none
+            ch.$k.retract: 1 ~16ms
+            ch.$k.bud: 0 ~16ms
+            ch.$k.kpulse: 0 ~16ms
+            ch.$k.kpulse: 1 ~700ms after 30ms
+            impulse bounce -110
+            impulse wobble -90
+            ripple: 0 ~16ms
+            ripple: 1 ~760ms after 30ms
+            face = happy
+            play happy
+        }
+        on still ch.$k.phase for 900ms while ch.$k.phase == leaving { ch.$k.bx: hm.dx ~16ms; ch.$k.by: hm.dy ~16ms }
+        //  A little after, she is herself again.
+        on still ch.$k.phase for 1300ms while ch.$k.phase == none and face == happy { face = eye }
     }
-    //  It is in her when it has reached her. (And a rule that waits for a time is not safe
-    //  against a reload of the scene, so the second one is the fallback: it just sends it the
-    //  last few pixels.)
-    let join.home = length(ball.x - hm.dx, ball.y - hm.dy) < 11
-    on change join.home while join.home and join.phase == leaving {
-        join.phase = none
-        retract: 1 ~16ms
-        kid.bud: 0 ~16ms
-        kid.pulse: 0 ~16ms
-        kid.pulse: 1 ~700ms after 30ms
-        impulse bounce -110
-        impulse wobble -90
-        ripple: 0 ~16ms
-        ripple: 1 ~760ms after 30ms
-        face = happy
-        play happy
-    }
-    on still join.phase for 900ms while join.phase == leaving { ball.x: hm.dx ~16ms; ball.y: hm.dy ~16ms }
-    //  A little after, she is herself again.
-    on still join.phase for 1300ms while join.phase == none and face == happy { face = eye }
 }

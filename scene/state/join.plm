@@ -1,25 +1,112 @@
-// Marea's scene, in pieces: the perch, her joining one window. marea.plm includes it.
+// Marea's scene, in pieces: her children, perched on windows. marea.plm includes it.
 part Join {
-    // ── the perch: she is dropped on a window and joins it ───────
-    //  You grab her and pull: she stretches a thread of her own water down
-    //  from where she lives, with herself at the end of it, following the
-    //  pointer. Let go on empty desktop and the thread draws her back in. Let go
-    //  over a window and she falls onto it, the thread snaps and flies back
-    //  up, and she sits on its top edge: from then on she has that window and
-    //  only that one (logic/chat.luau, `chat_attach`), and what you write in the
-    //  box that grows out of her is the task.
+    // ── her children ─────────────────────────────────────────────
+    //  DESIGN NOTE. Drag her and a drop of her water buds off her, lands on the top edge of the
+    //  window under it and perches there with a box to write in: a child. She can have up to four at
+    //  once, one to a window, each with a conversation and an AI worker of its own (logic/kids.luau);
+    //  she stays where she lives, with her eyes on them. Her own chat (the panel, the whole desktop)
+    //  is another conversation and stays as it was.
     //
-    //  All of it happens in a surface the size of the monitor (scene/surfaces/
-    //  join.plm), and in DESKTOP coordinates: a window's box, the pointer and
-    //  the notch are all measured from the top left of the first monitor, and
-    //  each copy of the surface takes off its own monitor's corner. The logic
-    //  says where the monitors are and where the windows are (pleamar-wm's
-    //  `agent monitors` and `agent windows`): the scene never asks.
+    //  The model. A child is a number, k = 0..3, and everything of it is called `ch.<k>.…`:
+    //    facts and texts (the boundary: the logic writes some, the scene others)
+    //      phase    none · held (pulled out of her) · waiting (let go: the logic looks for the window
+    //               under it) · falling (on its way down to the edge) · sitting · leaving (going back)
+    //      on       the logic has a window for it (false when it is let go or its window closes)
+    //      x y w h  the window's whole frame (title bar too) in desktop pixels, kept up to date by the
+    //               logic; screen: its monitor; dx: how far along the top edge it sits
+    //      hidden   the window is not shown (another workspace, minimised): nor is the child
+    //      carry    the window is being carried by its title bar (gx gy: where it was taken)
+    //      state    what its worker is doing; said_on, and the texts app name said input status
+    //    properties (the springs, below): bx by (the drop), seat, retract, px py pw ph (the window's
+    //      frame, followed), pill (its box), lit, pulse, bub, rev, bud, kpulse, look, stir, dirx diry
+    //  The same number goes with every event (`emit join_send(k)`) and with the logic's answers
+    //  (`emit join_land(k)`). Its hue is `pick(k, kid, kid1, kid2, kid3)`: the slot's.
     //
-    //  none · held (pulling her) · waiting (let go, the logic is looking for the
-    //  window under her) · falling (on her way to its edge, up or down) ·
-    //  sitting (on it) · leaving (back up into the water)
-    fact join.phase: none | held | waiting | falling | sitting | leaving = none
+    //  Written once for the four, with `repeat k in 0..4`: the rules, her reflection and the perch's
+    //  drawing. The language has two edges here: what a `repeat` declares is not seen by the surface,
+    //  so the names (below) are written out for each child; and a `let` inside a repeat is its own, so
+    //  the geometry that the rules and the perch's drawing share is worked out in each (the same lines).
+    //  What stays single: the pointer and the window under it while a child is pulled (one at a time),
+    //  the monitors, where she lives, the mouse's lag, the warning at her side, the keyboard's settle.
+    //
+    //  All of it happens in a surface the size of the monitor (scene/surfaces/join.plm), and in
+    //  DESKTOP coordinates: a window's box, the pointer and the notch are all measured from the top
+    //  left of the first monitor, and each copy of the surface takes off its own monitor's corner. The
+    //  logic says where the monitors are and where the windows are (pleamar-wm's `agent monitors` and
+    //  `agent windows`): the scene never asks.
+    //  Declared by name for each of the four, not in a `repeat`: what a `repeat` declares is not seen
+    //  by the surface (nor by every `let`), which reads the facts and properties of each child.
+    //  Four to a line, 0 to 3.
+    //
+    //  Where it is in its life, and what the logic knows of it.
+    fact ch.0.phase: none | held | waiting | falling | sitting | leaving = none; fact ch.1.phase: none | held | waiting | falling | sitting | leaving = none; fact ch.2.phase: none | held | waiting | falling | sitting | leaving = none; fact ch.3.phase: none | held | waiting | falling | sitting | leaving = none
+    //  The logic has a window for it: false when it is let go or the window closes (the scene then lets it go home).
+    fact ch.0.on = false; fact ch.1.on = false; fact ch.2.on = false; fact ch.3.on = false
+    //  Its window's whole frame in desktop pixels (title bar included), and its monitor, kept up to date by the logic.
+    fact ch.0.x = 0; fact ch.1.x = 0; fact ch.2.x = 0; fact ch.3.x = 0
+    fact ch.0.y = 0; fact ch.1.y = 0; fact ch.2.y = 0; fact ch.3.y = 0
+    fact ch.0.w = 0; fact ch.1.w = 0; fact ch.2.w = 0; fact ch.3.w = 0
+    fact ch.0.h = 0; fact ch.1.h = 0; fact ch.2.h = 0; fact ch.3.h = 0
+    fact ch.0.screen = 0; fact ch.1.screen = 0; fact ch.2.screen = 0; fact ch.3.screen = 0
+    //  How far along the window's top edge it sits (the logic's number; the scene works it out again for the springs).
+    fact ch.0.dx = 60; fact ch.1.dx = 60; fact ch.2.dx = 60; fact ch.3.dx = 60
+    //  Let go inside a window, it is BELOW its top edge: it goes up to it (a drop drawn along the glass); told from the keyboard it starts above it and falls.
+    fact ch.0.up = false; fact ch.1.up = false; fact ch.2.up = false; fact ch.3.up = false
+    //  The window is not shown (another workspace, minimised): nor is the child.
+    fact ch.0.hidden = false; fact ch.1.hidden = false; fact ch.2.hidden = false; fact ch.3.hidden = false
+    //  The window is being carried by its title bar, and where it was taken (from the window's corner).
+    fact ch.0.carry = false; fact ch.1.carry = false; fact ch.2.carry = false; fact ch.3.carry = false
+    fact ch.0.gx = 0; fact ch.1.gx = 0; fact ch.2.gx = 0; fact ch.3.gx = 0
+    fact ch.0.gy = 0; fact ch.1.gy = 0; fact ch.2.gy = 0; fact ch.3.gy = 0
+    //  What its worker is doing.
+    fact ch.0.state: idle | starting | thinking | acting | awaiting | offline = idle; fact ch.1.state: idle | starting | thinking | acting | awaiting | offline = idle; fact ch.2.state: idle | starting | thinking | acting | awaiting | offline = idle; fact ch.3.state: idle | starting | thinking | acting | awaiting | offline = idle
+    //  What it last answered is there to show.
+    fact ch.0.said_on = false; fact ch.1.said_on = false; fact ch.2.said_on = false; fact ch.3.said_on = false
+    //
+    //  The words.
+    text ch.0.app = ""; text ch.1.app = ""; text ch.2.app = ""; text ch.3.app = ""
+    //  Its window's name, as it is said (Kitty).
+    text ch.0.name = ""; text ch.1.name = ""; text ch.2.name = ""; text ch.3.name = ""
+    //  What it last answered, short.
+    text ch.0.said = ""; text ch.1.said = ""; text ch.2.said = ""; text ch.3.said = ""
+    //  Where what you write in its box goes.
+    text ch.0.input = ""; text ch.1.input = ""; text ch.2.input = ""; text ch.3.input = ""
+    //  What it is doing, in words.
+    text ch.0.status = ""; text ch.1.status = ""; text ch.2.status = ""; text ch.3.status = ""
+    //
+    //  The drops thrown up where it lands.
+    event splash.0; event splash.1; event splash.2; event splash.3
+    //
+    //  What moves. The drop, in desktop pixels: while it is pulled it follows the pointer with a spring, so the thread has something to stretch against.
+    prop ch.0.bx = 960 ~lively; prop ch.1.bx = 960 ~lively; prop ch.2.bx = 960 ~lively; prop ch.3.bx = 960 ~lively
+    prop ch.0.by = 46 ~lively; prop ch.1.by = 46 ~lively; prop ch.2.by = 46 ~lively; prop ch.3.by = 46 ~lively
+    //  How far the thread has gone back into the water: 0 it is on it, 1 gone.
+    prop ch.0.retract = 1 ~quick; prop ch.1.retract = 1 ~quick; prop ch.2.retract = 1 ~quick; prop ch.3.retract = 1 ~quick
+    //  It is sitting: 0 it is where `bx, by` say, 1 where the window says.
+    prop ch.0.seat = 0 ~110ms; prop ch.1.seat = 0 ~110ms; prop ch.2.seat = 0 ~110ms; prop ch.3.seat = 0 ~110ms
+    //  The window's frame, followed with a spring: it is carried by it, a little behind, as water would.
+    prop ch.0.px = 0 ~70ms; prop ch.1.px = 0 ~70ms; prop ch.2.px = 0 ~70ms; prop ch.3.px = 0 ~70ms
+    prop ch.0.py = 0 ~70ms; prop ch.1.py = 0 ~70ms; prop ch.2.py = 0 ~70ms; prop ch.3.py = 0 ~70ms
+    prop ch.0.pw = 0 ~70ms; prop ch.1.pw = 0 ~70ms; prop ch.2.pw = 0 ~70ms; prop ch.3.pw = 0 ~70ms
+    prop ch.0.ph = 0 ~70ms; prop ch.1.ph = 0 ~70ms; prop ch.2.ph = 0 ~70ms; prop ch.3.ph = 0 ~70ms
+    //  The box that grows out of it once it is sitting.
+    prop ch.0.pill = 0 ~spring(190, 17); prop ch.1.pill = 0 ~spring(190, 17); prop ch.2.pill = 0 ~spring(190, 17); prop ch.3.pill = 0 ~spring(190, 17)
+    //  The ring of the window it is joined to.
+    prop ch.0.lit = 0 ~320ms; prop ch.1.lit = 0 ~320ms; prop ch.2.lit = 0 ~320ms; prop ch.3.lit = 0 ~320ms
+    //  The wave that runs out along the window's edge when it lands.
+    prop ch.0.pulse = 1 ~900ms; prop ch.1.pulse = 1 ~900ms; prop ch.2.pulse = 1 ~900ms; prop ch.3.pulse = 1 ~900ms
+    //  How formed the drop of its answer is, and how many letters of it have come.
+    prop ch.0.bub = 0 ~spring(170, 15); prop ch.1.bub = 0 ~spring(170, 15); prop ch.2.bub = 0 ~spring(170, 15); prop ch.3.bub = 0 ~spring(170, 15)
+    prop ch.0.rev = 0 ~2200ms; prop ch.1.rev = 0 ~2200ms; prop ch.2.rev = 0 ~2200ms; prop ch.3.rev = 0 ~2200ms
+    //  How formed it is on her (it grows out of her as it is pulled and goes back into her when it is let go), the ring that runs round her when it comes home, and how much she looks at it.
+    prop ch.0.bud = 0 ~spring(150, 13); prop ch.1.bud = 0 ~spring(150, 13); prop ch.2.bud = 0 ~spring(150, 13); prop ch.3.bud = 0 ~spring(150, 13)
+    prop ch.0.kpulse = 1 ~700ms; prop ch.1.kpulse = 1 ~700ms; prop ch.2.kpulse = 1 ~700ms; prop ch.3.kpulse = 1 ~700ms
+    prop ch.0.look = 0 ~gentle; prop ch.1.look = 0 ~gentle; prop ch.2.look = 0 ~gentle; prop ch.3.look = 0 ~gentle
+    //  How much it works (the tide in its box, the light of her ring for it).
+    prop ch.0.stir = 0 ~900ms; prop ch.1.stir = 0 ~900ms; prop ch.2.stir = 0 ~900ms; prop ch.3.stir = 0 ~900ms
+    //  The way from her to it (a vector of one): where she looks and where her dot goes.
+    prop ch.0.dirx = 0 ~gentle; prop ch.1.dirx = 0 ~gentle; prop ch.2.dirx = 0 ~gentle; prop ch.3.dirx = 0 ~gentle
+    prop ch.0.diry = 1 ~gentle; prop ch.1.diry = 1 ~gentle; prop ch.2.diry = 1 ~gentle; prop ch.3.diry = 1 ~gentle
     //  Where the monitors are, in desktop pixels. Three copies at most.
     fact mon.x.0 = 0
     fact mon.y.0 = 0
@@ -30,118 +117,67 @@ part Join {
     fact mon.x.2 = 3840
     fact mon.y.2 = 0
     fact mon.w.2 = 1920
-    //  The pointer while she is pulled, in desktop pixels; the logic reads it to
-    //  find the window under her.
+    //  The pointer while a child is pulled, in desktop pixels; the logic reads it to find the window
+    //  under it.
     fact ptr.x = 0
     fact ptr.y = 0
-    //  The window under her while she is pulled: it lights up and says its name.
+    //  The window under the child while it is pulled: it lights up and says its name, or that it
+    //  already has a child (one to a window).
     fact hov.on = false
+    fact hov.taken = false
     fact hov.x = 0
     fact hov.y = 0
     fact hov.w = 0
     fact hov.h = 0
     text hov.app = ""
-    //  The window she is joined to (or is falling onto), kept up to date by the
-    //  logic while she sits on it: its box in desktop pixels, the monitor it is
-    //  on, and where along its top edge she sits.
-    fact join.x = 0
-    fact join.y = 0
-    fact join.w = 0
-    fact join.h = 0
-    fact join.screen = 0
-    fact join.dx = 60
-    text join.app = ""
-    text join.name = ""               // her window's name, as it is said (Kitty)
-    text join.said = ""               // the last thing she answered, short
-    fact join.said_on = false          // and whether there is one to show
-    //  Where what you write in the box goes: the logic copies it into the
-    //  chat's own input and sends it.
-    text join.input = ""
-    //  The box is there to be written in (grown, she sits, the chat is not in its place):
-    //  a click in it gives it the keyboard, as any field.
-    let join.shown = join.phase == sitting and pill > 0.5
-    fact join.typing = false          // the box holds the keyboard
-    //  A moment of the scene not asking for the keyboard for the box, after the finder, the chat,
-    //  a menu or the card closes: it ends the keyboard that was lent to their field (marea.plm).
-    fact join.settle = false
+    //  A word at her side, for a few seconds: she has all four already, or that window has one.
+    fact kid.warn: none | full | taken = none
+    //  How many are out and how many work (the logic keeps the count).
+    fact ch.n = 0
+    fact ch.working = 0
+    //  The boxes ask for the keyboard on demand while one is shown. And a moment of the scene not
+    //  asking for it, after the finder, the chat, a menu or the card closes: it ends the keyboard that
+    //  was lent to their field (marea.plm).
+    fact ch.settle = false
+    let ch.shown = (ch.0.phase == sitting and not ch.0.hidden) or (ch.1.phase == sitting and not ch.1.hidden) or (ch.2.phase == sitting and not ch.2.hidden) or (ch.3.phase == sitting and not ch.3.hidden)
+    let ch.sit = ch.0.phase == sitting or ch.1.phase == sitting or ch.2.phase == sitting or ch.3.phase == sitting
+    //  All of them sitting or not out: nothing moves.
+    let ch.calm = (ch.0.phase == none or ch.0.phase == sitting) and (ch.1.phase == none or ch.1.phase == sitting) and (ch.2.phase == none or ch.2.phase == sitting) and (ch.3.phase == none or ch.3.phase == sitting)
+    let ch.none = ch.0.phase == none and ch.1.phase == none and ch.2.phase == none and ch.3.phase == none
+    //  One is being pulled out of her (held, or let go and being given a window).
+    let ch.pulling = ch.0.phase == held or ch.0.phase == waiting or ch.1.phase == held or ch.1.phase == waiting or ch.2.phase == held or ch.2.phase == waiting or ch.3.phase == held or ch.3.phase == waiting
+    //  The slot the next one takes: the first that is empty, or 4 when all are taken.
+    let ch.free = if(ch.0.phase == none, 0, if(ch.1.phase == none, 1, if(ch.2.phase == none, 2, if(ch.3.phase == none, 3, 4))))
     let kb.others = searching or chatting or menu_open or open or tray_open or reel_open
-    event join_grab ->                // she has been pulled out: look at the windows
-    event join_drop ->                // let go: which window is she over?
-    event join_send ->                // Enter in the box
-    event join_land                   // the logic found it: fall onto join.x…
-    event join_none                   // nothing under her
-    event join_splash                 // the drops thrown up where she lands
-
-    // ── what moves ───────────────────────────────────────────────
-    //  Her ball, in desktop pixels. While she is pulled it follows the pointer
-    //  with a spring, so the thread has something to stretch against.
-    prop ball.x = 960 ~lively
-    prop ball.y = 46 ~lively
-    //  A loose spring for the fall: underdamped, it reaches the window at its
-    //  fastest and is cut there, which is what a fall is.
-    spring plunge = 34, 3.4
-    //  How far the thread has gone back into the water: 0 she is on it, 1 gone.
-    prop retract = 1 ~quick
-    //  She is sitting: 0 she is where `ball` says, 1 where the window says.
-    prop seat = 0 ~110ms
-    //  The window's box, followed with a spring: she is carried by it, a little
-    //  behind, as water would.
-    prop pb.x = 0 ~70ms
-    prop pb.y = 0 ~70ms
-    prop pb.w = 0 ~70ms
-    prop pb.h = 0 ~70ms
-    //  While the window she sits on is carried by its title bar, the logic says so (`carry.on`,
-    //  and where it was taken: `carry.gx`, `carry.gy`, from the window's corner) and the scene
-    //  follows the mouse itself, every frame: the logic's numbers come a few times a second.
-    //  The window manager tells when one starts to be carried and when it is let go
-    //  (pleamar-wm 0.6.2: `emit carry_start`, `emit carry_end`): hers is the one whose title bar
-    //  the mouse is on at that moment.
+    event join_grab ->                // a child has been pulled out: look at the windows
+    event join_drop ->                // let go: which window is it over?
+    event join_send ->                // Enter in a box
+    event kid_stop ->                 // a box's Stop
+    event join_land                   // the logic found the window: fall onto it
+    event join_none                   // nothing under it (or that window has a child already)
+    //  A window carried by its title bar: the logic says so (`ch.<k>.carry`, and where it was taken:
+    //  `gx`, `gy`, from the window's corner) and the scene follows the mouse itself, every frame: the
+    //  logic's numbers come a few times a second. The window manager tells when one starts to be
+    //  carried and when it is let go (pleamar-wm 0.6.2: `emit carry_start`, `emit carry_end`): the
+    //  child's is the one whose window's title bar the mouse is on at that moment.
     event carry_start
     event carry_end
-    //  She asks the logic for where it was taken, exactly (`grab` of the window manager).
-    event carry_grab
-    //  Where the mouse was a moment before the window manager said a window was being carried:
-    //  the mouse a little late, which is about where it took the window.
+    //  It asks the logic for where it was taken, exactly (`grab` of the window manager).
+    event carry_grab ->
+    //  A loose spring for the fall: underdamped, it reaches the window at its fastest and is cut
+    //  there, which is what a fall is.
+    spring plunge = 34, 3.4
+    //  Where the mouse was a moment before the window manager said a window was being carried: the
+    //  mouse a little late, which is about where it took the window.
     prop cl.x = 0 ~55ms
     prop cl.y = 0 ~55ms
     follow cl.x = cur.dx
     follow cl.y = cur.dy
-    //  Her window is not shown (another workspace, minimised): she is not either.
-    fact join.hidden = false
-    fact carry.on = false
-    fact carry.gx = 0
-    fact carry.gy = 0
-    follow pb.x = jx
-    follow pb.y = jy
-    follow pb.w = join.w
-    follow pb.h = join.h
-    //  The box that grows out of her once she is sitting.
-    prop pill = 0 ~spring(190, 17)
-    //  How lit the window under her is while she is pulled, and the ring of
-    //  the one she is joined to.
+    //  How lit the window under a child is while it is pulled.
     prop hov.a = 0 ~140ms
-    follow hov.a = if(hov.on and join.phase == held, 1, 0)
-    prop join.a = 0 ~320ms
-    follow join.a = if(join.phase == sitting or join.phase == falling, 1, 0)
-    //  The wave that runs out along the window's edge when she lands.
-    prop pulse = 1 ~900ms
-    //  How formed the drop of her answer is, and how many letters of it have come.
-    prop join.bub = 0 ~spring(170, 15)
-    follow join.bub = if(join.said_on and join.phase == sitting and pill > 0.5, 1, 0)
-    prop join.rev = 0 ~2200ms
-    //  And the slow breath of the ring on the window she is joined to (join surface).
+    follow hov.a = if(hov.on and ch.pulling, 1, 0)
+    //  And the slow breath of the rings on the windows (join surface).
     prop join.breath = 0
-    //  Her child. What perches on the window is not her: it is a drop of her water, smaller and
-    //  of another colour, that buds off her and stays joined to her by a thread until it lands.
-    //  She stays where she lives, with her eyes on it. `kid.bud` is how formed it is (it grows
-    //  out of her as it is pulled and goes back into her when it is let go), `kid.pulse` the ring
-    //  that runs round her when it comes home, and `kid.look` how much she is looking at it.
-    prop kid.bud = 0 ~spring(150, 13)
-    prop kid.pulse = 1 ~700ms
-    prop kid.look = 0 ~gentle
-    follow kid.look = if(join.phase != none, 1, 0)
-    //  She is chewing on a task (the box says what).
-    let join.busy = chat.state == thinking or chat.state == acting or chat.state == awaiting or chat.state == starting
     //  Which monitor she lives on, for the notch.
     let host.i = if(hosts.2, 2, if(hosts.1, 1, 0))
     let host.x = pick(host.i, mon.x.0, mon.x.1, mon.x.2)
@@ -149,39 +185,20 @@ part Join {
     let host.w = pick(host.i, mon.w.0, mon.w.1, mon.w.2)
     let cur.dx = host.x + (host.w - 920) / 2 + cursor.x
     let cur.dy = host.y + cursor.y
-    let jx = if(carry.on and join.screen == host.i, cur.dx - carry.gx, join.x)
-    let jy = if(carry.on and join.screen == host.i, cur.dy - carry.gy, join.y)
-    //  Where she lands: along the top edge of the window, where she was let go,
-    //  and a little over it, sunk 6 px, like a drop on a ledge; and if the window
-    //  is up against the top of its monitor there is no ledge above it, so she
-    //  sits astride the edge as high as her own body allows.
-    let sit.mx = pick(join.screen, mon.x.0, mon.x.1, mon.x.2)
-    let sit.my = pick(join.screen, mon.y.0, mon.y.1, mon.y.2)
-    //  Where along the window's edge the child sits: where it was let go, unless the box (450) would
-    //  fit on neither side of it inside the window: then at the window's left end, so the box has
-    //  all the rest.
-    let sit.dx0 = clamp(join.dx, 34, max(pb.w - 34, 34))
-    let sit.dx = if(sit.dx0 >= 480 or pb.w - sit.dx0 >= 480, sit.dx0, 34)
-    let sit.x = pb.x + sit.dx
-    let sit.y = sit.my + max(pb.y - sit.my - 22, 24)
-    //  The same place from the logic's own numbers, for sending her there: the
-    //  window's box springs (`pb`) and has not arrived yet when she is sent.
-    let tgt.d0 = clamp(join.dx, 34, max(join.w - 34, 34))
-    let tgt.x = jx + if(tgt.d0 >= 480 or join.w - tgt.d0 >= 480, tgt.d0, 34)
-    let tgt.y = sit.my + max(jy - sit.my - 22, 24)
-    //  Let go inside a window she is BELOW its top edge, so she goes up to it (a
-    //  drop drawn along the glass); told from the keyboard she starts above it and
-    //  falls. `join.up` says which, when she is sent.
-    fact join.up = false
-    //  She reaches the ledge: the moment the thread breaks.
-    let join.hit = if(join.up, ball.y < sit.y + 2, ball.y > sit.y - 1.5)
-    //  And it is how fast she falls that stretches her, as in the journey.
-    let join.stretch = clamp(vel(ball.y) * 0.00028, 0, 0.3)
+    //  Whose window is being carried: the child whose title bar the mouse is on, the first that fits
+    //  (and only when nothing is being carried already).
+    let carry.m.0 = ch.0.phase == sitting and ch.0.screen == host.i and cl.x >= ch.0.x - 20 and cl.x < ch.0.x + ch.0.w + 20 and cl.y >= ch.0.y - 20 and cl.y < ch.0.y + 56
+    let carry.m.1 = ch.1.phase == sitting and ch.1.screen == host.i and cl.x >= ch.1.x - 20 and cl.x < ch.1.x + ch.1.w + 20 and cl.y >= ch.1.y - 20 and cl.y < ch.1.y + 56
+    let carry.m.2 = ch.2.phase == sitting and ch.2.screen == host.i and cl.x >= ch.2.x - 20 and cl.x < ch.2.x + ch.2.w + 20 and cl.y >= ch.2.y - 20 and cl.y < ch.2.y + 56
+    let carry.m.3 = ch.3.phase == sitting and ch.3.screen == host.i and cl.x >= ch.3.x - 20 and cl.x < ch.3.x + ch.3.w + 20 and cl.y >= ch.3.y - 20 and cl.y < ch.3.y + 56
+    let carry.any = ch.0.carry or ch.1.carry or ch.2.carry or ch.3.carry
+    let carry.who = if(carry.any, 4, if(carry.m.0, 0, if(carry.m.1, 1, if(carry.m.2, 2, if(carry.m.3, 3, 4)))))
 
     // ── the grab ─────────────────────────────────────────────────
     //  Pressing her is a click; pulling her is this. `dragged` tells the two
     //  apart on letting go.
     fact dragged = false
-    //  She can be pulled when nothing of hers is open and she is not away.
-    let join.can = join.phase == none and not open and not chatting and not searching and not tray_open and not menu_open and not haven and not adventuring and not celebrating and not corner and not chat.attached and away < 0.05 and offset < 0.05
+    //  A child can be pulled out when nothing of hers is open and she is not away, and none is
+    //  being pulled already (the ones that are perched do not matter: there can be four).
+    let join.can = not ch.pulling and not open and not chatting and not searching and not tray_open and not menu_open and not haven and not adventuring and not celebrating and not corner and away < 0.05 and offset < 0.05
 }

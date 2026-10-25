@@ -344,7 +344,7 @@ library SpanishUi {
         "Delete it (press twice)" = "Borrarla (pulsa dos veces)"
         "Made with her in «Build something». Open one again to keep improving it." = "Hechas con ella en «Construir algo». Ábrela otra vez para seguir mejorándola."
         "Nothing yet: «Build something», in her finder." = "Nada todavía: «Construir algo», en su buscador."
-        // dropped on a window (scene/surfaces/join.plm)
+        // her children dropped on windows (scene/surfaces/join.plm)
         "Drop me on a window" = "Suéltame sobre una ventana"
         "Let go" = "Soltar"
         "Let go of the window" = "Soltar la ventana"
@@ -352,5 +352,9 @@ library SpanishUi {
         "Send" = "Enviar"
         "Tell her what to do in this window" = "Dile qué hacer en esta ventana"
         "Tell me what to do in this window…" = "Dime qué hacer en esta ventana…"
+        // her children: up to four, one to a window
+        "4 children already, let one go" = "Ya tengo 4 hijas, suelta una"
+        "That window already has a child" = "Esa ventana ya tiene una hija"
+        "Already has a child" = "Ya tiene una hija"
     }
 }

@@ -127,7 +127,7 @@ part Journey {
     let chat.x = cx + 6 + chat.w / 2
     //  Sitting on a window she is not here (`away`), and the panel opened from her
     //  hangs from where she lives all the same, not 84 px higher with its head cut.
-    let chat.y = cy_actual + chat.h / 2 - 8 + (84 + 46 * aside * aside) * away * (join.phase == sitting)
+    let chat.y = cy_actual + chat.h / 2 - 8 + (84 + 46 * aside * aside) * away * ch.sit
     //  How much panel there is out: the card, the tray or the finder. It is what
     //  takes her halo from light to shadow.
     let panel = clamp(max(max(max(card, tray), finder), chat) * 2, 0, 1)

@@ -1,29 +1,53 @@
-// Marea's scene, in pieces: what she shows of her child while it is out. marea.plm includes it.
+// Marea's scene, in pieces: what she shows of her children while they are out. marea.plm includes it.
 part Kid {
-    // ── her, with her child out ──────────────────────────────────
-    //  She stays where she lives while a drop of her water sits on a window
-    //  (scene/surfaces/join.plm). What says it is hers: a thin violet light round
-    //  her, a bright point on her edge on the side where the thread leaves her, and
-    //  the face (it is the same face: the child's waves are her waves while it
-    //  works, and her eyes are on it, scene/draw/face.plm). When it comes home a
-    //  ring runs out of her in its colour.
-    prop kid.with = 0 ~gentle
-    follow kid.with = if(join.phase != none or chat.attached, 1, 0)
-    //  Hers while it is out; stronger while it works.
-    let kid.lit = kid.with * (0.8 + 0.2 * chat.stir)
-    //  The side of her it is on: her edge in its direction.
-    let kid.ex = cx + (kid.mx - cx) / kid.d * (r - 1.5)
-    let kid.ey = cy_actual + (kid.my - cy_actual) / kid.d * (r - 1.5)
+    // ── her, with her children out ───────────────────────────────
+    //  She stays where she lives while drops of her water sit on windows (scene/surfaces/join.plm).
+    //  What says they are hers: a thin ring of light round her made of one arc for each child, in its
+    //  hue (the whole ring for one, halves for two, and so on: the arcs share it by how much she
+    //  looks at each), a bright point on her edge on the side where each thread leaves her, and the
+    //  face (it is the same face: her waves are theirs while any of them works, and her eyes are on
+    //  them, scene/draw/face.plm). When one comes home a ring runs out of her in its hue.
+    repeat k in 0..4 {
+        let c.l = mix(mix(mix(kid, kid1, k == 1), kid2, k == 2), kid3, k == 3)
+        //  Hers while it is out; stronger while it works.
+        let kd.lit = ch.$k.look * (0.8 + 0.2 * ch.$k.stir)
+        //  Her ring shared between them: where this one's arc starts and how much of it is its.
+        let kd.tot = max(ch.0.look + ch.1.look + ch.2.look + ch.3.look, 0.01)
+        let kd.before = pick(k, 0, ch.0.look, ch.0.look + ch.1.look, ch.0.look + ch.1.look + ch.2.look)
+        let kd.gap = clamp((kd.tot - 1) * 40, 0, 14)
+        let kd.span = clamp(ch.$k.look / kd.tot * 360 - kd.gap, 0.5, 359.5)
+        let kd.mid = kd.before / kd.tot * 360 + ch.$k.look / kd.tot * 180
+        //  The side of her it is on: her edge in its direction.
+        let kd.ex = cx + ch.$k.dirx * (r - 1.5)
+        let kd.ey = cy_actual + ch.$k.diry * (r - 1.5)
+        group {
+            show: ch.$k.look > 0.01 or ch.$k.kpulse < 0.99
+            group {
+                glow: 6, 90% * kd.lit, c.l
+                arc { at: cx, cy_actual; radius: r + 0.8; span: kd.span * 1deg; rotate: kd.mid * 1deg; width: 1.6; color: c.l; opacity: 90% * kd.lit }
+            }
+            group {
+                glow: 4, 90% * kd.lit, c.l
+                ellipse { at: kd.ex, kd.ey; radius: 2.3; color: c.l; opacity: kd.lit }
+            }
+            ellipse { at: cx, cy_actual; radius: r + 3 + 18 * ch.$k.kpulse; stroke: 2.2; color: c.l; opacity: 65% * (1 - ch.$k.kpulse) * (1 - ch.$k.kpulse) }
+        }
+    }
+    // ── a word at her side ───────────────────────────────────────
+    //  She has four already, or the window has one: the drop goes back, and this says why.
     group {
-        show: kid.with > 0.01 or kid.pulse < 0.99
-        group {
-            glow: 6, 90% * kid.lit, kid
-            ellipse { at: cx, cy_actual; radius: r + 0.8; stroke: 1.6; color: kid; opacity: 90% * kid.lit }
+        show: kid.note > 0.02
+        opacity: clamp(kid.note, 0, 1)
+        measure kwarn
+        let kw.y = cy_actual + r + 34 + 6 * (1 - kid.note)
+        let kw.w = kwarn.width + 36
+        body {
+            gradient: 0, kw.y - 14 to 0, kw.y + 14, kid1.bot, kid1.deep
+            rim: 30%
+            shadow: 0, 3, 10, 34%, kid1.deep
+            box { at: cx, kw.y; size: kw.w, 28; corner: 14 }
         }
-        group {
-            glow: 4, 90% * kid.lit, kid
-            ellipse { at: kid.ex, kid.ey; radius: 2.3; color: kid; opacity: kid.lit }
-        }
-        ellipse { at: cx, cy_actual; radius: r + 3 + 18 * kid.pulse; stroke: 2.2; color: kid; opacity: 65% * (1 - kid.pulse) * (1 - kid.pulse) }
+        box { at: cx, kw.y; size: kw.w, 28; corner: 14; stroke: 1.2; color: kid1; opacity: 60% }
+        text pick(kid.warn, "", "4 children already, let one go", "That window already has a child") { at: cx, kw.y; anchor: center; size: 13; weight: 600; color: kid1.ink; measure: kwarn }
     }
 }

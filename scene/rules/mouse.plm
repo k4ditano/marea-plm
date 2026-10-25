@@ -70,7 +70,7 @@ part Mouse {
     //  would nod off and wake up every 45 s. Not in the Haven: automatic sleep
     //  stays suspended while it lasts, which is what the contract says —she is
     //  concentrating, not absent—.
-    on idle for 45s while not needed and not haven and not open and not tray_open and not corner and not asleep and not chat.attached { asleep = true; dozed = true }
+    on idle for 45s while not needed and not haven and not open and not tray_open and not corner and not asleep and ch.none { asleep = true; dozed = true }
     //  The click opens; brushing past does not. Before, 450 ms of brushing were
     //  enough for a whole panel to cover what you were reading.
     //  The click opens on letting go, and only if she was not pulled: pulling her is

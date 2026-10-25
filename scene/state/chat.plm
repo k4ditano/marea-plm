@@ -18,14 +18,13 @@ part Chat {
     fact chat.signing = false          // the browser is open to sign in
     text chat.account = ""
     model chat.models max 8 { name: text; on: number }
-    //  Joined to a window (logic/chat.luau): she has that window and only it,
-    //  with free hands. `pleamar --say marea "emit chat_attach"` joins the one
-    //  that has the keyboard; `"text chat.target 4521" "emit chat_attach"`, that pid.
+    //  A child of hers perched on a window, without anybody pulling it (logic/kids.luau):
+    //  `pleamar --say marea "emit chat_attach"` perches one on the window that has the keyboard;
+    //  `"text chat.target 4521" "emit chat_attach"`, on that pid. `emit chat_detach(2)` lets go of
+    //  the third; with no number, of the one whose window has the keyboard.
     event chat_attach ->
     event chat_detach ->
     text chat.target = ""
-    text chat.joined = ""              // what she is joined to, for the panel
-    fact chat.attached = false
     event chat ->                      // `marea chat`, Super+Shift+A, her menu, the finder
     //  Building a piece of the desktop with her (logic/builder.luau,
     //  BUILDER.md): while it is on, the thread is that creation's.

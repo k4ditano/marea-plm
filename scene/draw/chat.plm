@@ -107,20 +107,7 @@ part Chat {
         let ky0 = chat.y - chat.h / 2
         //  The head: who she is, and with what.
         text "MAREA" { at: kx0, ky0 + 24; anchor: left center; size: 9; weight: 600; color: mint; opacity: 80%; show: not build.on }
-        text chat.model { at: kx0 + 48, ky0 + 24; anchor: left center; size: 9.5; color: #8b8f95; width: 300; lines: 1; show: not build.on and not chat.attached }
-        //  Joined to a window: whose, and the way out (she is sitting on it).
-        group {
-            show: chat.attached and not build.on
-            prop chat_letgo.glow = 0 ~140ms
-            ellipse { at: kx0 + 54, ky0 + 24; radius: 3; color: mint }
-            text "{upper(chat.joined)}" { at: kx0 + 64, ky0 + 24; anchor: left center; size: 9.5; weight: 700; color: mint; width: 260; lines: 1 }
-            box { at: kx0 + 450, ky0 + 24; size: 72, 22; corner: 8; color: #2a2b2c; opacity: 70% + 30% * chat_letgo.glow }
-            text "Let go" { at: kx0 + 450, ky0 + 24; anchor: center; size: 10.5; weight: 600; color: ink }
-            zone box chat_letgo_btn { at: kx0 + 450, ky0 + 24; size: 72, 22; corner: 8; cursor: pointer; label: "Let go of the window"; active: chatting and chat.attached and not build.on }
-            on enter chat_letgo_btn { chat_letgo.glow: 1 }
-            on leave chat_letgo_btn { chat_letgo.glow: 0 }
-            on press chat_letgo_btn { emit chat_detach }
-        }
+        text chat.model { at: kx0 + 48, ky0 + 24; anchor: left center; size: 9.5; color: #8b8f95; width: 300; lines: 1; show: not build.on }
         //  Building: what is being made, and its three ways out.
         group {
             show: build.on

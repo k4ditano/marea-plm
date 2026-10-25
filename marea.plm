@@ -99,15 +99,16 @@ scene Marea {
         //  the catcher. Exclusive was tried —so Esc worked without moving the
         //  mouse— and on closing the window below did not get the keyboard
         //  back.
-        //  (`join.shown`: the perch surface's box asks for it on demand too. A scene has ONE
-        //  condition for the keyboard, shared by all its surfaces, and the last surface that
-        //  wrote `while` replaced the others': the perch's `while join.shown` left the finder
-        //  without the keyboard, so every surface that asks for it is said here. `join.settle`
-        //  is the short while after one of the others closes, with her box not asking: pleamar
-        //  lends the keyboard exclusively to a field it focuses (the finder's) for as long as
-        //  the scene wants it, and with the box always wanting it the loan never ended: the
-        //  box held it exclusively and the window under it flickered between the two.)
-        keyboard: on_demand while searching or chatting or menu_open or open or tray_open or reel_open or (join.shown and not join.settle)
+        //  (`ch.shown`: the boxes of her children, on the perch surface, ask for it on demand
+        //  too, any of the four that is shown. A scene has ONE condition for the keyboard, shared
+        //  by all its surfaces, and the last surface that wrote `while` replaced the others': the
+        //  perch's own `while` left the finder without the keyboard, so every surface that asks
+        //  for it is said here, once, and the perch has a plain `keyboard: on_demand`.
+        //  `ch.settle` is the short while after one of the others closes, with the boxes not
+        //  asking: pleamar lends the keyboard exclusively to a field it focuses (the finder's) for
+        //  as long as the scene wants it, and with a box always wanting it the loan never ended:
+        //  the box held it exclusively and the window under it flickered between the two.)
+        keyboard: on_demand while searching or chatting or menu_open or open or tray_open or reel_open or (ch.shown and not ch.settle)
         //  Above everything while something of hers is open —so the catcher
         //  below can take the click outside—, and in its layer the rest of the
         //  time, so a video in full screen still covers her.

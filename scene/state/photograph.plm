@@ -85,6 +85,6 @@ part Photograph {
     on ride_back { away: 0 ~lively; face = eye; purpose = shot }
     //  And if the logic did not answer, she does not stay up there forever.
     //  (Not while she is out on a window: that one is hers to bring back, join.plm.)
-    on still away for 2.5s while away > 0.5 and purpose == shot and join.phase == none { away: 0 ~lively; face = eye }
+    on still away for 2.5s while away > 0.5 and purpose == shot and ch.none { away: 0 ~lively; face = eye }
 
 }

@@ -1,420 +1,361 @@
-// Marea's scene, in pieces: the surface where her child is pulled onto a window and sits on it. marea.plm includes it.
+// Marea's scene, in pieces: the surface where her children are pulled onto windows and sit on them. marea.plm includes it.
 part JoinSurface {
     // ── the surface of the perch ─────────────────────────────────
-    //  The whole monitor, open only while her child is out of her for this: pulled, falling,
-    //  sitting on a window or on its way back. It takes the mouse only where it has zones
-    //  (the child, its box, the little «let go»), so the desktop under it stays the user's.
-    //  Sitting, only the copy on the monitor of the window is open: one transparent surface of
-    //  the size of a monitor costs little, but nothing needs two.
+    //  The whole monitor, open only while a child of hers is out of her for this: pulled, falling,
+    //  sitting on a window or on its way back. It takes the mouse only where it has zones (the
+    //  children, their boxes, their little «let go»), so the desktop under it stays the user's.
+    //  A child sitting opens only the copy on the monitor of its window: one transparent surface of
+    //  the size of a monitor costs little, but nothing needs two. One surface for the four: each
+    //  child is drawn by the same lines (`repeat k in 0..4`), in its own hue.
     //
-    //  She herself does not move: she stays where she lives, drawn by her own surface, and
-    //  what is drawn here is a drop of her water of another colour (violet, as she is mint),
-    //  smaller than she is, joined to her by a thread of the same water until it lands.
+    //  She herself does not move: she stays where she lives, drawn by her own surface, and what is
+    //  drawn here is a drop of her water of another colour (violet, coral, teal, amber, as she is
+    //  mint), smaller than she is, joined to her by a thread of the same water until it lands.
     surface stick {
         size: full, full
         anchor: top_left
         level: overlay
         screens: each max 3
-        open: join.phase != none and not join.hidden and (join.phase != sitting or screen.index == join.screen)
-        //  The keyboard is asked for on demand while the box is shown: a click in the field
-        //  gives it to the child, a click on another window to that one. Never exclusive: it would
-        //  keep his typing from every other window (rules/join.plm). Its condition, `join.shown`,
-        //  is in the main surface's `keyboard: … while` in marea.plm, not here: a scene has only
-        //  one condition for all its surfaces, and a second `while` here replaced the finder's.
+        open: (ch.0.phase != none and not ch.0.hidden and (ch.0.phase != sitting or screen.index == ch.0.screen)) or (ch.1.phase != none and not ch.1.hidden and (ch.1.phase != sitting or screen.index == ch.1.screen)) or (ch.2.phase != none and not ch.2.hidden and (ch.2.phase != sitting or screen.index == ch.2.screen)) or (ch.3.phase != none and not ch.3.hidden and (ch.3.phase != sitting or screen.index == ch.3.screen))
+        //  The keyboard is asked for on demand while a box is shown: a click in the field gives it to
+        //  that child, a click on another window to that one. Never exclusive: it would keep his typing
+        //  from every other window (rules/join.plm). Its condition (`ch.shown`, and `ch.settle`) is in
+        //  the main surface's `keyboard: … while` in marea.plm, not here: a scene has only one
+        //  condition for all its surfaces, and a second `while` here replaced the finder's.
         keyboard: on_demand
-        //  Sitting and not being written to, a breathing ring needs few frames.
-        rate: 60, 30 while join.phase == sitting and not join.busy and not carry.on
+        //  Everything sitting and nobody writing, a breathing ring needs few frames.
+        rate: 60, 30 while ch.calm and ch.working == 0 and not carry.any
 
         //  This copy's corner, in desktop pixels, and everything in its own.
         let mo.x = pick(screen.index, mon.x.0, mon.x.1, mon.x.2)
         let mo.y = pick(screen.index, mon.y.0, mon.y.1, mon.y.2)
-        //  The child, where it is: pulled, on its way, or sitting (`seat`). A fall from above
-        //  is cut at the window: the spring that drops it would carry it through.
-        let st.fy = if(join.phase == falling or join.phase == sitting, if(join.up, max(ball.y, sit.y), min(ball.y, sit.y)), ball.y)
-        let st.x = ball.x + (sit.x - ball.x) * seat - mo.x
-        let st.y = st.fy + (sit.y - st.fy) * seat - mo.y
-        //  How big it is (a good deal smaller than she is, growing a little once it sits).
-        let kd.r = max(23 * kid.k, 0.01)
-        //  Is there a ledge to sit on? With room above the window it sits on its edge
-        //  and has a foot there; at the top of a monitor it is astride it instead.
-        let st.ledge = clamp((sit.y - sit.my - 24) / 10, 0, 1)
-        let join.pu = clamp(pulse, 0, 1)
-        //  Joined, the ring on the window breathes: slow (5 s), and only a fifth of its light.
-        wave join.breath = if(join.phase == sitting, 1, 0) at 1.2
-
-        //  Her, where she lives, in this copy's pixels: the thread is fixed on her.
+        //  Joined, the rings on the windows breathe: slow (5 s), and only a fifth of their light.
+        wave join.breath = if(ch.sit, 1, 0) at 1.2
+        //  Her, where she lives, in this copy's pixels: the threads are fixed on her.
         let hm.x = hm.dx - mo.x
         let hm.y = hm.dy - mo.y
-        let kd.l = max(length(st.x - hm.x, st.y - hm.y), 1)
-        //  Where it leaves her: a little inside her edge, on the side of the child.
-        let rt.x = hm.x + (st.x - hm.x) / kd.l * 23
-        let rt.y = hm.y + (st.y - hm.y) / kd.l * 23
-        //  The tip of the thread: the child, until it breaks; then it flies back into her.
-        let nt.x = st.x + (rt.x - st.x) * retract
-        let nt.y = st.y + (rt.y - st.y) * retract
-        let nt.len = length(nt.x - rt.x, nt.y - rt.y)
-        //  It hangs behind when the child is pulled fast, and bows with its weight.
-        let nc.x = (rt.x + nt.x) / 2 - clamp(vel(ball.x) * 0.045, -90, 90) * (1 - retract)
-        let nc.y = (rt.y + nt.y) / 2 + clamp(nt.len * 0.09, 0, 46) * (1 - retract)
-        //  Thick where it leaves her and where it reaches the child, thin between, and the
-        //  longer it is the thinner: a thread of water, which is how it breaks.
-        let th.keep = clamp(1 - nt.len / 520, 0.3, 1)
-        let th.w0 = 11 * (1 - retract * 0.85) * clamp(kid.bud * 1.5, 0, 1)
-        let th.w1 = max(kd.r * 0.7, 3) * (1 - retract * 0.85)
 
-        //  The thread's points along the curve from her to the child's tip, and how wide it is
-        //  at each.
-        let tp.0x = (1 - (0/32)) * (1 - (0/32)) * rt.x + 2 * (1 - (0/32)) * (0/32) * nc.x + (0/32) * (0/32) * nt.x
-        let tp.0y = (1 - (0/32)) * (1 - (0/32)) * rt.y + 2 * (1 - (0/32)) * (0/32) * nc.y + (0/32) * (0/32) * nt.y
-        let tw.0 = (th.w0 + (th.w1 - th.w0) * (0/32)) * (1 - (1 - th.keep) * 4 * (0/32) * (1 - (0/32)))
-        let tp.1x = (1 - (1/32)) * (1 - (1/32)) * rt.x + 2 * (1 - (1/32)) * (1/32) * nc.x + (1/32) * (1/32) * nt.x
-        let tp.1y = (1 - (1/32)) * (1 - (1/32)) * rt.y + 2 * (1 - (1/32)) * (1/32) * nc.y + (1/32) * (1/32) * nt.y
-        let tw.1 = (th.w0 + (th.w1 - th.w0) * (1/32)) * (1 - (1 - th.keep) * 4 * (1/32) * (1 - (1/32)))
-        let tp.2x = (1 - (2/32)) * (1 - (2/32)) * rt.x + 2 * (1 - (2/32)) * (2/32) * nc.x + (2/32) * (2/32) * nt.x
-        let tp.2y = (1 - (2/32)) * (1 - (2/32)) * rt.y + 2 * (1 - (2/32)) * (2/32) * nc.y + (2/32) * (2/32) * nt.y
-        let tw.2 = (th.w0 + (th.w1 - th.w0) * (2/32)) * (1 - (1 - th.keep) * 4 * (2/32) * (1 - (2/32)))
-        let tp.3x = (1 - (3/32)) * (1 - (3/32)) * rt.x + 2 * (1 - (3/32)) * (3/32) * nc.x + (3/32) * (3/32) * nt.x
-        let tp.3y = (1 - (3/32)) * (1 - (3/32)) * rt.y + 2 * (1 - (3/32)) * (3/32) * nc.y + (3/32) * (3/32) * nt.y
-        let tw.3 = (th.w0 + (th.w1 - th.w0) * (3/32)) * (1 - (1 - th.keep) * 4 * (3/32) * (1 - (3/32)))
-        let tp.4x = (1 - (4/32)) * (1 - (4/32)) * rt.x + 2 * (1 - (4/32)) * (4/32) * nc.x + (4/32) * (4/32) * nt.x
-        let tp.4y = (1 - (4/32)) * (1 - (4/32)) * rt.y + 2 * (1 - (4/32)) * (4/32) * nc.y + (4/32) * (4/32) * nt.y
-        let tw.4 = (th.w0 + (th.w1 - th.w0) * (4/32)) * (1 - (1 - th.keep) * 4 * (4/32) * (1 - (4/32)))
-        let tp.5x = (1 - (5/32)) * (1 - (5/32)) * rt.x + 2 * (1 - (5/32)) * (5/32) * nc.x + (5/32) * (5/32) * nt.x
-        let tp.5y = (1 - (5/32)) * (1 - (5/32)) * rt.y + 2 * (1 - (5/32)) * (5/32) * nc.y + (5/32) * (5/32) * nt.y
-        let tw.5 = (th.w0 + (th.w1 - th.w0) * (5/32)) * (1 - (1 - th.keep) * 4 * (5/32) * (1 - (5/32)))
-        let tp.6x = (1 - (6/32)) * (1 - (6/32)) * rt.x + 2 * (1 - (6/32)) * (6/32) * nc.x + (6/32) * (6/32) * nt.x
-        let tp.6y = (1 - (6/32)) * (1 - (6/32)) * rt.y + 2 * (1 - (6/32)) * (6/32) * nc.y + (6/32) * (6/32) * nt.y
-        let tw.6 = (th.w0 + (th.w1 - th.w0) * (6/32)) * (1 - (1 - th.keep) * 4 * (6/32) * (1 - (6/32)))
-        let tp.7x = (1 - (7/32)) * (1 - (7/32)) * rt.x + 2 * (1 - (7/32)) * (7/32) * nc.x + (7/32) * (7/32) * nt.x
-        let tp.7y = (1 - (7/32)) * (1 - (7/32)) * rt.y + 2 * (1 - (7/32)) * (7/32) * nc.y + (7/32) * (7/32) * nt.y
-        let tw.7 = (th.w0 + (th.w1 - th.w0) * (7/32)) * (1 - (1 - th.keep) * 4 * (7/32) * (1 - (7/32)))
-        let tp.8x = (1 - (8/32)) * (1 - (8/32)) * rt.x + 2 * (1 - (8/32)) * (8/32) * nc.x + (8/32) * (8/32) * nt.x
-        let tp.8y = (1 - (8/32)) * (1 - (8/32)) * rt.y + 2 * (1 - (8/32)) * (8/32) * nc.y + (8/32) * (8/32) * nt.y
-        let tw.8 = (th.w0 + (th.w1 - th.w0) * (8/32)) * (1 - (1 - th.keep) * 4 * (8/32) * (1 - (8/32)))
-        let tp.9x = (1 - (9/32)) * (1 - (9/32)) * rt.x + 2 * (1 - (9/32)) * (9/32) * nc.x + (9/32) * (9/32) * nt.x
-        let tp.9y = (1 - (9/32)) * (1 - (9/32)) * rt.y + 2 * (1 - (9/32)) * (9/32) * nc.y + (9/32) * (9/32) * nt.y
-        let tw.9 = (th.w0 + (th.w1 - th.w0) * (9/32)) * (1 - (1 - th.keep) * 4 * (9/32) * (1 - (9/32)))
-        let tp.10x = (1 - (10/32)) * (1 - (10/32)) * rt.x + 2 * (1 - (10/32)) * (10/32) * nc.x + (10/32) * (10/32) * nt.x
-        let tp.10y = (1 - (10/32)) * (1 - (10/32)) * rt.y + 2 * (1 - (10/32)) * (10/32) * nc.y + (10/32) * (10/32) * nt.y
-        let tw.10 = (th.w0 + (th.w1 - th.w0) * (10/32)) * (1 - (1 - th.keep) * 4 * (10/32) * (1 - (10/32)))
-        let tp.11x = (1 - (11/32)) * (1 - (11/32)) * rt.x + 2 * (1 - (11/32)) * (11/32) * nc.x + (11/32) * (11/32) * nt.x
-        let tp.11y = (1 - (11/32)) * (1 - (11/32)) * rt.y + 2 * (1 - (11/32)) * (11/32) * nc.y + (11/32) * (11/32) * nt.y
-        let tw.11 = (th.w0 + (th.w1 - th.w0) * (11/32)) * (1 - (1 - th.keep) * 4 * (11/32) * (1 - (11/32)))
-        let tp.12x = (1 - (12/32)) * (1 - (12/32)) * rt.x + 2 * (1 - (12/32)) * (12/32) * nc.x + (12/32) * (12/32) * nt.x
-        let tp.12y = (1 - (12/32)) * (1 - (12/32)) * rt.y + 2 * (1 - (12/32)) * (12/32) * nc.y + (12/32) * (12/32) * nt.y
-        let tw.12 = (th.w0 + (th.w1 - th.w0) * (12/32)) * (1 - (1 - th.keep) * 4 * (12/32) * (1 - (12/32)))
-        let tp.13x = (1 - (13/32)) * (1 - (13/32)) * rt.x + 2 * (1 - (13/32)) * (13/32) * nc.x + (13/32) * (13/32) * nt.x
-        let tp.13y = (1 - (13/32)) * (1 - (13/32)) * rt.y + 2 * (1 - (13/32)) * (13/32) * nc.y + (13/32) * (13/32) * nt.y
-        let tw.13 = (th.w0 + (th.w1 - th.w0) * (13/32)) * (1 - (1 - th.keep) * 4 * (13/32) * (1 - (13/32)))
-        let tp.14x = (1 - (14/32)) * (1 - (14/32)) * rt.x + 2 * (1 - (14/32)) * (14/32) * nc.x + (14/32) * (14/32) * nt.x
-        let tp.14y = (1 - (14/32)) * (1 - (14/32)) * rt.y + 2 * (1 - (14/32)) * (14/32) * nc.y + (14/32) * (14/32) * nt.y
-        let tw.14 = (th.w0 + (th.w1 - th.w0) * (14/32)) * (1 - (1 - th.keep) * 4 * (14/32) * (1 - (14/32)))
-        let tp.15x = (1 - (15/32)) * (1 - (15/32)) * rt.x + 2 * (1 - (15/32)) * (15/32) * nc.x + (15/32) * (15/32) * nt.x
-        let tp.15y = (1 - (15/32)) * (1 - (15/32)) * rt.y + 2 * (1 - (15/32)) * (15/32) * nc.y + (15/32) * (15/32) * nt.y
-        let tw.15 = (th.w0 + (th.w1 - th.w0) * (15/32)) * (1 - (1 - th.keep) * 4 * (15/32) * (1 - (15/32)))
-        let tp.16x = (1 - (16/32)) * (1 - (16/32)) * rt.x + 2 * (1 - (16/32)) * (16/32) * nc.x + (16/32) * (16/32) * nt.x
-        let tp.16y = (1 - (16/32)) * (1 - (16/32)) * rt.y + 2 * (1 - (16/32)) * (16/32) * nc.y + (16/32) * (16/32) * nt.y
-        let tw.16 = (th.w0 + (th.w1 - th.w0) * (16/32)) * (1 - (1 - th.keep) * 4 * (16/32) * (1 - (16/32)))
-        let tp.17x = (1 - (17/32)) * (1 - (17/32)) * rt.x + 2 * (1 - (17/32)) * (17/32) * nc.x + (17/32) * (17/32) * nt.x
-        let tp.17y = (1 - (17/32)) * (1 - (17/32)) * rt.y + 2 * (1 - (17/32)) * (17/32) * nc.y + (17/32) * (17/32) * nt.y
-        let tw.17 = (th.w0 + (th.w1 - th.w0) * (17/32)) * (1 - (1 - th.keep) * 4 * (17/32) * (1 - (17/32)))
-        let tp.18x = (1 - (18/32)) * (1 - (18/32)) * rt.x + 2 * (1 - (18/32)) * (18/32) * nc.x + (18/32) * (18/32) * nt.x
-        let tp.18y = (1 - (18/32)) * (1 - (18/32)) * rt.y + 2 * (1 - (18/32)) * (18/32) * nc.y + (18/32) * (18/32) * nt.y
-        let tw.18 = (th.w0 + (th.w1 - th.w0) * (18/32)) * (1 - (1 - th.keep) * 4 * (18/32) * (1 - (18/32)))
-        let tp.19x = (1 - (19/32)) * (1 - (19/32)) * rt.x + 2 * (1 - (19/32)) * (19/32) * nc.x + (19/32) * (19/32) * nt.x
-        let tp.19y = (1 - (19/32)) * (1 - (19/32)) * rt.y + 2 * (1 - (19/32)) * (19/32) * nc.y + (19/32) * (19/32) * nt.y
-        let tw.19 = (th.w0 + (th.w1 - th.w0) * (19/32)) * (1 - (1 - th.keep) * 4 * (19/32) * (1 - (19/32)))
-        let tp.20x = (1 - (20/32)) * (1 - (20/32)) * rt.x + 2 * (1 - (20/32)) * (20/32) * nc.x + (20/32) * (20/32) * nt.x
-        let tp.20y = (1 - (20/32)) * (1 - (20/32)) * rt.y + 2 * (1 - (20/32)) * (20/32) * nc.y + (20/32) * (20/32) * nt.y
-        let tw.20 = (th.w0 + (th.w1 - th.w0) * (20/32)) * (1 - (1 - th.keep) * 4 * (20/32) * (1 - (20/32)))
-        let tp.21x = (1 - (21/32)) * (1 - (21/32)) * rt.x + 2 * (1 - (21/32)) * (21/32) * nc.x + (21/32) * (21/32) * nt.x
-        let tp.21y = (1 - (21/32)) * (1 - (21/32)) * rt.y + 2 * (1 - (21/32)) * (21/32) * nc.y + (21/32) * (21/32) * nt.y
-        let tw.21 = (th.w0 + (th.w1 - th.w0) * (21/32)) * (1 - (1 - th.keep) * 4 * (21/32) * (1 - (21/32)))
-        let tp.22x = (1 - (22/32)) * (1 - (22/32)) * rt.x + 2 * (1 - (22/32)) * (22/32) * nc.x + (22/32) * (22/32) * nt.x
-        let tp.22y = (1 - (22/32)) * (1 - (22/32)) * rt.y + 2 * (1 - (22/32)) * (22/32) * nc.y + (22/32) * (22/32) * nt.y
-        let tw.22 = (th.w0 + (th.w1 - th.w0) * (22/32)) * (1 - (1 - th.keep) * 4 * (22/32) * (1 - (22/32)))
-        let tp.23x = (1 - (23/32)) * (1 - (23/32)) * rt.x + 2 * (1 - (23/32)) * (23/32) * nc.x + (23/32) * (23/32) * nt.x
-        let tp.23y = (1 - (23/32)) * (1 - (23/32)) * rt.y + 2 * (1 - (23/32)) * (23/32) * nc.y + (23/32) * (23/32) * nt.y
-        let tw.23 = (th.w0 + (th.w1 - th.w0) * (23/32)) * (1 - (1 - th.keep) * 4 * (23/32) * (1 - (23/32)))
-        let tp.24x = (1 - (24/32)) * (1 - (24/32)) * rt.x + 2 * (1 - (24/32)) * (24/32) * nc.x + (24/32) * (24/32) * nt.x
-        let tp.24y = (1 - (24/32)) * (1 - (24/32)) * rt.y + 2 * (1 - (24/32)) * (24/32) * nc.y + (24/32) * (24/32) * nt.y
-        let tw.24 = (th.w0 + (th.w1 - th.w0) * (24/32)) * (1 - (1 - th.keep) * 4 * (24/32) * (1 - (24/32)))
-        let tp.25x = (1 - (25/32)) * (1 - (25/32)) * rt.x + 2 * (1 - (25/32)) * (25/32) * nc.x + (25/32) * (25/32) * nt.x
-        let tp.25y = (1 - (25/32)) * (1 - (25/32)) * rt.y + 2 * (1 - (25/32)) * (25/32) * nc.y + (25/32) * (25/32) * nt.y
-        let tw.25 = (th.w0 + (th.w1 - th.w0) * (25/32)) * (1 - (1 - th.keep) * 4 * (25/32) * (1 - (25/32)))
-        let tp.26x = (1 - (26/32)) * (1 - (26/32)) * rt.x + 2 * (1 - (26/32)) * (26/32) * nc.x + (26/32) * (26/32) * nt.x
-        let tp.26y = (1 - (26/32)) * (1 - (26/32)) * rt.y + 2 * (1 - (26/32)) * (26/32) * nc.y + (26/32) * (26/32) * nt.y
-        let tw.26 = (th.w0 + (th.w1 - th.w0) * (26/32)) * (1 - (1 - th.keep) * 4 * (26/32) * (1 - (26/32)))
-        let tp.27x = (1 - (27/32)) * (1 - (27/32)) * rt.x + 2 * (1 - (27/32)) * (27/32) * nc.x + (27/32) * (27/32) * nt.x
-        let tp.27y = (1 - (27/32)) * (1 - (27/32)) * rt.y + 2 * (1 - (27/32)) * (27/32) * nc.y + (27/32) * (27/32) * nt.y
-        let tw.27 = (th.w0 + (th.w1 - th.w0) * (27/32)) * (1 - (1 - th.keep) * 4 * (27/32) * (1 - (27/32)))
-        let tp.28x = (1 - (28/32)) * (1 - (28/32)) * rt.x + 2 * (1 - (28/32)) * (28/32) * nc.x + (28/32) * (28/32) * nt.x
-        let tp.28y = (1 - (28/32)) * (1 - (28/32)) * rt.y + 2 * (1 - (28/32)) * (28/32) * nc.y + (28/32) * (28/32) * nt.y
-        let tw.28 = (th.w0 + (th.w1 - th.w0) * (28/32)) * (1 - (1 - th.keep) * 4 * (28/32) * (1 - (28/32)))
-        let tp.29x = (1 - (29/32)) * (1 - (29/32)) * rt.x + 2 * (1 - (29/32)) * (29/32) * nc.x + (29/32) * (29/32) * nt.x
-        let tp.29y = (1 - (29/32)) * (1 - (29/32)) * rt.y + 2 * (1 - (29/32)) * (29/32) * nc.y + (29/32) * (29/32) * nt.y
-        let tw.29 = (th.w0 + (th.w1 - th.w0) * (29/32)) * (1 - (1 - th.keep) * 4 * (29/32) * (1 - (29/32)))
-        let tp.30x = (1 - (30/32)) * (1 - (30/32)) * rt.x + 2 * (1 - (30/32)) * (30/32) * nc.x + (30/32) * (30/32) * nt.x
-        let tp.30y = (1 - (30/32)) * (1 - (30/32)) * rt.y + 2 * (1 - (30/32)) * (30/32) * nc.y + (30/32) * (30/32) * nt.y
-        let tw.30 = (th.w0 + (th.w1 - th.w0) * (30/32)) * (1 - (1 - th.keep) * 4 * (30/32) * (1 - (30/32)))
-        let tp.31x = (1 - (31/32)) * (1 - (31/32)) * rt.x + 2 * (1 - (31/32)) * (31/32) * nc.x + (31/32) * (31/32) * nt.x
-        let tp.31y = (1 - (31/32)) * (1 - (31/32)) * rt.y + 2 * (1 - (31/32)) * (31/32) * nc.y + (31/32) * (31/32) * nt.y
-        let tw.31 = (th.w0 + (th.w1 - th.w0) * (31/32)) * (1 - (1 - th.keep) * 4 * (31/32) * (1 - (31/32)))
-        let tp.32x = (1 - (32/32)) * (1 - (32/32)) * rt.x + 2 * (1 - (32/32)) * (32/32) * nc.x + (32/32) * (32/32) * nt.x
-        let tp.32y = (1 - (32/32)) * (1 - (32/32)) * rt.y + 2 * (1 - (32/32)) * (32/32) * nc.y + (32/32) * (32/32) * nt.y
-        let tw.32 = (th.w0 + (th.w1 - th.w0) * (32/32)) * (1 - (1 - th.keep) * 4 * (32/32) * (1 - (32/32)))
-
-        //  The box: 450 wide, on the side of the child with room for it, as tall as a line of
-        //  15 px with air; it breathes a little while the child is idle. `pl.c.l` is where
-        //  what is in it begins, clear of the child, and `jb.x` the send button at its far end.
-        let pl.w0 = min(450, stick.width - 80)
-        let pl.h = 32 * (1 + 0.03 * join.breath * clamp(pill, 0, 1))
-        //  Inside its window: the box never leaves the window it works in, nor the screen. The
-        //  window's edges in this copy's own pixels, and the room each side of the child has.
-        let win.l = pb.x - mo.x
-        let win.r = pb.x + pb.w - mo.x
-        let pl.room.r = min(win.r, stick.width) - 10 - (st.x + kd.r - 4)
-        let pl.room.l = (st.x - kd.r + 4) - max(win.l, 0) - 10
-        let pl.fit.r = pl.room.r >= pl.w0
-        let pl.fit.l = pl.room.l >= pl.w0
-        //  Where the box goes: to the right if it fits in the window, unless it would cover her where
-        //  she lives (then to the left, if it fits there); if neither fits whole, to the side with
-        //  more room, and shorter.
-        let pl.cover = st.y < hm.y + 44 and st.x - 10 < hm.x + 42 and st.x + kd.r + pl.w0 > hm.x - 42
-        let pl.side = if(pl.fit.r and not (pl.cover and pl.fit.l), 1, if(pl.fit.l, -1, if(pl.room.r >= pl.room.l, 1, -1)))
-        let pl.w = clamp(if(pl.side > 0, pl.room.r, pl.room.l), 170, pl.w0)
-        let pl.cx = st.x + pl.side * (kd.r - 4 + pl.w * pill / 2)
-        let jb.x = st.x + pl.side * (kd.r - 4 + pl.w - 17)
-        let pl.c.l = if(pl.side > 0, st.x + kd.r + 9, jb.x + 22)
-        let pl.fw = if(pl.side > 0, jb.x - 22 - pl.c.l, st.x - kd.r - 9 - pl.c.l)
-        //  The squash of the child when the box opens (the spring of the box leads it).
-        let st.sq = clamp(vel(pill) * 0.03, -0.12, 0.12)
-        //  Where it looks: down when it is pulled, at its box when it sits.
-        let st.gx = if(join.phase == sitting, pl.side * 4 * clamp(pill * 2, 0, 1), clamp(vel(ball.x) * 0.004, -3.5, 3.5))
-        let st.gy = if(join.phase == sitting, 0, 3)
-        //  What it answered, hanging under the box like a drop: how formed it is, and how
-        //  many of its letters have come (they rise out of the water, as in the chat).
-        measure jsaid
-        let bub.w = pl.w - 30
-        let bub.t = st.y + pl.h / 2 + 9
-        let bub.h = jsaid.height + 28
-        let bub.x = pl.cx - pl.side * 6
-        //  Whose window it is, in a tab on the ring that the window has: «Kitty» and the
-        //  way out. It sits on the other side of the child from the box, or past the end of it.
-        measure jname
-        let tb.w = jname.width + 62
-        let tb.room = st.x - kd.r - 12 - tb.w > max(win.l, 0) + 6
-        let tb.cx0 = if(pl.side > 0, if(tb.room, st.x - kd.r - 12 - tb.w / 2, pl.cx + pl.w * clamp(pill, 0, 1) / 2 + 12 + tb.w / 2), st.x + kd.r + 12 + tb.w / 2)
-        //  (And the tab stays on the window's ring, not past its end.)
-        let tb.cx = clamp(tb.cx0, win.l + tb.w / 2 + 6, max(win.r - tb.w / 2 - 6, win.l + tb.w / 2 + 6))
-        let tb.cy = max(pb.y - mo.y, 17)
-        zone box pill_zone { at: pl.cx, st.y; size: pl.w * pill, pl.h; corner: 16; cursor: text; label: "Tell her what to do in this window"; active: join.phase == sitting and pill > 0.7 and not join.busy }
-
-        //  The windows first, so the child is over their edge: the one under it while it
-        //  is pulled, and the one it has joined (the same ring).
+        //  The window under the child that is pulled lights up and says its name, in its hue.
+        let hv.k = if(ch.0.phase == held, 0, if(ch.1.phase == held, 1, if(ch.2.phase == held, 2, 3)))
+        let hv.l = mix(mix(mix(kid, kid1, hv.k == 1), kid2, hv.k == 2), kid3, hv.k == 3)
         group {
             show: hov.a > 0.01
             opacity: hov.a
-            box { at: hov.x - mo.x + hov.w / 2, hov.y - mo.y + hov.h / 2; size: hov.w + 8, hov.h + 8; corner: 18; color: kid; opacity: 8% }
+            box { at: hov.x - mo.x + hov.w / 2, hov.y - mo.y + hov.h / 2; size: hov.w + 8, hov.h + 8; corner: 18; color: hv.l; opacity: 8% }
             group {
-                glow: 9, 80%, kid
-                box { at: hov.x - mo.x + hov.w / 2, hov.y - mo.y + hov.h / 2; size: hov.w + 6, hov.h + 6; corner: 17; stroke: 2.2; color: kid; opacity: 90% }
+                glow: 9, 80%, hv.l
+                box { at: hov.x - mo.x + hov.w / 2, hov.y - mo.y + hov.h / 2; size: hov.w + 6, hov.h + 6; corner: 17; stroke: 2.2; color: hv.l; opacity: 90% }
             }
-        }
-        group {
-            show: join.a > 0.01
-            opacity: join.a
-            box { at: pb.x - mo.x + pb.w / 2, pb.y - mo.y + pb.h / 2; size: pb.w + 6, pb.h + 6; corner: 17; color: kid; opacity: 4% + 1.5% * join.breath }
-            group {
-                glow: 8, 55% + 15% * join.breath, kid
-                box { at: pb.x - mo.x + pb.w / 2, pb.y - mo.y + pb.h / 2; size: pb.w + 6, pb.h + 6; corner: 17; stroke: 2.2; color: kid; opacity: 82% + 12% * join.breath }
-            }
-            //  Where it landed, the ring runs out along the edge once.
-            box { at: pb.x - mo.x + pb.w / 2, pb.y - mo.y + pb.h / 2
-                  size: pb.w + 6 + 90 * join.pu, pb.h + 6 + 90 * join.pu; corner: 17 + 45 * join.pu; stroke: 2.2; color: kid
-                  opacity: 70% * (1 - join.pu) * (1 - join.pu) }
-        }
-        //  Where it touches the window's edge: a soft light on it and a dark point under
-        //  it, so it is sitting on it and not floating over it.
-        group {
-            show: seat > 0.05 and st.ledge > 0.05
-            opacity: seat * st.ledge
-            ellipse { at: st.x, pb.y - mo.y + 1; radius: 56; scale: 1, 0.11; color: kid; opacity: 34% }
-            ellipse { at: st.x, pb.y - mo.y + 3; radius: 22; scale: 1, 0.13; color: #05070a; opacity: 55% }
         }
 
-        //  The tab on the ring: a swelling of the window's own edge that says whose it is.
-        group {
-            opacity: clamp(pill * 3 - 2, 0, 1)
-            show: pill > 0.7
-            prop letgo.glow = 0 ~140ms
-            body {
-                gradient: 0, tb.cy - 13 to 0, tb.cy + 13, kid.bot, kid.deep
-                rim: 26%
-                shadow: 0, 3, 10, 34%, kid.deep
-                box { at: tb.cx, tb.cy; size: tb.w, 26; corner: 13 }
-            }
-            box { at: tb.cx, tb.cy; size: tb.w, 26; corner: 13; stroke: 1.3; color: kid; opacity: 70% + 14% * join.breath }
-            ellipse { at: tb.cx - tb.w / 2 + 15, tb.cy; radius: 3.4; color: kid }
-            text join.name { at: tb.cx - tb.w / 2 + 26, tb.cy; anchor: left center; size: 13; weight: 600; color: #f4f1ff; opacity: 1 - letgo.glow; measure: jname }
-            text "Let go" { at: tb.cx - tb.w / 2 + 26, tb.cy; anchor: left center; size: 13; weight: 600; color: kid; opacity: letgo.glow }
-            ellipse { at: tb.cx + tb.w / 2 - 16, tb.cy; radius: 9.5; color: #ffffff; opacity: 10% + 16% * letgo.glow }
-            line { from: tb.cx + tb.w / 2 - 19.5, tb.cy - 3.5; to: tb.cx + tb.w / 2 - 12.5, tb.cy + 3.5; width: 1.7; color: #f4f1ff; opacity: 70% + 30% * letgo.glow }
-            line { from: tb.cx + tb.w / 2 - 19.5, tb.cy + 3.5; to: tb.cx + tb.w / 2 - 12.5, tb.cy - 3.5; width: 1.7; color: #f4f1ff; opacity: 70% + 30% * letgo.glow }
-            zone ellipse letgo_btn { at: tb.cx + tb.w / 2 - 16, tb.cy; radius: 13; cursor: pointer; label: "Let go of the window"; active: join.phase == sitting and pill > 0.7 }
-            on enter letgo_btn { letgo.glow: 1 }
-            on leave letgo_btn { letgo.glow: 0 }
-            on press letgo_btn { emit chat_detach }
-        }
+        repeat k in 0..4 {
+            //  ── its hue ──
+            let c.l = mix(mix(mix(kid, kid1, k == 1), kid2, k == 2), kid3, k == 3)
+            let c.top = mix(mix(mix(kid.top, kid1.top, k == 1), kid2.top, k == 2), kid3.top, k == 3)
+            let c.bot = mix(mix(mix(kid.bot, kid1.bot, k == 1), kid2.bot, k == 2), kid3.bot, k == 3)
+            let c.deep = mix(mix(mix(kid.deep, kid1.deep, k == 1), kid2.deep, k == 2), kid3.deep, k == 3)
+            let c.mid = mix(mix(mix(kid.mid, kid1.mid, k == 1), kid2.mid, k == 2), kid3.mid, k == 3)
+            let c.ink = mix(mix(mix(kid.ink, kid1.ink, k == 1), kid2.ink, k == 2), kid3.ink, k == 3)
+            let c.sel = mix(mix(mix(kid.sel, kid1.sel, k == 1), kid2.sel, k == 2), kid3.sel, k == 3)
+            //  It is working (the box says what).
+            let bz = ch.$k.state == thinking or ch.$k.state == acting or ch.$k.state == awaiting or ch.$k.state == starting
 
-        //  Her child: a bud on her, the thread, the ball, the box that grows from it and the
-        //  drop of its answer hanging from the box: one body of water, with a waist where
-        //  the box leaves the ball. A halo of its own violet and a bright thin rim, so it
-        //  reads over a dark window and over a light one.
-        group {
-        glow: 8, 36%, kid
-        body {
-            gradient: 0, st.y - 26 to 0, st.y + 26, kid.top, kid.bot
-            rim: 32%
-            glass: glassiness
-            lens: bends
-            tint: 75%
-            shadow: 0, 3, 12, 34%, kid.deep
-            //  The bud on her, which the thread comes out of.
-            ellipse { at: rt.x, rt.y; radius: max(5.5 * (1 - retract) * clamp(kid.bud * 1.5, 0, 1), 0.01); blend: 12 }
-            //  The thread: 32 capsules along the curve, each as wide as the middle of its
-            //  span; their round ends hide the joins.
-            line { from: tp.0x, tp.0y; to: tp.1x, tp.1y; width: max((tw.0 + tw.1) / 2, 2.2); blend: 2; show: retract < 0.97 }
-            line { from: tp.1x, tp.1y; to: tp.2x, tp.2y; width: max((tw.1 + tw.2) / 2, 2.2); blend: 2; show: retract < 0.97 }
-            line { from: tp.2x, tp.2y; to: tp.3x, tp.3y; width: max((tw.2 + tw.3) / 2, 2.2); blend: 2; show: retract < 0.97 }
-            line { from: tp.3x, tp.3y; to: tp.4x, tp.4y; width: max((tw.3 + tw.4) / 2, 2.2); blend: 2; show: retract < 0.97 }
-            line { from: tp.4x, tp.4y; to: tp.5x, tp.5y; width: max((tw.4 + tw.5) / 2, 2.2); blend: 2; show: retract < 0.97 }
-            line { from: tp.5x, tp.5y; to: tp.6x, tp.6y; width: max((tw.5 + tw.6) / 2, 2.2); blend: 2; show: retract < 0.97 }
-            line { from: tp.6x, tp.6y; to: tp.7x, tp.7y; width: max((tw.6 + tw.7) / 2, 2.2); blend: 2; show: retract < 0.97 }
-            line { from: tp.7x, tp.7y; to: tp.8x, tp.8y; width: max((tw.7 + tw.8) / 2, 2.2); blend: 2; show: retract < 0.97 }
-            line { from: tp.8x, tp.8y; to: tp.9x, tp.9y; width: max((tw.8 + tw.9) / 2, 2.2); blend: 2; show: retract < 0.97 }
-            line { from: tp.9x, tp.9y; to: tp.10x, tp.10y; width: max((tw.9 + tw.10) / 2, 2.2); blend: 2; show: retract < 0.97 }
-            line { from: tp.10x, tp.10y; to: tp.11x, tp.11y; width: max((tw.10 + tw.11) / 2, 2.2); blend: 2; show: retract < 0.97 }
-            line { from: tp.11x, tp.11y; to: tp.12x, tp.12y; width: max((tw.11 + tw.12) / 2, 2.2); blend: 2; show: retract < 0.97 }
-            line { from: tp.12x, tp.12y; to: tp.13x, tp.13y; width: max((tw.12 + tw.13) / 2, 2.2); blend: 2; show: retract < 0.97 }
-            line { from: tp.13x, tp.13y; to: tp.14x, tp.14y; width: max((tw.13 + tw.14) / 2, 2.2); blend: 2; show: retract < 0.97 }
-            line { from: tp.14x, tp.14y; to: tp.15x, tp.15y; width: max((tw.14 + tw.15) / 2, 2.2); blend: 2; show: retract < 0.97 }
-            line { from: tp.15x, tp.15y; to: tp.16x, tp.16y; width: max((tw.15 + tw.16) / 2, 2.2); blend: 2; show: retract < 0.97 }
-            line { from: tp.16x, tp.16y; to: tp.17x, tp.17y; width: max((tw.16 + tw.17) / 2, 2.2); blend: 2; show: retract < 0.97 }
-            line { from: tp.17x, tp.17y; to: tp.18x, tp.18y; width: max((tw.17 + tw.18) / 2, 2.2); blend: 2; show: retract < 0.97 }
-            line { from: tp.18x, tp.18y; to: tp.19x, tp.19y; width: max((tw.18 + tw.19) / 2, 2.2); blend: 2; show: retract < 0.97 }
-            line { from: tp.19x, tp.19y; to: tp.20x, tp.20y; width: max((tw.19 + tw.20) / 2, 2.2); blend: 2; show: retract < 0.97 }
-            line { from: tp.20x, tp.20y; to: tp.21x, tp.21y; width: max((tw.20 + tw.21) / 2, 2.2); blend: 2; show: retract < 0.97 }
-            line { from: tp.21x, tp.21y; to: tp.22x, tp.22y; width: max((tw.21 + tw.22) / 2, 2.2); blend: 2; show: retract < 0.97 }
-            line { from: tp.22x, tp.22y; to: tp.23x, tp.23y; width: max((tw.22 + tw.23) / 2, 2.2); blend: 2; show: retract < 0.97 }
-            line { from: tp.23x, tp.23y; to: tp.24x, tp.24y; width: max((tw.23 + tw.24) / 2, 2.2); blend: 2; show: retract < 0.97 }
-            line { from: tp.24x, tp.24y; to: tp.25x, tp.25y; width: max((tw.24 + tw.25) / 2, 2.2); blend: 2; show: retract < 0.97 }
-            line { from: tp.25x, tp.25y; to: tp.26x, tp.26y; width: max((tw.25 + tw.26) / 2, 2.2); blend: 2; show: retract < 0.97 }
-            line { from: tp.26x, tp.26y; to: tp.27x, tp.27y; width: max((tw.26 + tw.27) / 2, 2.2); blend: 2; show: retract < 0.97 }
-            line { from: tp.27x, tp.27y; to: tp.28x, tp.28y; width: max((tw.27 + tw.28) / 2, 2.2); blend: 2; show: retract < 0.97 }
-            line { from: tp.28x, tp.28y; to: tp.29x, tp.29y; width: max((tw.28 + tw.29) / 2, 2.2); blend: 2; show: retract < 0.97 }
-            line { from: tp.29x, tp.29y; to: tp.30x, tp.30y; width: max((tw.29 + tw.30) / 2, 2.2); blend: 2; show: retract < 0.97 }
-            line { from: tp.30x, tp.30y; to: tp.31x, tp.31y; width: max((tw.30 + tw.31) / 2, 2.2); blend: 2; show: retract < 0.97 }
-            line { from: tp.31x, tp.31y; to: tp.32x, tp.32y; width: max((tw.31 + tw.32) / 2, 2.2); blend: 2; show: retract < 0.97 }
-            ellipse {
-                at: st.x, st.y
-                radius: kd.r
-                scale: (sx + st.sq) * (1 - join.stretch * 0.5), (sy - st.sq) * (1 + join.stretch)
-                blend: 16
+            //  ── where it is ──
+            //  Where it sits: along the top edge of its window, where it was let go (the window's
+            //  frame is followed by springs, `px…`): the same lines as in scene/rules/join.plm.
+            let k.my = pick(ch.$k.screen, mon.y.0, mon.y.1, mon.y.2)
+            let k.sdx0 = clamp(ch.$k.dx, 34, max(ch.$k.pw - 34, 34))
+            let k.sdx = if(k.sdx0 >= 480 or ch.$k.pw - k.sdx0 >= 480, k.sdx0, 34)
+            let k.sx = ch.$k.px + k.sdx
+            let k.sy = k.my + max(ch.$k.py - k.my - 22, 24)
+            //  The child, where it is: pulled, on its way, or sitting (`seat`). A fall from above
+            //  is cut at the window: the spring that drops it would carry it through.
+            let st.fy = if(ch.$k.phase == falling or ch.$k.phase == sitting, if(ch.$k.up, max(ch.$k.by, k.sy), min(ch.$k.by, k.sy)), ch.$k.by)
+            let st.x = ch.$k.bx + (k.sx - ch.$k.bx) * ch.$k.seat - mo.x
+            let st.y = st.fy + (k.sy - st.fy) * ch.$k.seat - mo.y
+            //  How big it is (a little under three quarters of her once it sits; a good deal smaller
+            //  while it forms), and how fast it falls, which is what stretches it, as in the journey.
+            let kk = (0.64 + 0.2 * ch.$k.seat) * ch.$k.bud
+            let kd.r = max(23 * kk, 0.01)
+            let st.stretch = clamp(vel(ch.$k.by) * 0.00028, 0, 0.3)
+            //  Is there a ledge to sit on? With room above the window it sits on its edge
+            //  and has a foot there; at the top of a monitor it is astride it instead.
+            let st.ledge = clamp((k.sy - k.my - 24) / 10, 0, 1)
+            let pu = clamp(ch.$k.pulse, 0, 1)
+
+            //  ── the thread ──
+            let th.ret = ch.$k.retract
+            let kd.l = max(length(st.x - hm.x, st.y - hm.y), 1)
+            //  Where it leaves her: a little inside her edge, on the side of the child.
+            let rt.x = hm.x + (st.x - hm.x) / kd.l * 23
+            let rt.y = hm.y + (st.y - hm.y) / kd.l * 23
+            //  The tip of the thread: the child, until it breaks; then it flies back into her.
+            let nt.x = st.x + (rt.x - st.x) * th.ret
+            let nt.y = st.y + (rt.y - st.y) * th.ret
+            let nt.len = length(nt.x - rt.x, nt.y - rt.y)
+            //  It hangs behind when the child is pulled fast, and bows with its weight.
+            let nc.x = (rt.x + nt.x) / 2 - clamp(vel(ch.$k.bx) * 0.045, -90, 90) * (1 - th.ret)
+            let nc.y = (rt.y + nt.y) / 2 + clamp(nt.len * 0.09, 0, 46) * (1 - th.ret)
+            //  Thick where it leaves her and where it reaches the child, thin between, and the
+            //  longer it is the thinner: a thread of water, which is how it breaks.
+            let th.keep = clamp(1 - nt.len / 520, 0.3, 1)
+            let th.w0 = 11 * (1 - th.ret * 0.85) * clamp(ch.$k.bud * 1.5, 0, 1)
+            let th.w1 = max(kd.r * 0.7, 3) * (1 - th.ret * 0.85)
+
+            //  ── its box ──
+            //  The box: 450 wide, on the side of the child with room for it, as tall as a line of
+            //  15 px with air; it breathes a little while the child is idle. `pl.c.l` is where
+            //  what is in it begins, clear of the child, and `jb.x` the send button at its far end.
+            let pl.w0 = min(450, stick.width - 80)
+            let pl.h = 32 * (1 + 0.03 * join.breath * clamp(ch.$k.pill, 0, 1))
+            //  Inside its window: the box never leaves the window it works in, nor the screen. The
+            //  window's edges in this copy's own pixels, and the room each side of the child has.
+            let win.l = ch.$k.px - mo.x
+            let win.r = ch.$k.px + ch.$k.pw - mo.x
+            let pl.room.r = min(win.r, stick.width) - 10 - (st.x + kd.r - 4)
+            let pl.room.l = (st.x - kd.r + 4) - max(win.l, 0) - 10
+            let pl.fit.r = pl.room.r >= pl.w0
+            let pl.fit.l = pl.room.l >= pl.w0
+            //  Where the box goes: to the right if it fits in the window, unless it would cover her where
+            //  she lives (then to the left, if it fits there); if neither fits whole, to the side with
+            //  more room, and shorter.
+            let pl.cover = st.y < hm.y + 44 and st.x - 10 < hm.x + 42 and st.x + kd.r + pl.w0 > hm.x - 42
+            let pl.side = if(pl.fit.r and not (pl.cover and pl.fit.l), 1, if(pl.fit.l, -1, if(pl.room.r >= pl.room.l, 1, -1)))
+            let pl.w = clamp(if(pl.side > 0, pl.room.r, pl.room.l), 170, pl.w0)
+            let pl.cx = st.x + pl.side * (kd.r - 4 + pl.w * ch.$k.pill / 2)
+            let jb.x = st.x + pl.side * (kd.r - 4 + pl.w - 17)
+            let pl.c.l = if(pl.side > 0, st.x + kd.r + 9, jb.x + 22)
+            let pl.fw = if(pl.side > 0, jb.x - 22 - pl.c.l, st.x - kd.r - 9 - pl.c.l)
+            //  The squash of the child when the box opens (the spring of the box leads it).
+            let st.sq = clamp(vel(ch.$k.pill) * 0.03, -0.12, 0.12)
+            //  Where it looks: down when it is pulled, at its box when it sits.
+            let st.gx = if(ch.$k.phase == sitting, pl.side * 4 * clamp(ch.$k.pill * 2, 0, 1), clamp(vel(ch.$k.bx) * 0.004, -3.5, 3.5))
+            let st.gy = if(ch.$k.phase == sitting, 0, 3)
+            //  What it answered, hanging under the box like a drop: how formed it is, and how
+            //  many of its letters have come (they rise out of the water, as in the chat).
+            measure jsaid.$k
+            let bub.w = pl.w - 30
+            let bub.t = st.y + pl.h / 2 + 9
+            let bub.h = jsaid.$k.height + 28
+            let bub.x = pl.cx - pl.side * 6
+            //  Whose window it is, in a tab on the ring that the window has: «Kitty» and the
+            //  way out. It sits on the other side of the child from the box, or past the end of it.
+            measure jname.$k
+            let tb.w = jname.$k.width + 62
+            let tb.room = st.x - kd.r - 12 - tb.w > max(win.l, 0) + 6
+            let tb.cx0 = if(pl.side > 0, if(tb.room, st.x - kd.r - 12 - tb.w / 2, pl.cx + pl.w * clamp(ch.$k.pill, 0, 1) / 2 + 12 + tb.w / 2), st.x + kd.r + 12 + tb.w / 2)
+            //  (And the tab stays on the window's ring, not past its end.)
+            let tb.cx = clamp(tb.cx0, win.l + tb.w / 2 + 6, max(win.r - tb.w / 2 - 6, win.l + tb.w / 2 + 6))
+            let tb.cy = max(ch.$k.py - mo.y, 17)
+            zone box pill_zone.$k { at: pl.cx, st.y; size: pl.w * ch.$k.pill, pl.h; corner: 16; cursor: text; label: "Tell her what to do in this window"; active: ch.$k.phase == sitting and ch.$k.pill > 0.7 and not bz }
+
+            //  ── the ring of its window ──
+            //  The one it has joined (the same ring as the lit one while it is pulled).
+            group {
+                show: ch.$k.lit > 0.01
+                opacity: ch.$k.lit
+                box { at: ch.$k.px - mo.x + ch.$k.pw / 2, ch.$k.py - mo.y + ch.$k.ph / 2; size: ch.$k.pw + 6, ch.$k.ph + 6; corner: 17; color: c.l; opacity: 4% + 1.5% * join.breath }
+                group {
+                    glow: 8, 55% + 15% * join.breath, c.l
+                    box { at: ch.$k.px - mo.x + ch.$k.pw / 2, ch.$k.py - mo.y + ch.$k.ph / 2; size: ch.$k.pw + 6, ch.$k.ph + 6; corner: 17; stroke: 2.2; color: c.l; opacity: 82% + 12% * join.breath }
+                }
+                //  Where it landed, the ring runs out along the edge once.
+                box { at: ch.$k.px - mo.x + ch.$k.pw / 2, ch.$k.py - mo.y + ch.$k.ph / 2
+                      size: ch.$k.pw + 6 + 90 * pu, ch.$k.ph + 6 + 90 * pu; corner: 17 + 45 * pu; stroke: 2.2; color: c.l
+                      opacity: 70% * (1 - pu) * (1 - pu) }
             }
-            //  The box: it leaves the ball through a waist, and is its water too.
-            box {
-                at: pl.cx, st.y
-                size: pl.w * pill, pl.h * clamp(pill * 2.4, 0, 1)
-                corner: 16
-                blend: 10 + 30 * clamp(pill * (1 - pill) * 4, 0, 1)
-                show: pill > 0.02
+            //  Where it touches the window's edge: a soft light on it and a dark point under
+            //  it, so it is sitting on it and not floating over it.
+            group {
+                show: ch.$k.seat > 0.05 and st.ledge > 0.05
+                opacity: ch.$k.seat * st.ledge
+                ellipse { at: st.x, ch.$k.py - mo.y + 1; radius: 56; scale: 1, 0.11; color: c.l; opacity: 34% }
+                ellipse { at: st.x, ch.$k.py - mo.y + 3; radius: 22; scale: 1, 0.13; color: #05070a; opacity: 55% }
             }
-        }
-        }
-        //  And its answer: a calmer, darker drop of the same water that forms under the box.
-        group {
-            show: join.bub > 0.02
-            glow: 6, 26%, kid
-            body {
-                gradient: 0, bub.t to 0, bub.t + bub.h, #3b2f9e, kid.deep
-                rim: 26%
-                shadow: 0, 3, 10, 30%, kid.deep
-                box {
-                    at: bub.x, bub.t + bub.h / 2
-                    size: bub.w * join.bub, bub.h * clamp(join.bub * 1.6, 0, 1)
-                    corner: 17
+
+            //  ── its tab ──
+            //  A swelling of the window's own edge that says whose it is.
+            group {
+                opacity: clamp(ch.$k.pill * 3 - 2, 0, 1)
+                show: ch.$k.pill > 0.7
+                prop letgo.glow = 0 ~140ms
+                body {
+                    gradient: 0, tb.cy - 13 to 0, tb.cy + 13, c.bot, c.deep
+                    rim: 26%
+                    shadow: 0, 3, 10, 34%, c.deep
+                    box { at: tb.cx, tb.cy; size: tb.w, 26; corner: 13 }
+                }
+                box { at: tb.cx, tb.cy; size: tb.w, 26; corner: 13; stroke: 1.3; color: c.l; opacity: 70% + 14% * join.breath }
+                ellipse { at: tb.cx - tb.w / 2 + 15, tb.cy; radius: 3.4; color: c.l }
+                text ch.$k.name { at: tb.cx - tb.w / 2 + 26, tb.cy; anchor: left center; size: 13; weight: 600; color: c.ink; opacity: 1 - letgo.glow; measure: jname.$k }
+                text "Let go" { at: tb.cx - tb.w / 2 + 26, tb.cy; anchor: left center; size: 13; weight: 600; color: c.l; opacity: letgo.glow }
+                ellipse { at: tb.cx + tb.w / 2 - 16, tb.cy; radius: 9.5; color: #ffffff; opacity: 10% + 16% * letgo.glow }
+                line { from: tb.cx + tb.w / 2 - 19.5, tb.cy - 3.5; to: tb.cx + tb.w / 2 - 12.5, tb.cy + 3.5; width: 1.7; color: c.ink; opacity: 70% + 30% * letgo.glow }
+                line { from: tb.cx + tb.w / 2 - 19.5, tb.cy + 3.5; to: tb.cx + tb.w / 2 - 12.5, tb.cy - 3.5; width: 1.7; color: c.ink; opacity: 70% + 30% * letgo.glow }
+                zone ellipse letgo_btn.$k { at: tb.cx + tb.w / 2 - 16, tb.cy; radius: 13; cursor: pointer; label: "Let go of the window"; active: ch.$k.phase == sitting and ch.$k.pill > 0.7 }
+                on enter letgo_btn.$k { letgo.glow: 1 }
+                on leave letgo_btn.$k { letgo.glow: 0 }
+                on press letgo_btn.$k { emit chat_detach(k) }
+            }
+
+            //  ── the child ──
+            //  A bud on her, the thread, the ball, the box that grows from it and the drop of its
+            //  answer hanging from the box: one body of water, with a waist where the box leaves the
+            //  ball. A halo of its own hue and a bright thin rim, so it reads over a dark window and
+            //  over a light one.
+            group {
+                glow: 8, 36%, c.l
+                show: ch.$k.phase != none
+                body {
+                    gradient: 0, st.y - 26 to 0, st.y + 26, c.top, c.bot
+                    rim: 32%
+                    glass: glassiness
+                    lens: bends
+                    tint: 75%
+                    shadow: 0, 3, 12, 34%, c.deep
+                    //  The bud on her, which the thread comes out of.
+                    ellipse { at: rt.x, rt.y; radius: max(5.5 * (1 - th.ret) * clamp(ch.$k.bud * 1.5, 0, 1), 0.01); blend: 12 }
+                    //  The thread: 32 capsules along the curve (a quadratic one from her to the
+                    //  child's tip), each as wide as the middle of its span, thinner towards the
+                    //  middle; their round ends hide the joins.
+                    line { from: rt.x * 1, rt.y * 1; to: rt.x * 0.93848 + nc.x * 0.06055 + nt.x * 0.00098, rt.y * 0.93848 + nc.y * 0.06055 + nt.y * 0.00098; width: max((th.w0 + (th.w1 - th.w0) * 0.01562) * (1 - (1 - th.keep) * 0.06152), 2.2); blend: 2; show: th.ret < 0.97 }
+                    line { from: rt.x * 0.93848 + nc.x * 0.06055 + nt.x * 0.00098, rt.y * 0.93848 + nc.y * 0.06055 + nt.y * 0.00098; to: rt.x * 0.87891 + nc.x * 0.11719 + nt.x * 0.00391, rt.y * 0.87891 + nc.y * 0.11719 + nt.y * 0.00391; width: max((th.w0 + (th.w1 - th.w0) * 0.04688) * (1 - (1 - th.keep) * 0.17871), 2.2); blend: 2; show: th.ret < 0.97 }
+                    line { from: rt.x * 0.87891 + nc.x * 0.11719 + nt.x * 0.00391, rt.y * 0.87891 + nc.y * 0.11719 + nt.y * 0.00391; to: rt.x * 0.82129 + nc.x * 0.16992 + nt.x * 0.00879, rt.y * 0.82129 + nc.y * 0.16992 + nt.y * 0.00879; width: max((th.w0 + (th.w1 - th.w0) * 0.07812) * (1 - (1 - th.keep) * 0.28809), 2.2); blend: 2; show: th.ret < 0.97 }
+                    line { from: rt.x * 0.82129 + nc.x * 0.16992 + nt.x * 0.00879, rt.y * 0.82129 + nc.y * 0.16992 + nt.y * 0.00879; to: rt.x * 0.76562 + nc.x * 0.21875 + nt.x * 0.01562, rt.y * 0.76562 + nc.y * 0.21875 + nt.y * 0.01562; width: max((th.w0 + (th.w1 - th.w0) * 0.10938) * (1 - (1 - th.keep) * 0.38965), 2.2); blend: 2; show: th.ret < 0.97 }
+                    line { from: rt.x * 0.76562 + nc.x * 0.21875 + nt.x * 0.01562, rt.y * 0.76562 + nc.y * 0.21875 + nt.y * 0.01562; to: rt.x * 0.71191 + nc.x * 0.26367 + nt.x * 0.02441, rt.y * 0.71191 + nc.y * 0.26367 + nt.y * 0.02441; width: max((th.w0 + (th.w1 - th.w0) * 0.14062) * (1 - (1 - th.keep) * 0.4834), 2.2); blend: 2; show: th.ret < 0.97 }
+                    line { from: rt.x * 0.71191 + nc.x * 0.26367 + nt.x * 0.02441, rt.y * 0.71191 + nc.y * 0.26367 + nt.y * 0.02441; to: rt.x * 0.66016 + nc.x * 0.30469 + nt.x * 0.03516, rt.y * 0.66016 + nc.y * 0.30469 + nt.y * 0.03516; width: max((th.w0 + (th.w1 - th.w0) * 0.17188) * (1 - (1 - th.keep) * 0.56934), 2.2); blend: 2; show: th.ret < 0.97 }
+                    line { from: rt.x * 0.66016 + nc.x * 0.30469 + nt.x * 0.03516, rt.y * 0.66016 + nc.y * 0.30469 + nt.y * 0.03516; to: rt.x * 0.61035 + nc.x * 0.3418 + nt.x * 0.04785, rt.y * 0.61035 + nc.y * 0.3418 + nt.y * 0.04785; width: max((th.w0 + (th.w1 - th.w0) * 0.20312) * (1 - (1 - th.keep) * 0.64746), 2.2); blend: 2; show: th.ret < 0.97 }
+                    line { from: rt.x * 0.61035 + nc.x * 0.3418 + nt.x * 0.04785, rt.y * 0.61035 + nc.y * 0.3418 + nt.y * 0.04785; to: rt.x * 0.5625 + nc.x * 0.375 + nt.x * 0.0625, rt.y * 0.5625 + nc.y * 0.375 + nt.y * 0.0625; width: max((th.w0 + (th.w1 - th.w0) * 0.23438) * (1 - (1 - th.keep) * 0.71777), 2.2); blend: 2; show: th.ret < 0.97 }
+                    line { from: rt.x * 0.5625 + nc.x * 0.375 + nt.x * 0.0625, rt.y * 0.5625 + nc.y * 0.375 + nt.y * 0.0625; to: rt.x * 0.5166 + nc.x * 0.4043 + nt.x * 0.0791, rt.y * 0.5166 + nc.y * 0.4043 + nt.y * 0.0791; width: max((th.w0 + (th.w1 - th.w0) * 0.26562) * (1 - (1 - th.keep) * 0.78027), 2.2); blend: 2; show: th.ret < 0.97 }
+                    line { from: rt.x * 0.5166 + nc.x * 0.4043 + nt.x * 0.0791, rt.y * 0.5166 + nc.y * 0.4043 + nt.y * 0.0791; to: rt.x * 0.47266 + nc.x * 0.42969 + nt.x * 0.09766, rt.y * 0.47266 + nc.y * 0.42969 + nt.y * 0.09766; width: max((th.w0 + (th.w1 - th.w0) * 0.29688) * (1 - (1 - th.keep) * 0.83496), 2.2); blend: 2; show: th.ret < 0.97 }
+                    line { from: rt.x * 0.47266 + nc.x * 0.42969 + nt.x * 0.09766, rt.y * 0.47266 + nc.y * 0.42969 + nt.y * 0.09766; to: rt.x * 0.43066 + nc.x * 0.45117 + nt.x * 0.11816, rt.y * 0.43066 + nc.y * 0.45117 + nt.y * 0.11816; width: max((th.w0 + (th.w1 - th.w0) * 0.32812) * (1 - (1 - th.keep) * 0.88184), 2.2); blend: 2; show: th.ret < 0.97 }
+                    line { from: rt.x * 0.43066 + nc.x * 0.45117 + nt.x * 0.11816, rt.y * 0.43066 + nc.y * 0.45117 + nt.y * 0.11816; to: rt.x * 0.39062 + nc.x * 0.46875 + nt.x * 0.14062, rt.y * 0.39062 + nc.y * 0.46875 + nt.y * 0.14062; width: max((th.w0 + (th.w1 - th.w0) * 0.35938) * (1 - (1 - th.keep) * 0.9209), 2.2); blend: 2; show: th.ret < 0.97 }
+                    line { from: rt.x * 0.39062 + nc.x * 0.46875 + nt.x * 0.14062, rt.y * 0.39062 + nc.y * 0.46875 + nt.y * 0.14062; to: rt.x * 0.35254 + nc.x * 0.48242 + nt.x * 0.16504, rt.y * 0.35254 + nc.y * 0.48242 + nt.y * 0.16504; width: max((th.w0 + (th.w1 - th.w0) * 0.39062) * (1 - (1 - th.keep) * 0.95215), 2.2); blend: 2; show: th.ret < 0.97 }
+                    line { from: rt.x * 0.35254 + nc.x * 0.48242 + nt.x * 0.16504, rt.y * 0.35254 + nc.y * 0.48242 + nt.y * 0.16504; to: rt.x * 0.31641 + nc.x * 0.49219 + nt.x * 0.19141, rt.y * 0.31641 + nc.y * 0.49219 + nt.y * 0.19141; width: max((th.w0 + (th.w1 - th.w0) * 0.42188) * (1 - (1 - th.keep) * 0.97559), 2.2); blend: 2; show: th.ret < 0.97 }
+                    line { from: rt.x * 0.31641 + nc.x * 0.49219 + nt.x * 0.19141, rt.y * 0.31641 + nc.y * 0.49219 + nt.y * 0.19141; to: rt.x * 0.28223 + nc.x * 0.49805 + nt.x * 0.21973, rt.y * 0.28223 + nc.y * 0.49805 + nt.y * 0.21973; width: max((th.w0 + (th.w1 - th.w0) * 0.45312) * (1 - (1 - th.keep) * 0.99121), 2.2); blend: 2; show: th.ret < 0.97 }
+                    line { from: rt.x * 0.28223 + nc.x * 0.49805 + nt.x * 0.21973, rt.y * 0.28223 + nc.y * 0.49805 + nt.y * 0.21973; to: rt.x * 0.25 + nc.x * 0.5 + nt.x * 0.25, rt.y * 0.25 + nc.y * 0.5 + nt.y * 0.25; width: max((th.w0 + (th.w1 - th.w0) * 0.48438) * (1 - (1 - th.keep) * 0.99902), 2.2); blend: 2; show: th.ret < 0.97 }
+                    line { from: rt.x * 0.25 + nc.x * 0.5 + nt.x * 0.25, rt.y * 0.25 + nc.y * 0.5 + nt.y * 0.25; to: rt.x * 0.21973 + nc.x * 0.49805 + nt.x * 0.28223, rt.y * 0.21973 + nc.y * 0.49805 + nt.y * 0.28223; width: max((th.w0 + (th.w1 - th.w0) * 0.51562) * (1 - (1 - th.keep) * 0.99902), 2.2); blend: 2; show: th.ret < 0.97 }
+                    line { from: rt.x * 0.21973 + nc.x * 0.49805 + nt.x * 0.28223, rt.y * 0.21973 + nc.y * 0.49805 + nt.y * 0.28223; to: rt.x * 0.19141 + nc.x * 0.49219 + nt.x * 0.31641, rt.y * 0.19141 + nc.y * 0.49219 + nt.y * 0.31641; width: max((th.w0 + (th.w1 - th.w0) * 0.54688) * (1 - (1 - th.keep) * 0.99121), 2.2); blend: 2; show: th.ret < 0.97 }
+                    line { from: rt.x * 0.19141 + nc.x * 0.49219 + nt.x * 0.31641, rt.y * 0.19141 + nc.y * 0.49219 + nt.y * 0.31641; to: rt.x * 0.16504 + nc.x * 0.48242 + nt.x * 0.35254, rt.y * 0.16504 + nc.y * 0.48242 + nt.y * 0.35254; width: max((th.w0 + (th.w1 - th.w0) * 0.57812) * (1 - (1 - th.keep) * 0.97559), 2.2); blend: 2; show: th.ret < 0.97 }
+                    line { from: rt.x * 0.16504 + nc.x * 0.48242 + nt.x * 0.35254, rt.y * 0.16504 + nc.y * 0.48242 + nt.y * 0.35254; to: rt.x * 0.14062 + nc.x * 0.46875 + nt.x * 0.39062, rt.y * 0.14062 + nc.y * 0.46875 + nt.y * 0.39062; width: max((th.w0 + (th.w1 - th.w0) * 0.60938) * (1 - (1 - th.keep) * 0.95215), 2.2); blend: 2; show: th.ret < 0.97 }
+                    line { from: rt.x * 0.14062 + nc.x * 0.46875 + nt.x * 0.39062, rt.y * 0.14062 + nc.y * 0.46875 + nt.y * 0.39062; to: rt.x * 0.11816 + nc.x * 0.45117 + nt.x * 0.43066, rt.y * 0.11816 + nc.y * 0.45117 + nt.y * 0.43066; width: max((th.w0 + (th.w1 - th.w0) * 0.64062) * (1 - (1 - th.keep) * 0.9209), 2.2); blend: 2; show: th.ret < 0.97 }
+                    line { from: rt.x * 0.11816 + nc.x * 0.45117 + nt.x * 0.43066, rt.y * 0.11816 + nc.y * 0.45117 + nt.y * 0.43066; to: rt.x * 0.09766 + nc.x * 0.42969 + nt.x * 0.47266, rt.y * 0.09766 + nc.y * 0.42969 + nt.y * 0.47266; width: max((th.w0 + (th.w1 - th.w0) * 0.67188) * (1 - (1 - th.keep) * 0.88184), 2.2); blend: 2; show: th.ret < 0.97 }
+                    line { from: rt.x * 0.09766 + nc.x * 0.42969 + nt.x * 0.47266, rt.y * 0.09766 + nc.y * 0.42969 + nt.y * 0.47266; to: rt.x * 0.0791 + nc.x * 0.4043 + nt.x * 0.5166, rt.y * 0.0791 + nc.y * 0.4043 + nt.y * 0.5166; width: max((th.w0 + (th.w1 - th.w0) * 0.70312) * (1 - (1 - th.keep) * 0.83496), 2.2); blend: 2; show: th.ret < 0.97 }
+                    line { from: rt.x * 0.0791 + nc.x * 0.4043 + nt.x * 0.5166, rt.y * 0.0791 + nc.y * 0.4043 + nt.y * 0.5166; to: rt.x * 0.0625 + nc.x * 0.375 + nt.x * 0.5625, rt.y * 0.0625 + nc.y * 0.375 + nt.y * 0.5625; width: max((th.w0 + (th.w1 - th.w0) * 0.73438) * (1 - (1 - th.keep) * 0.78027), 2.2); blend: 2; show: th.ret < 0.97 }
+                    line { from: rt.x * 0.0625 + nc.x * 0.375 + nt.x * 0.5625, rt.y * 0.0625 + nc.y * 0.375 + nt.y * 0.5625; to: rt.x * 0.04785 + nc.x * 0.3418 + nt.x * 0.61035, rt.y * 0.04785 + nc.y * 0.3418 + nt.y * 0.61035; width: max((th.w0 + (th.w1 - th.w0) * 0.76562) * (1 - (1 - th.keep) * 0.71777), 2.2); blend: 2; show: th.ret < 0.97 }
+                    line { from: rt.x * 0.04785 + nc.x * 0.3418 + nt.x * 0.61035, rt.y * 0.04785 + nc.y * 0.3418 + nt.y * 0.61035; to: rt.x * 0.03516 + nc.x * 0.30469 + nt.x * 0.66016, rt.y * 0.03516 + nc.y * 0.30469 + nt.y * 0.66016; width: max((th.w0 + (th.w1 - th.w0) * 0.79688) * (1 - (1 - th.keep) * 0.64746), 2.2); blend: 2; show: th.ret < 0.97 }
+                    line { from: rt.x * 0.03516 + nc.x * 0.30469 + nt.x * 0.66016, rt.y * 0.03516 + nc.y * 0.30469 + nt.y * 0.66016; to: rt.x * 0.02441 + nc.x * 0.26367 + nt.x * 0.71191, rt.y * 0.02441 + nc.y * 0.26367 + nt.y * 0.71191; width: max((th.w0 + (th.w1 - th.w0) * 0.82812) * (1 - (1 - th.keep) * 0.56934), 2.2); blend: 2; show: th.ret < 0.97 }
+                    line { from: rt.x * 0.02441 + nc.x * 0.26367 + nt.x * 0.71191, rt.y * 0.02441 + nc.y * 0.26367 + nt.y * 0.71191; to: rt.x * 0.01562 + nc.x * 0.21875 + nt.x * 0.76562, rt.y * 0.01562 + nc.y * 0.21875 + nt.y * 0.76562; width: max((th.w0 + (th.w1 - th.w0) * 0.85938) * (1 - (1 - th.keep) * 0.4834), 2.2); blend: 2; show: th.ret < 0.97 }
+                    line { from: rt.x * 0.01562 + nc.x * 0.21875 + nt.x * 0.76562, rt.y * 0.01562 + nc.y * 0.21875 + nt.y * 0.76562; to: rt.x * 0.00879 + nc.x * 0.16992 + nt.x * 0.82129, rt.y * 0.00879 + nc.y * 0.16992 + nt.y * 0.82129; width: max((th.w0 + (th.w1 - th.w0) * 0.89062) * (1 - (1 - th.keep) * 0.38965), 2.2); blend: 2; show: th.ret < 0.97 }
+                    line { from: rt.x * 0.00879 + nc.x * 0.16992 + nt.x * 0.82129, rt.y * 0.00879 + nc.y * 0.16992 + nt.y * 0.82129; to: rt.x * 0.00391 + nc.x * 0.11719 + nt.x * 0.87891, rt.y * 0.00391 + nc.y * 0.11719 + nt.y * 0.87891; width: max((th.w0 + (th.w1 - th.w0) * 0.92188) * (1 - (1 - th.keep) * 0.28809), 2.2); blend: 2; show: th.ret < 0.97 }
+                    line { from: rt.x * 0.00391 + nc.x * 0.11719 + nt.x * 0.87891, rt.y * 0.00391 + nc.y * 0.11719 + nt.y * 0.87891; to: rt.x * 0.00098 + nc.x * 0.06055 + nt.x * 0.93848, rt.y * 0.00098 + nc.y * 0.06055 + nt.y * 0.93848; width: max((th.w0 + (th.w1 - th.w0) * 0.95312) * (1 - (1 - th.keep) * 0.17871), 2.2); blend: 2; show: th.ret < 0.97 }
+                    line { from: rt.x * 0.00098 + nc.x * 0.06055 + nt.x * 0.93848, rt.y * 0.00098 + nc.y * 0.06055 + nt.y * 0.93848; to: nt.x * 1, nt.y * 1; width: max((th.w0 + (th.w1 - th.w0) * 0.98438) * (1 - (1 - th.keep) * 0.06152), 2.2); blend: 2; show: th.ret < 0.97 }
+                    ellipse {
+                        at: st.x, st.y
+                        radius: kd.r
+                        scale: (sx + st.sq) * (1 - st.stretch * 0.5), (sy - st.sq) * (1 + st.stretch)
+                        blend: 16
+                    }
+                    //  The box: it leaves the ball through a waist, and is its water too.
+                    box {
+                        at: pl.cx, st.y
+                        size: pl.w * ch.$k.pill, pl.h * clamp(ch.$k.pill * 2.4, 0, 1)
+                        corner: 16
+                        blend: 10 + 30 * clamp(ch.$k.pill * (1 - ch.$k.pill) * 4, 0, 1)
+                        show: ch.$k.pill > 0.02
+                    }
                 }
             }
-        }
-        //  The light on the water: a soft glint on the ball and a thin one along the top of the
-        //  box, as on a drop, so it is glass and not a flat shape.
-        group {
-            blur: 1.4
-            ellipse { at: st.x - kd.r * 0.36, st.y - kd.r * 0.5; radius: kd.r * 0.3; scale: 1.6, 0.62; rotate: -32deg; color: #ffffff; opacity: 26% }
-            line { from: pl.cx - pl.w * pill / 2 + 24, st.y - pl.h / 2 + 5; to: pl.cx + pl.w * pill / 2 - 24, st.y - pl.h / 2 + 5; width: 2.6; color: #ffffff; opacity: 11% * clamp(pill * 2 - 1, 0, 1) }
-        }
-        //  The tide inside the box while it works: the light water throws on a pool's floor.
-        shader chat_tide { at: pl.cx - pl.w * pill / 2, st.y - pl.h / 2; size: pl.w * pill, pl.h; corner: 16; values: chat.stir * 2.4; colors: kid }
-        //  Its face: hers, smaller with it.
-        group {
-            pivot: st.x, st.y
-            scale: kid.k, kid.k
-            Face(st.x, st.y, st.gx / max(kid.k, 0.2), st.gy / max(kid.k, 0.2), 0)
-        }
-        //  The drops that go up where it lands, and fall back.
-        particles { at: st.x, sit.y + kd.r - 2 - mo.y; area: 36, 2; count: 26; life: 0.35s .. 0.7s; speed: 80 .. 260
-                    direction: -90deg; spread: 140deg; gravity: 0, 720; size: 4, 1; colors: #efeaff, kid; opacity: 95%, 0%
-                    shape: dot; burst: join_splash }
-
-        //  What it says by it while it is pulled: the name of the window it is over,
-        //  or that it has to be one.
-        group {
-            show: join.phase == held
-            measure hname
-            let h.y = st.y + kd.r + 26
-            let h.w = if(hov.on, hname.width + 34, 184)
-            body {
-                gradient: 0, h.y - 14 to 0, h.y + 14, kid.bot, kid.deep
-                rim: 30%
-                shadow: 0, 3, 10, 34%, kid.deep
-                box { at: st.x, h.y; size: h.w, 28; corner: 14 }
+            //  And its answer: a calmer, darker drop of the same water that forms under the box.
+            group {
+                show: ch.$k.bub > 0.02
+                glow: 6, 26%, c.l
+                body {
+                    gradient: 0, bub.t to 0, bub.t + bub.h, c.mid, c.deep
+                    rim: 26%
+                    shadow: 0, 3, 10, 30%, c.deep
+                    box {
+                        at: bub.x, bub.t + bub.h / 2
+                        size: bub.w * ch.$k.bub, bub.h * clamp(ch.$k.bub * 1.6, 0, 1)
+                        corner: 17
+                    }
+                }
             }
-            box { at: st.x, h.y; size: h.w, 28; corner: 14; stroke: 1.2; color: kid; opacity: 55% + hov.a * 25% }
-            text hov.app { at: st.x, h.y; anchor: center; size: 14; weight: 600; color: #f4f1ff; width: 260; lines: 1; opacity: hov.a; measure: hname }
-            text "Drop me on a window" { at: st.x, h.y; anchor: center; size: 13; color: kid; opacity: 1 - hov.a }
-        }
+            //  The light on the water: a soft glint on the ball and a thin one along the top of the
+            //  box, as on a drop, so it is glass and not a flat shape.
+            group {
+                blur: 1.4
+                show: ch.$k.phase != none
+                ellipse { at: st.x - kd.r * 0.36, st.y - kd.r * 0.5; radius: kd.r * 0.3; scale: 1.6, 0.62; rotate: -32deg; color: #ffffff; opacity: 26% }
+                line { from: pl.cx - pl.w * ch.$k.pill / 2 + 24, st.y - pl.h / 2 + 5; to: pl.cx + pl.w * ch.$k.pill / 2 - 24, st.y - pl.h / 2 + 5; width: 2.6; color: #ffffff; opacity: 11% * clamp(ch.$k.pill * 2 - 1, 0, 1) }
+            }
+            //  The tide inside the box while it works: the light water throws on a pool's floor.
+            shader chat_tide { at: pl.cx - pl.w * ch.$k.pill / 2, st.y - pl.h / 2; size: pl.w * ch.$k.pill, pl.h; corner: 16; values: ch.$k.stir * 2.4; colors: c.l }
+            //  Its face: hers, smaller with it.
+            group {
+                pivot: st.x, st.y
+                scale: kk, kk
+                show: ch.$k.phase != none
+                Face(st.x, st.y, st.gx / max(kk, 0.2), st.gy / max(kk, 0.2), 0)
+            }
+            //  The drops that go up where it lands, and fall back.
+            particles { at: st.x, k.sy + kd.r - 2 - mo.y; area: 36, 2; count: 26; life: 0.35s .. 0.7s; speed: 80 .. 260
+                        direction: -90deg; spread: 140deg; gravity: 0, 720; size: 4, 1; colors: c.ink, c.l; opacity: 95%, 0%
+                        shape: dot; burst: splash.$k }
 
-        //  What is in the box. The task goes in it, and while the child works it says what it
-        //  is doing, in words.
-        group {
-            opacity: clamp(pill * 3 - 2, 0, 1)
-            show: pill > 0.7
-            //  Where it writes. A password never goes through here: it is the chat's
-            //  field that turns into one.
-            input join.input { at: pl.c.l, st.y - 10; width: pl.fw; size: 15; color: #fbfaff
-                               placeholder: "Tell me what to do in this window…"
-                               selection: #8c7cf0; show: not join.busy }
-            //  And while it works, what it is on.
-            text chat.status { at: pl.c.l, st.y; anchor: left center; size: 15; color: #efeaff; width: pl.fw; lines: 1; show: join.busy }
-            text chat.status { at: pl.c.l, st.y; anchor: left center; size: 14; color: #ffb4a6; width: pl.fw; lines: 1; show: chat.state == offline }
-            //  Send: a tinted drop with a clear arrow; Stop: a ring with a calm coral square.
-            prop jsend.glow = 0 ~140ms
-            ellipse { at: jb.x, st.y; radius: 13 + 1 * jsend.glow; color: kid; opacity: 88% + 12% * jsend.glow; show: not join.busy }
-            path { at: jb.x - 4.5, st.y - 6; color: kid.deep; stroke: 2.3; show: not join.busy
-                   move 4.5, 12; line 4.5, 1.2 }
-            path { at: jb.x - 4.5, st.y - 6; color: kid.deep; stroke: 2.3; show: not join.busy
-                   move 0.4, 5.2; line 4.5, 1.2; line 8.6, 5.2 }
-            ellipse { at: jb.x, st.y; radius: 13; stroke: 1.8; color: #ffa797; opacity: 75% + 25% * jsend.glow; show: join.busy }
-            box { at: jb.x, st.y; size: 9, 9; corner: 2.5; color: #ffa797; show: join.busy }
-            zone ellipse jsend_btn { at: jb.x, st.y; radius: 16; cursor: pointer; label: "Send"; active: join.phase == sitting and pill > 0.7 }
-            on enter jsend_btn { jsend.glow: 1 }
-            on leave jsend_btn { jsend.glow: 0 }
-            //  What it answered, in the drop under the box; its letters come up out of the water.
-            text join.said { at: bub.x - bub.w / 2 + 20, bub.t + 14; anchor: left top; width: bub.w - 40; size: 14.5; line_height: 1.38; color: #fbfaff; measure: jsaid
-                             opacity: clamp(join.bub * 2 - 0.6, 0, 1)
-                             letter_opacity: clamp((join.rev - letter) / 10, 0, 1)
-                             letter_move: 0, (1 - clamp((join.rev - letter) / 10, 0, 1)) * 6 }
+            //  What it says by it while it is pulled: the name of the window it is over, or that it
+            //  has to be one (or that the window has a child already).
+            group {
+                show: ch.$k.phase == held
+                measure hname.$k
+                let h.y = st.y + kd.r + 26
+                let h.w = if(hov.on, hname.$k.width + 34, 184)
+                body {
+                    gradient: 0, h.y - 14 to 0, h.y + 14, c.bot, c.deep
+                    rim: 30%
+                    shadow: 0, 3, 10, 34%, c.deep
+                    box { at: st.x, h.y; size: h.w, 28; corner: 14 }
+                }
+                box { at: st.x, h.y; size: h.w, 28; corner: 14; stroke: 1.2; color: c.l; opacity: 55% + hov.a * 25% }
+                text hov.app { at: st.x, h.y; anchor: center; size: 14; weight: 600; color: c.ink; width: 260; lines: 1; opacity: hov.a * if(hov.taken, 0, 1); measure: hname.$k }
+                text "Already has a child" { at: st.x, h.y; anchor: center; size: 13; color: kid1; opacity: hov.a * if(hov.taken, 1, 0) }
+                text "Drop me on a window" { at: st.x, h.y; anchor: center; size: 13; color: c.l; opacity: 1 - hov.a }
+            }
+
+            //  ── what is in its box ──
+            //  The task goes in it, and while the child works it says what it is doing, in words.
+            group {
+                opacity: clamp(ch.$k.pill * 3 - 2, 0, 1)
+                show: ch.$k.pill > 0.7
+                //  Where it writes. A password never goes through here: it is the chat's
+                //  field that turns into one.
+                input ch.$k.input { at: pl.c.l, st.y - 10; width: pl.fw; size: 15; color: c.ink
+                                    placeholder: "Tell me what to do in this window…"
+                                    selection: c.sel; show: not bz }
+                //  And while it works, what it is on.
+                text ch.$k.status { at: pl.c.l, st.y; anchor: left center; size: 15; color: c.ink; width: pl.fw; lines: 1; show: bz }
+                text ch.$k.status { at: pl.c.l, st.y; anchor: left center; size: 14; color: #ffb4a6; width: pl.fw; lines: 1; show: ch.$k.state == offline }
+                //  Send: a tinted drop with a clear arrow; Stop: a ring with a calm coral square.
+                prop jsend.glow = 0 ~140ms
+                ellipse { at: jb.x, st.y; radius: 13 + 1 * jsend.glow; color: c.l; opacity: 88% + 12% * jsend.glow; show: not bz }
+                path { at: jb.x - 4.5, st.y - 6; color: c.deep; stroke: 2.3; show: not bz
+                       move 4.5, 12; line 4.5, 1.2 }
+                path { at: jb.x - 4.5, st.y - 6; color: c.deep; stroke: 2.3; show: not bz
+                       move 0.4, 5.2; line 4.5, 1.2; line 8.6, 5.2 }
+                ellipse { at: jb.x, st.y; radius: 13; stroke: 1.8; color: #ffa797; opacity: 75% + 25% * jsend.glow; show: bz }
+                box { at: jb.x, st.y; size: 9, 9; corner: 2.5; color: #ffa797; show: bz }
+                zone ellipse jsend_btn.$k { at: jb.x, st.y; radius: 16; cursor: pointer; label: "Send"; active: ch.$k.phase == sitting and ch.$k.pill > 0.7 }
+                on enter jsend_btn.$k { jsend.glow: 1 }
+                on leave jsend_btn.$k { jsend.glow: 0 }
+                on submit ch.$k.input { emit join_send(k) }
+                on press jsend_btn.$k while bz { emit kid_stop(k) }
+                on press jsend_btn.$k while not bz { emit join_send(k) }
+                //  What it answered, in the drop under the box; its letters come up out of the water.
+                text ch.$k.said { at: bub.x - bub.w / 2 + 20, bub.t + 14; anchor: left top; width: bub.w - 40; size: 14.5; line_height: 1.38; color: c.ink; measure: jsaid.$k
+                                  opacity: clamp(ch.$k.bub * 2 - 0.6, 0, 1)
+                                  letter_opacity: clamp((ch.$k.rev - letter) / 10, 0, 1)
+                                  letter_move: 0, (1 - clamp((ch.$k.rev - letter) / 10, 0, 1)) * 6 }
+            }
         }
     }
 }

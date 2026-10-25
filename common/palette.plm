@@ -5,12 +5,40 @@ library Palette {
     let sand   = #e8c07a        // the second accent
     let rose   = #e86a9a        // what demands attention
     let coal   = #151616        // the ball's body
-    //  Her child, the one that perches on a window: soft violet, the opposite of her mint.
-    //  Its light (rings, glow, small words), and its water from top to bottom.
+    //  Her children, the drops that perch on windows (up to four at once, each its own hue so that
+    //  you tell them apart on the desktop and in the little ring she wears for them): violet, coral,
+    //  teal and amber. For each: its light (rings, glow, small words), its water from top to
+    //  bottom (`top`, `bot`, `deep`), the darker middle of the drop of its answer (`mid`), the
+    //  tinted white of what is written on it (`ink`) and the colour of a selection (`sel`).
+    //  The scene picks them by the child's number (`pick(k, kid, kid1, kid2, kid3)`).
     let kid      = #b4a8ff
     let kid.top  = #7566e8
     let kid.bot  = #4a3ab5
     let kid.deep = #2a2070
+    let kid.mid  = #3b2f9e
+    let kid.ink  = #f4f1ff
+    let kid.sel  = #8c7cf0
+    let kid1      = #ffa08c
+    let kid1.top  = #ee6b55
+    let kid1.bot  = #b83f2e
+    let kid1.deep = #6e1d12
+    let kid1.mid  = #8f3324
+    let kid1.ink  = #fff3f0
+    let kid1.sel  = #e8806c
+    let kid2      = #7fdcee
+    let kid2.top  = #2fb4cf
+    let kid2.bot  = #1b7f98
+    let kid2.deep = #0a4558
+    let kid2.mid  = #146476
+    let kid2.ink  = #effcff
+    let kid2.sel  = #4fc4dc
+    let kid3      = #ffd36b
+    let kid3.top  = #eba92a
+    let kid3.bot  = #b17610
+    let kid3.deep = #5e3c05
+    let kid3.mid  = #8a5a0a
+    let kid3.ink  = #fff9e8
+    let kid3.sel  = #e0a93d
     let slate  = #232727        // the panels inside
     //  No more glass goes on glass —Apple: «never stack glass on glass»—:
     //  what is inside the card are veils, a white you can barely see that lets
