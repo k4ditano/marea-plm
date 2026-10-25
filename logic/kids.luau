@@ -639,7 +639,7 @@ return function(shared)
         kid.cur, kid.last = found, found.x .. "," .. found.y .. "," .. found.w .. "," .. found.h .. "," .. found.screen
         count()
         start_loop()
-        emit("join_land", k)
+        emit("join_land." .. k)
     end
 
     --  `emit chat_attach`: the child perches on the window that has the keyboard (or on the one in
@@ -747,21 +747,21 @@ return function(shared)
         end
         if nmon > 1 and hw > 0 and (px - hx <= 24 or px - hx >= hw - 24) then
             fact["hov.on"] = false
-            emit("join_none", k)
+            emit("join_none." .. k)
             return
         end
         run("pleamar-wm", { "agent", "windows" }, function(out, code)
             local target = code == 0 and window_at(parse_windows(out), px, py) or nil
             if not target then
                 fact["hov.on"] = false
-                emit("join_none", k)
+                emit("join_none." .. k)
                 return
             end
             --  One child to a window: it goes back, and says why.
             if taken(target.pid) then
                 fact["hov.on"] = false
                 warn("taken")
-                emit("join_none", k)
+                emit("join_none." .. k)
                 return
             end
             attach(k, target, math.floor(px - target.x))

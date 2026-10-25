@@ -100,13 +100,13 @@ part JoinRules {
             emit join_drop(k)
         }
         //  If the logic does not answer it does not hang there.
-        on still ch.$k.phase for 3s while ch.$k.phase == waiting { emit join_none(k) }
+        on still ch.$k.phase for 3s while ch.$k.phase == waiting { emit join_none.$k }
 
         // ── the fall ─────────────────────────────────────────────
         //  The logic found the window (its frame is in `ch.<k>.x…`). Pulled, it is already out and
         //  just falls from where it was let go; told from the keyboard, with nobody pulling it, it
         //  starts from the notch: the thread gives, and it drops down it.
-        on join_land(q) while q == k and ch.$k.phase == waiting {
+        on join_land.$k while ch.$k.phase == waiting {
             face = happy
             impulse wobble -200
             ch.$k.up = ch.$k.by > k.ty
@@ -118,7 +118,7 @@ part JoinRules {
             ch.$k.bx: k.tx ~spring(70, 11)
             ch.$k.by: k.ty ~spring(130, 21)
         }
-        on join_land(q) while q == k and ch.$k.phase == none {
+        on join_land.$k while ch.$k.phase == none {
             needed = true
             wanted = true
             face = happy
@@ -193,7 +193,7 @@ part JoinRules {
         //  the child lifts off, a thread grows from her to meet it and it goes back into her, the way it
         //  came; she gives a happy little bob.
         on change ch.$k.on while not ch.$k.on and (ch.$k.phase == sitting or ch.$k.phase == falling) { ch.$k.phase = leaving }
-        on join_none(q) while q == k and ch.$k.phase == waiting { ch.$k.phase = leaving }
+        on join_none.$k while ch.$k.phase == waiting { ch.$k.phase = leaving }
         on change ch.$k.phase while ch.$k.phase == leaving {
             hov.on = false
             ch.$k.pill: 0 ~220ms

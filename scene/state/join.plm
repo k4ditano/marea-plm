@@ -153,8 +153,11 @@ part Join {
     event join_drop ->                // let go: which window is it over?
     event join_send ->                // Enter in a box
     event kid_stop ->                 // a box's Stop
-    event join_land                   // the logic found the window: fall onto it
-    event join_none                   // nothing under it (or that window has a child already)
+    //  What the logic tells a child, with the child's number in the name (the logic's events reach the
+    //  scene's rules without a payload): the window was found, fall onto it; and nothing is under it, or
+    //  that window has a child already.
+    event join_land.0; event join_land.1; event join_land.2; event join_land.3
+    event join_none.0; event join_none.1; event join_none.2; event join_none.3
     //  A window carried by its title bar: the logic says so (`ch.<k>.carry`, and where it was taken:
     //  `gx`, `gy`, from the window's corner) and the scene follows the mouse itself, every frame: the
     //  logic's numbers come a few times a second. The window manager tells when one starts to be
