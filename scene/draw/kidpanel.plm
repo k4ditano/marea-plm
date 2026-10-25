@@ -79,7 +79,7 @@ part KidPanel {
         box { at: x, y; size: w, 28; corner: 14; stroke: 1.1; color: if(warn, #ef7a66, ring); opacity: (50% + 30% * on) * (1 - 0.6 * dim) }
         ellipse { at: x - w / 2 + 15, y; radius: 4; color: amber; opacity: 90% * on; show: toggle > 0.5 }
         ellipse { at: x - w / 2 + 15, y; radius: 4; stroke: 1.2; color: ink; opacity: 55%; show: toggle > 0.5 and on < 0.5 }
-        text label { at: x + toggle * 7, y; anchor: center; size: 12; weight: 600; color: if(warn, #ffb4a6, ink); opacity: 1 - 0.55 * dim }
+        text label { at: x + toggle * 7, y; anchor: center; size: 11.5; weight: 600; color: if(warn, #ffb4a6, ink); opacity: 1 - 0.55 * dim }
         zone box z { at: x, y; size: w, 28; corner: 14; cursor: pointer; active: o > 0.7 and dim < 0.5 }
         on enter z { glow: 1 }
         on leave z { glow: 0 }
@@ -130,10 +130,10 @@ part KidPanel {
             on leave close_btn { close.glow: 0 }
             on press close_btn { emit kp_close }
             //  Its controls.
-            KPill(pick(paused, "Pause", "Resume"), kp_pause, x + 16 + 36, y + 76, 72, o, ring, dim: 1 - working)
-            KPill("Ask first", kp_ask, x + 16 + 80 + 52, y + 76, 104, o, ring, on: asking, toggle: 1)
-            KPill("New conversation", kp_new, x + 16 + 80 + 112 + 74, y + 76, 148, o, ring)
-            KPill("Copy answer", kp_copy, x + 16 + 80 + 112 + 156 + 56, y + 76, 112, o, ring)
+            KPill(pick(paused, "Pause", "Resume"), kp_pause, x + 16 + 35, y + 76, 70, o, ring, dim: 1 - working)
+            KPill("Ask first", kp_ask, x + 16 + 139, y + 76, 130, o, ring, on: asking, toggle: 1)
+            KPill("New conversation", kp_new, x + 16 + 281, y + 76, 146, o, ring)
+            KPill("Copy answer", kp_copy, x + 16 + 420, y + 76, 124, o, ring)
             line { from: x + 16, y + 100; to: x + w - 16, y + 100; width: 1; color: ink; opacity: 10% }
             //  The thread: it scrolls with the wheel, follows what arrives while the reader is at the bottom.
             zone box area { from: x + 8, ty - 4; size: w - 16, vh + 8; active: o > 0.7 }

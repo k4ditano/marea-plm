@@ -134,12 +134,12 @@ part JoinSurface {
             let st.gx = if(ch.$k.phase == sitting, pl.side * 4 * clamp(ch.$k.pill * 2, 0, 1), clamp(vel(ch.$k.bx) * 0.004, -3.5, 3.5))
             let st.gy = if(ch.$k.phase == sitting, 0, 3)
             //  What it answered, hanging under the box like a drop: how formed it is, and how tall
-            //  (it is as tall as what it says, up to two fifths of the monitor and never past its bottom;
+            //  (it is as tall as what it says, up to two fifths of the monitor and never past its bottom or its window's;
             //  longer than that, it scrolls). Its letters come up out of the water as they are let out.
             let bub.w = pl.w - 30
             let bub.t0 = st.y + pl.h / 2 + 9
             let bub.t = bub.t0 + ch.$k.cardo + ch.$k.qo
-            let bub.maxh = max(min(stick.height * 0.4, stick.height - bub.t - 16), 110)
+            let bub.maxh = max(min(min(stick.height * 0.4, stick.height - bub.t - 16), ch.$k.py + ch.$k.ph - mo.y - bub.t - 10), 110)
             let bub.x = pl.cx - pl.side * 6
             //  Whose window it is, in a tab on the ring that the window has: «Kitty» (and, while a task runs,
             //  the first words of it), its minimise button and the way out. It sits on the other side of the
@@ -463,8 +463,9 @@ part JoinSurface {
         let kp.win.x = pick(kp.i, ch.0.px, ch.1.px, ch.2.px, ch.3.px) - mo.x
         let kp.win.y = pick(kp.i, ch.0.py, ch.1.py, ch.2.py, ch.3.py) - mo.y
         let kp.win.w = pick(kp.i, ch.0.pw, ch.1.pw, ch.2.pw, ch.3.pw)
-        let kp.w = clamp(kp.win.w - 24, 400, 520)
-        let kp.h = clamp(stick.height - 24, 380, 640)
+        let kp.win.h = pick(kp.i, ch.0.ph, ch.1.ph, ch.2.ph, ch.3.ph)
+        let kp.w = clamp(kp.win.w - 24, 500, 520)
+        let kp.h = clamp(min(640, kp.win.h - 56), 380, stick.height - 24)
         let kp.x = clamp(kp.win.x + kp.win.w / 2 - kp.w / 2, 8, max(stick.width - kp.w - 8, 8))
         let kp.y = clamp(kp.win.y + 44, 8, max(stick.height - kp.h - 8, 8))
         let kp.work = pick(kp.i, ch.0.state == thinking or ch.0.state == acting or ch.0.state == awaiting or ch.0.state == starting, ch.1.state == thinking or ch.1.state == acting or ch.1.state == awaiting or ch.1.state == starting, ch.2.state == thinking or ch.2.state == acting or ch.2.state == awaiting or ch.2.state == starting, ch.3.state == thinking or ch.3.state == acting or ch.3.state == awaiting or ch.3.state == starting)
