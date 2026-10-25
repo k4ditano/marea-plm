@@ -291,12 +291,18 @@ part JoinSurface {
             }
             //  The tide inside the box while it works: the light water throws on a pool's floor.
             shader chat_tide { at: pl.cx - pl.w * ch.$k.pill / 2, st.y - pl.h / 2; size: pl.w * ch.$k.pill, pl.h; corner: 16; values: ch.$k.stir * 2.4; colors: c.l }
-            //  Its face: hers, smaller with it.
+            //  Its face: hers, smaller with it. It is her face, so her waves are on it while any of her
+            //  children works: one that is not working keeps two plain eyes of its own meanwhile.
             group {
                 pivot: st.x, st.y
                 scale: kk, kk
-                show: ch.$k.phase != none
+                show: ch.$k.phase != none and (face != reading or bz)
                 Face(st.x, st.y, st.gx / max(kk, 0.2), st.gy / max(kk, 0.2), 0)
+            }
+            group {
+                show: ch.$k.phase != none and face == reading and not bz
+                box { at: st.x + st.gx - 6.5 * kk, st.y + st.gy; size: 5 * kk, 13 * kk; corner: 2.5 * kk; color: #f5f7f5 }
+                box { at: st.x + st.gx + 6.5 * kk, st.y + st.gy; size: 5 * kk, 13 * kk; corner: 2.5 * kk; color: #f5f7f5 }
             }
             //  The drops that go up where it lands, and fall back.
             particles { at: st.x, k.sy + kd.r - 2 - mo.y; area: 36, 2; count: 26; life: 0.35s .. 0.7s; speed: 80 .. 260
