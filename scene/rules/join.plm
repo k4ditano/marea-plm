@@ -246,6 +246,14 @@ part JoinRules {
             play happy
         }
         on still ch.$k.phase for 900ms while ch.$k.phase == leaving { ch.$k.bx: hm.dx ~16ms; ch.$k.by: hm.dy ~16ms }
+        //  Safety nets: a child the logic let go of that the scene still has sitting (the change of `on` was
+        //  missed: a reload of the scene), or one that never got home, does not keep its ring on the window.
+        on still ch.$k.on for 1200ms while not ch.$k.on and (ch.$k.phase == sitting or ch.$k.phase == falling) { ch.$k.phase = leaving }
+        on still ch.$k.phase for 3500ms while ch.$k.phase == leaving {
+            ch.$k.phase = none
+            ch.$k.retract: 1 ~16ms
+            ch.$k.bud: 0 ~16ms
+        }
         //  A little after, she is herself again.
         on still ch.$k.phase for 1300ms while ch.$k.phase == none and face == happy { face = eye }
     }

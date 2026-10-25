@@ -426,7 +426,23 @@ return function(shared)
             end
             --  Its window closed: nothing to hold on to any more.
             if flags and flags.gone then
-                leave(kid.k, string.format(tr("%s closed: I let go of it."), kid.window.app))
+                --  Said by a tool: it may only be that the program has several windows now (the list
+                --  names them PID.N) or a dialog; the window is let go only if no window of that
+                --  program is left in the list.
+                run("pleamar-wm", { "agent", "windows" }, function(out, code)
+                    if kids[kid.k] ~= kid then return end
+                    local base = tostring(kid.window.pid):match("^%d+")
+                    local there = false
+                    if code == 0 then
+                        for line in tostring(out):gmatch("[^\n]+") do
+                            local p = line:match("^%s*([%d%.]+)%s")
+                            if p and p:match("^%d+") == base then there = true end
+                        end
+                    end
+                    if code == 0 and not there then
+                        leave(kid.k, string.format(tr("%s closed: I let go of it."), kid.window.app))
+                    end
+                end, HANDS)
             end
         end)
     end
@@ -1147,8 +1163,18 @@ return function(shared)
                     end
                     local kwait = kid.calm and kid.calm < 25 and 45 or 120
                     if not mine then
-                        kid.missed = (kid.missed or 0) + 1
-                        if kid.missed >= 2 then gone[#gone + 1] = kid end
+                        --  A program with several windows lists them as PID.N: the window is not gone
+                        --  while some window of its program is in the list.
+                        local base, there = tostring(kid.window.pid):match("^%d+"), false
+                        for _, w in ipairs(list) do
+                            if tostring(w.pid):match("^%d+") == base then there = true end
+                        end
+                        if there then
+                            kid.missed = 0
+                        else
+                            kid.missed = (kid.missed or 0) + 1
+                            if kid.missed >= 2 then gone[#gone + 1] = kid end
+                        end
                     elseif mine.hidden then
                         --  On another workspace (or minimised): the child is not shown, and it is not let go.
                         kid.missed = 0
