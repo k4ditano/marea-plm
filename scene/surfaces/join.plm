@@ -151,13 +151,13 @@ part JoinSurface {
             //  (And the tab stays on the window's ring, not past its end.)
             let tb.cx = clamp(tb.cx0, win.l + tb.w / 2 + 6, max(win.r - tb.w / 2 - 6, win.l + tb.w / 2 + 6))
             let tb.cy = max(ch.$k.py - mo.y, 17)
-            zone box pill_zone.$k { at: pl.cx, st.y; size: pl.w * ch.$k.pill, pl.h; corner: 16; cursor: text; label: "Tell her what to do in this window"; active: ch.$k.phase == sitting and ch.$k.pill > 0.7 and not bz }
+            zone box pill_zone.$k { at: pl.cx, st.y; size: pl.w * ch.$k.pill, pl.h; corner: 16; cursor: text; label: "Tell her what to do in this window"; active: ch.$k.phase == sitting and ch.$k.pill > 0.7 and not bz and ch.$k.visu > 0.5 }
 
             //  ── the ring of its window ──
             //  The one it has joined (the same ring as the lit one while it is pulled).
             group {
                 show: ch.$k.lit > 0.01
-                opacity: ch.$k.lit
+                opacity: ch.$k.lit * ch.$k.visr
                 box { at: ch.$k.px - mo.x + ch.$k.pw / 2, ch.$k.py - mo.y + ch.$k.ph / 2; size: ch.$k.pw + 6, ch.$k.ph + 6; corner: 17; color: c.l; opacity: 4% + 1.5% * join.breath }
                 group {
                     glow: 8, 55% + 15% * join.breath, c.l
@@ -170,6 +170,10 @@ part JoinSurface {
             }
             //  Where it touches the window's edge: a soft light on it and a dark point under
             //  it, so it is sitting on it and not floating over it.
+            group {
+                //  Everything of the child but the ring: faded out while a window above its own covers its place.
+                opacity: ch.$k.visu
+                show: ch.$k.visu > 0.01
             group {
                 show: ch.$k.seat > 0.05 and st.ledge > 0.05
                 opacity: ch.$k.seat * st.ledge
@@ -201,14 +205,14 @@ part JoinSurface {
                        move 5.5, 0; line 9, 0; line 9, 3.5 }
                 path { at: tb.cx + tb.w / 2 - 68.5, tb.cy - 4.5; color: c.ink; stroke: 1.4; opacity: 70% + 30% * texp.glow
                        move 3.5, 9; line 0, 9; line 0, 5.5 }
-                zone ellipse texp_btn.$k { at: tb.cx + tb.w / 2 - 64, tb.cy; radius: 12; cursor: pointer; label: "Open its panel"; active: ch.$k.phase == sitting and ch.$k.tab > 0.7 }
+                zone ellipse texp_btn.$k { at: tb.cx + tb.w / 2 - 64, tb.cy; radius: 12; cursor: pointer; label: "Open its panel"; active: ch.$k.phase == sitting and ch.$k.tab > 0.7 and ch.$k.visu > 0.5 }
                 on enter texp_btn.$k { texp.glow: 1 }
                 on leave texp_btn.$k { texp.glow: 0 }
                 on press texp_btn.$k { emit kp_open(k) }
                 //  Minimise: its answer to a chip, or (with no answer) the box and all.
                 ellipse { at: tb.cx + tb.w / 2 - 40, tb.cy; radius: 9.5; color: #ffffff; opacity: 10% + 16% * tmin.glow }
                 line { from: tb.cx + tb.w / 2 - 44, tb.cy; to: tb.cx + tb.w / 2 - 36, tb.cy; width: 1.7; color: c.ink; opacity: 70% + 30% * tmin.glow }
-                zone ellipse tmin_btn.$k { at: tb.cx + tb.w / 2 - 40, tb.cy; radius: 12; cursor: pointer; label: "Minimise"; active: ch.$k.phase == sitting and ch.$k.tab > 0.7 }
+                zone ellipse tmin_btn.$k { at: tb.cx + tb.w / 2 - 40, tb.cy; radius: 12; cursor: pointer; label: "Minimise"; active: ch.$k.phase == sitting and ch.$k.tab > 0.7 and ch.$k.visu > 0.5 }
                 on enter tmin_btn.$k { tmin.glow: 1 }
                 on leave tmin_btn.$k { tmin.glow: 0 }
                 on press tmin_btn.$k while ch.$k.said_on { toggle ch.$k.min }
@@ -216,7 +220,7 @@ part JoinSurface {
                 ellipse { at: tb.cx + tb.w / 2 - 16, tb.cy; radius: 9.5; color: #ffffff; opacity: 10% + 16% * letgo.glow }
                 line { from: tb.cx + tb.w / 2 - 19.5, tb.cy - 3.5; to: tb.cx + tb.w / 2 - 12.5, tb.cy + 3.5; width: 1.7; color: c.ink; opacity: 70% + 30% * letgo.glow }
                 line { from: tb.cx + tb.w / 2 - 19.5, tb.cy + 3.5; to: tb.cx + tb.w / 2 - 12.5, tb.cy - 3.5; width: 1.7; color: c.ink; opacity: 70% + 30% * letgo.glow }
-                zone ellipse letgo_btn.$k { at: tb.cx + tb.w / 2 - 16, tb.cy; radius: 13; cursor: pointer; label: "Let go of the window"; active: ch.$k.phase == sitting and ch.$k.tab > 0.7 }
+                zone ellipse letgo_btn.$k { at: tb.cx + tb.w / 2 - 16, tb.cy; radius: 13; cursor: pointer; label: "Let go of the window"; active: ch.$k.phase == sitting and ch.$k.tab > 0.7 and ch.$k.visu > 0.5 }
                 on enter letgo_btn.$k { letgo.glow: 1 }
                 on leave letgo_btn.$k { letgo.glow: 0 }
                 on press letgo_btn.$k { emit chat_detach(k) }
@@ -375,13 +379,13 @@ part JoinSurface {
                     path { at: jp.x - 3, st.y - 5; color: amber; stroke: 2; show: ch.$k.paused
                            move 0, 0; line 8, 5; line 0, 10; line 0, 0 }
                 }
-                zone ellipse jpause_btn.$k { at: jp.x, st.y; radius: 14; cursor: pointer; label: "Pause or resume it"; active: ch.$k.phase == sitting and ch.$k.pill > 0.7 and (ch.$k.state == thinking or ch.$k.state == acting) and ch.$k.wrun < 0.5 }
+                zone ellipse jpause_btn.$k { at: jp.x, st.y; radius: 14; cursor: pointer; label: "Pause or resume it"; active: ch.$k.phase == sitting and ch.$k.pill > 0.7 and (ch.$k.state == thinking or ch.$k.state == acting) and ch.$k.wrun < 0.5 and ch.$k.visu > 0.5 }
                 on enter jpause_btn.$k { jpause.glow: 1 }
                 on leave jpause_btn.$k { jpause.glow: 0 }
                 on press jpause_btn.$k { emit kid_pause(k) }
                 ellipse { at: jb.x, st.y; radius: 13; stroke: 1.8; color: #ffa797; opacity: 75% + 25% * jsend.glow; show: bz }
                 box { at: jb.x, st.y; size: 9, 9; corner: 2.5; color: #ffa797; show: bz }
-                zone ellipse jsend_btn.$k { at: jb.x, st.y; radius: 16; cursor: pointer; label: "Send"; active: ch.$k.phase == sitting and ch.$k.pill > 0.7 }
+                zone ellipse jsend_btn.$k { at: jb.x, st.y; radius: 16; cursor: pointer; label: "Send"; active: ch.$k.phase == sitting and ch.$k.pill > 0.7 and ch.$k.visu > 0.5 }
                 on enter jsend_btn.$k { jsend.glow: 1 }
                 on leave jsend_btn.$k { jsend.glow: 0 }
                 on submit ch.$k.input { emit join_send(k) }
@@ -391,7 +395,7 @@ part JoinSurface {
 
             //  ── what it answered ──
             //  The drop under its box (scene/draw/kidsay.plm).
-            KidSay(bub.x, bub.t, bub.w, ch.$k.bub, ch.$k.said, ch.$k.rev, kid_min.$k, kid_exp.$k, bub.maxh, c.l, c.mid, c.deep, c.ink, c.sel)
+            KidSay(bub.x, bub.t, bub.w, ch.$k.bub * ch.$k.visu, ch.$k.said, ch.$k.rev, kid_min.$k, kid_exp.$k, bub.maxh, c.l, c.mid, c.deep, c.ink, c.sel)
             //  A step that waits for you (when it asks first), and what you wrote while it works.
             KidCard(bub.x, bub.t0, bub.w, clamp(ch.$k.cardo / 108, 0, 1) * clamp(ch.$k.pill * 2 - 1, 0, 1), ch.$k.card, ch.$k.cardbody, kid_yes.$k, kid_no.$k, c.ink)
             repeat i in 0..3 {
@@ -407,7 +411,7 @@ part JoinSurface {
                     ellipse { at: bub.x + bub.w / 2 - 14, qc.y; radius: 8.5; color: #ffffff; opacity: 10% + 16% * unq.glow }
                     line { from: bub.x + bub.w / 2 - 17.5, qc.y - 3.5; to: bub.x + bub.w / 2 - 10.5, qc.y + 3.5; width: 1.5; color: c.ink }
                     line { from: bub.x + bub.w / 2 - 17.5, qc.y + 3.5; to: bub.x + bub.w / 2 - 10.5, qc.y - 3.5; width: 1.5; color: c.ink }
-                    zone ellipse unq_btn.$k.$i { at: bub.x + bub.w / 2 - 14, qc.y; radius: 12; cursor: pointer; label: "Take it out of the line"; active: ch.$k.q > i and ch.$k.pill > 0.7 }
+                    zone ellipse unq_btn.$k.$i { at: bub.x + bub.w / 2 - 14, qc.y; radius: 12; cursor: pointer; label: "Take it out of the line"; active: ch.$k.q > i and ch.$k.pill > 0.7 and ch.$k.visu > 0.5 }
                     on enter unq_btn.$k.$i { unq.glow: 1 }
                     on leave unq_btn.$k.$i { unq.glow: 0 }
                     on press unq_btn.$k.$i { emit kid_unq(k * 3 + i) }
@@ -440,15 +444,16 @@ part JoinSurface {
                 box { at: cp.x, cp.y - 1; size: 13, 10; corner: 3.5; stroke: 1.5; color: c.ink; opacity: 85%; show: not bz and not ch.$k.new }
                 path { at: cp.x - 3, cp.y + 3.5; color: c.ink; stroke: 1.5; opacity: 85%; show: not bz and not ch.$k.new
                        move 0, 0; line 0.5, 3.5; line 4, 0 }
-                zone ellipse chip_btn.$k { at: cp.x, cp.y; radius: 17; cursor: pointer; label: "Show its answer"; active: ch.$k.chip > 0.7 }
+                zone ellipse chip_btn.$k { at: cp.x, cp.y; radius: 17; cursor: pointer; label: "Show its answer"; active: ch.$k.chip > 0.7 and ch.$k.visu > 0.5 }
                 on enter chip_btn.$k { chip.glow: 1 }
                 on leave chip_btn.$k { chip.glow: 0 }
                 on press chip_btn.$k { ch.$k.min = false; ch.$k.shut = false }
             }
+            }
 
             //  The child itself answers to a double press: it puts its box and answer away (it stays on the
             //  ring of its window), or brings them back.
-            zone ellipse kball.$k { at: st.x, st.y; radius: kd.r + 1; cursor: pointer; label: "Put away the box (double press)"; active: ch.$k.phase == sitting and ch.$k.seat > 0.9 and ch.$k.tab > 0.7 }
+            zone ellipse kball.$k { at: st.x, st.y; radius: kd.r + 1; cursor: pointer; label: "Put away the box (double press)"; active: ch.$k.phase == sitting and ch.$k.seat > 0.9 and ch.$k.tab > 0.7 and ch.$k.visu > 0.5 }
             on press kball.$k while ch.$k.dbl { toggle ch.$k.shut; ch.$k.dbl = false }
             on press kball.$k while not ch.$k.dbl { ch.$k.dbl = true }
         }
@@ -469,7 +474,7 @@ part JoinSurface {
         let kp.x = clamp(kp.win.x + kp.win.w / 2 - kp.w / 2, 8, max(stick.width - kp.w - 8, 8))
         let kp.y = clamp(kp.win.y + 44, 8, max(stick.height - kp.h - 8, 8))
         let kp.work = pick(kp.i, ch.0.state == thinking or ch.0.state == acting or ch.0.state == awaiting or ch.0.state == starting, ch.1.state == thinking or ch.1.state == acting or ch.1.state == awaiting or ch.1.state == starting, ch.2.state == thinking or ch.2.state == acting or ch.2.state == awaiting or ch.2.state == starting, ch.3.state == thinking or ch.3.state == acting or ch.3.state == awaiting or ch.3.state == starting)
-        KidPanel(kp.x, kp.y, kp.w, kp.h, kp.o, kp.i, kp.c.l, kp.c.mid, kp.c.deep, kp.c.ink, kp.work, pick(kp.i, ch.0.paused, ch.1.paused, ch.2.paused, ch.3.paused), pick(kp.i, ch.0.askfirst, ch.1.askfirst, ch.2.askfirst, ch.3.askfirst), pick(kp.i, ch.0.q, ch.1.q, ch.2.q, ch.3.q), pick(kp.i, ch.0.wn, ch.1.wn, ch.2.wn, ch.3.wn))
+        KidPanel(kp.x, kp.y, kp.w, kp.h, kp.o * pick(kp.i, ch.0.visu, ch.1.visu, ch.2.visu, ch.3.visu), kp.i, kp.c.l, kp.c.mid, kp.c.deep, kp.c.ink, kp.work, pick(kp.i, ch.0.paused, ch.1.paused, ch.2.paused, ch.3.paused), pick(kp.i, ch.0.askfirst, ch.1.askfirst, ch.2.askfirst, ch.3.askfirst), pick(kp.i, ch.0.q, ch.1.q, ch.2.q, ch.3.q), pick(kp.i, ch.0.wn, ch.1.wn, ch.2.wn, ch.3.wn))
         //  Where you write in it (below its thread), and Enter.
         input kp.input { at: kp.x + 30, kp.y + kp.h - 41; width: kp.w - 100; size: 14; color: kp.c.ink; placeholder: "Tell it what to do next…"; selection: kp.c.mid; show: kp.o > 0.5 }
         on submit kp.input { emit kp_send }

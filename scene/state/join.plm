@@ -138,6 +138,13 @@ part Join {
     //  The chip that stands in for the answer while it is minimised (or the box, put away), and the tab on the window's ring.
     prop ch.0.chip = 0 ~200ms; prop ch.1.chip = 0 ~200ms; prop ch.2.chip = 0 ~200ms; prop ch.3.chip = 0 ~200ms
     prop ch.0.tab = 0 ~200ms; prop ch.1.tab = 0 ~200ms; prop ch.2.tab = 0 ~200ms; prop ch.3.tab = 0 ~200ms
+    //  Covered by a window that is above its own (the logic compares the windows' stacking): `cov` the
+    //  ring of its window, `covu` its place on the top edge, its box, its answer and its buttons. They fade
+    //  and give up their zones, so a window put over the one a child works in is not painted over.
+    fact ch.0.cov = 0; fact ch.1.cov = 0; fact ch.2.cov = 0; fact ch.3.cov = 0
+    fact ch.0.covu = 0; fact ch.1.covu = 0; fact ch.2.covu = 0; fact ch.3.covu = 0
+    prop ch.0.visr = 1 ~220ms; prop ch.1.visr = 1 ~220ms; prop ch.2.visr = 1 ~220ms; prop ch.3.visr = 1 ~220ms
+    prop ch.0.visu = 1 ~220ms; prop ch.1.visu = 1 ~220ms; prop ch.2.visu = 1 ~220ms; prop ch.3.visu = 1 ~220ms
     //  How far its answer hangs below its box: the card that asks you and the queue's chips are above it.
     prop ch.0.cardo = 0 ~160ms; prop ch.1.cardo = 0 ~160ms; prop ch.2.cardo = 0 ~160ms; prop ch.3.cardo = 0 ~160ms
     prop ch.0.qo = 0 ~160ms; prop ch.1.qo = 0 ~160ms; prop ch.2.qo = 0 ~160ms; prop ch.3.qo = 0 ~160ms

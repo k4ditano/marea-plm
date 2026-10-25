@@ -489,6 +489,8 @@ return function(shared)
         local kind = m.type
         if kind == "ready" then
             kid.ready = true
+            kid.retried = false
+            log("kids · the worker of child " .. kid.k .. " is ready", tostring(m.usable))
             kid.usable = m.usable == true
             if m.usable then
                 if kid.state == "offline" or kid.state == "starting" then
@@ -571,7 +573,8 @@ return function(shared)
         end
     end
 
-    local function start_worker(kid)
+    local start_worker
+    function start_worker(kid)
         if kid.worker then return end
         kid.ready = false
         set_state(kid, "starting")
@@ -589,6 +592,8 @@ return function(shared)
         end, function(_, code)
             log("kids · the worker of child " .. kid.k .. " ended", code)
             if kid.worker == mine.id then kid.worker, kid.ready = nil, false end
+            --  One we let go of to start another (it never said it was ready): nothing to say about it.
+            if mine.retired then return end
             if kids[kid.k] ~= kid then return end
             if said_why then
                 set_state(kid, "offline")
@@ -613,11 +618,23 @@ return function(shared)
         for i = math.max(1, #kid.history - 40), #kid.history do recent[#recent + 1] = kid.history[i] end
         local model = type(settings.chat_model) == "string" and settings.chat_model or "openai-codex/gpt-5.6-luna"
         write(id, json.encode({ type = "start", mode = "kid", model = model, locale = fact.locale, history = recent, memory = { secrets = chat.secrets() } }) .. "\n")
-        --  A worker that never says it is ready does not leave the child waiting for good.
-        after(60000, function()
-            if kids[kid.k] == kid and kid.worker == id and not kid.ready and kid.state == "starting" then
-                set_state(kid, "offline")
-                status(kid, tr("Her engine cannot start: ") .. "…")
+        --  A worker that never says it is ready does not leave the child «thinking» for good (the state is
+        --  «thinking», not «starting», as soon as it is asked something): after 25 s it is started again,
+        --  once, with what was asked kept; and if that one does not answer either, the child says so.
+        after(25000, function()
+            if kids[kid.k] == kid and kid.worker == id and not kid.ready then
+                log("kids · the worker of child " .. kid.k .. " did not say it was ready in 25 s")
+                if not kid.retried then
+                    kid.retried = true
+                    mine.retired = true
+                    kid.worker = nil
+                    kill(id)
+                    start_worker(kid)
+                else
+                    set_state(kid, "offline")
+                    status(kid, tr("Her engine cannot start: ") .. "…")
+                    kid.queue = {}
+                end
             end
         end)
     end
@@ -1035,6 +1052,68 @@ return function(shared)
             end
         end, { errors = false })
     end
+    --  Which children are covered by a window that is above their own: the window manager knows the
+    --  windows' stacking (`stamp.N`, plus 50000 for a floating one, as the scene paints them), the places
+    --  (`x.N`…), and which are open and shown. The ring of a child's window is covered when another
+    --  window above it overlaps it; the child's own place (its band over the top edge, its box, its
+    --  answer, its buttons) when one overlaps that band. One question for all of them, once a round.
+    local function overlap(a, b)
+        local w = math.min(a.x + a.w, b.x + b.w) - math.max(a.x, b.x)
+        local h = math.min(a.y + a.h, b.y + b.h) - math.max(a.y, b.y)
+        return w > 24 and h > 24
+    end
+    local function occlude()
+        if not any_kid() then return end
+        local argv = { "--say", "wm" }
+        for sl = 0, 15 do
+            for _, n in ipairs({ "x.", "y.", "w.", "h.", "stamp." }) do argv[#argv + 1] = "get " .. n .. sl end
+            for _, n in ipairs({ "open", "minimized", "floating", "screen" }) do argv[#argv + 1] = "get win." .. sl .. "." .. n end
+        end
+        run("pleamar-wm", argv, function(out, code)
+            if code ~= 0 or not any_kid() then return end
+            local v, i = {}, 0
+            for line in tostring(out):gmatch("[^\n]+") do
+                i = i + 1
+                v[i] = line
+            end
+            local wins = {}
+            for sl = 0, 15 do
+                local b = sl * 9
+                if v[b + 6] == "true" and v[b + 7] ~= "true" then
+                    local sc = tonumber(v[b + 9]) or 0
+                    wins[sl] = {
+                        x = (fact["mon.x." .. sc] or 0) + (tonumber(v[b + 1]) or 0), y = (fact["mon.y." .. sc] or 0) + (tonumber(v[b + 2]) or 0),
+                        w = tonumber(v[b + 3]) or 0, h = tonumber(v[b + 4]) or 0,
+                        z = (tonumber(v[b + 5]) or 0) + (v[b + 8] == "true" and 50000 or 0), screen = sc,
+                    }
+                end
+            end
+            for _, kid in pairs(kids) do
+                local me = kid.slot and wins[kid.slot]
+                local cov, covu = 0, 0
+                if fact["ch." .. kid.k .. ".hidden"] == true then
+                    cov, covu = 1, 1
+                elseif me and kid.tf then
+                    local f = kid.tf
+                    local band = { x = f.x - 10, y = f.y - 70, w = f.w + 20, h = 100 }
+                    for sl, o in pairs(wins) do
+                        if sl ~= kid.slot and o.z > me.z and o.screen == me.screen then
+                            if overlap(f, o) then cov = 1 end
+                            if overlap(band, o) then covu = 1 end
+                        end
+                    end
+                end
+                --  The same answer twice in a row before it changes: a window passing by does not blink it.
+                local want = cov * 2 + covu
+                if kid.cov_seen == want and kid.cov_now ~= want then
+                    kid.cov_now = want
+                    F(kid.k, "cov", cov)
+                    F(kid.k, "covu", covu)
+                end
+                kid.cov_seen = want
+            end
+        end, { errors = false })
+    end
     local function reshow_all()
         for _, kid in pairs(kids) do
             if kid.cur then show_box(kid, kid.cur) end
@@ -1209,6 +1288,7 @@ return function(shared)
                     if kids[kid.k] == kid then leave(kid.k, string.format(tr("%s closed: I let go of it."), kid.window.app)) end
                 end
                 find_slots(need_slot)
+                occlude()
                 if need_bars then read_bars(reshow_all) end
             end
             if any_kid() then after(wait, tick) else loop.running = false end
@@ -1250,6 +1330,7 @@ return function(shared)
             after(600, function() kill(id) end)
         end
         F(k, "on", false)
+        F(k, "cov", 0); F(k, "covu", 0)
         F(k, "carry", false)
         F(k, "hidden", false)
         F(k, "said_on", false)

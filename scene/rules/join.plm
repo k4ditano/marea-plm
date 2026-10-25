@@ -71,6 +71,8 @@ part JoinRules {
         follow ch.$k.diry = (k.my2 - cy_actual) / k.d
         //  How lit the ring of its window is, how much she looks at it, and its answer's drop.
         follow ch.$k.lit = if(ch.$k.phase == sitting or ch.$k.phase == falling, 1, 0)
+        follow ch.$k.visr = 1 - ch.$k.cov
+        follow ch.$k.visu = 1 - ch.$k.covu
         follow ch.$k.look = if(ch.$k.phase != none, 1, 0)
         follow ch.$k.stir = if(ch.$k.state == thinking or ch.$k.state == acting or ch.$k.state == starting, 1, if(ch.$k.state == awaiting, 0.45, 0))
         //  The tab is there while it sits and the chat is shut; the chip stands in for the answer (minimised) or the box (put away).
