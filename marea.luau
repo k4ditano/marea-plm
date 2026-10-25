@@ -266,11 +266,24 @@ local function search()
     end)
 end
 
-if not sys.watch("apps", function(list) apps = list; search() end) then
-    log("this system does not know which applications it has")
+--  The `apps` service reads the `.desktop` files once and is done: an app installed later was not in
+--  the list until she started again. So it is asked again each time the finder opens (not more than once
+--  every few seconds): reading them is a thread of a moment, and what was installed is there.
+local apps_at = 0
+local function read_apps()
+    apps_at = os.time()
+    if not sys.watch("apps", function(list) apps = list; search() end) then
+        log("this system does not know which applications it has")
+    end
 end
+read_apps()
 on("text:query", search)
-on("fact:searching", function(opened) if opened then search() end end)
+on("fact:searching", function(opened)
+    if opened then
+        search()
+        if os.time() - apps_at >= 3 then read_apps() end
+    end
+end)
 
 --  Opening: an app is launched; a file or a folder, to whoever knows how to open it.
 on("open_result", function(i)
