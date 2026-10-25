@@ -1143,6 +1143,7 @@ local function save_settings()
     settings.wallpaper = WALLPAPER
     settings.dnd = fact.dnd == true
     settings.quiet_rec = fact.quiet_rec ~= false
+    settings.rec_stay = fact.rec_stay == true
     settings.snooze = math.floor(fact.snooze_k or 1)
     settings.chat_free = fact["chat.free"] == true
     --  What she has on: it stays on through a restart.
@@ -1172,12 +1173,14 @@ local function paint_muted()
 end
 fact.dnd = settings.dnd == true
 fact.quiet_rec = settings.quiet_rec ~= false
+fact.rec_stay = settings.rec_stay == true
 fact.snooze_k = math.clamp(tonumber(settings.snooze) or 1, 0, 2)
 for _, app in ipairs(type(settings.muted) == "table" and settings.muted or {}) do muted_apps[tostring(app)] = true end
 paint_muted()
 table.insert(hooks.language, paint_muted)
 on("fact:dnd", function() save_settings() end)
 on("fact:quiet_rec", function() save_settings() end)
+on("fact:rec_stay", function() save_settings() end)
 on("fact:snooze_k", function() save_settings() end)
 
 --  «Later»: the notice leaves, without going to the history, and comes back

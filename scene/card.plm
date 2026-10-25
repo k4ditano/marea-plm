@@ -402,7 +402,7 @@ part Card {
             text "Focus" { at: px0, card.top + 45; anchor: left center; size: 18; weight: 500; color: ink; show: page == concentration }
             text "Her wardrobe" { at: px0, card.top + 45; anchor: left center; size: 18; weight: 500; color: ink; show: page == wardrobe }
             text "Sound" { at: px0, card.top + 45; anchor: left center; size: 18; weight: 500; color: ink; show: page == sound }
-            text pick(section, "Settings", "Where she lives", "Her look", "Language", "The lock", "Notices", "Talking with her", "Her tasks", "Passwords for her tasks", "What she remembers") { at: px0, card.top + 45; anchor: left center; size: 18; weight: 500; color: ink; show: page == settings }
+            text pick(section, "Settings", "Where she lives", "Her look", "Language", "The lock", "Notices", "Talking with her", "Her tasks", "Passwords for her tasks", "What she remembers", "Recording") { at: px0, card.top + 45; anchor: left center; size: 18; weight: 500; color: ink; show: page == settings }
             text "Agents" { at: px0, card.top + 45; anchor: left center; size: 18; weight: 500; color: ink; show: page == agents }
             text "History" { at: px0, card.top + 45; anchor: left center; size: 18; weight: 500; color: ink; show: page == history }
             text "Deriva" { at: px0, card.top + 45; anchor: left center; size: 18; weight: 500; color: ink; show: page == drift }

@@ -31,6 +31,11 @@ part Recording {
     event record
     event stop ->                      // and the logic asks the recorder to finish
     event record_toggle                // SUPER+SHIFT+C: starts, or stops whatever there is
+    //  Whether she goes to a corner to record (the default) or stays where she is, her face the red
+    //  eye of the recording (Settings › Recording): for showing her own functions on a video.
+    fact rec_stay = false
+    event flip_rec_stay
+    on flip_rec_stay { toggle rec_stay }
     fact corner = false
     fact nook_screen = 0               // which monitor's copy holds the corner
     //  Which of the four. The contract says the one that falls OUTSIDE what is
@@ -44,7 +49,9 @@ part Recording {
     follow tuck = if(corner, 1, 0)
 
     //  Filming is not something she does asleep.
-    on record { purpose = nook; asleep = false; play retire }
+    on record while not rec_stay { purpose = nook; asleep = false; play retire }
+    //  Staying: no corner, no trip: the count is on her face where she is, and then the red eye.
+    on record while rec_stay { asleep = false; face = count }
     //  «She already counts from the corner she is going to take».
     on gone while purpose == nook {
         away: 1 ~16ms
@@ -57,8 +64,10 @@ part Recording {
     //  purpose: the disc arrives with the face, and the red with the recorder.
     //  The same key starts and stops. The guards read the previous frame, so the
     //  two rules do not step on each other.
-    on record_toggle while face == eye { emit record }
-    on record_toggle while face == count or face == rec { emit stop }
+    on record_toggle while face == eye and not taping { emit record }
+    //  (Staying, her face can be changed by what she goes on doing: the recorder running is the
+    //  truth, not the face.)
+    on record_toggle while taping or face == count or face == rec { emit stop }
     on stop {
         taping = false
         corner = false

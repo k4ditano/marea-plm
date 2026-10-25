@@ -26,6 +26,8 @@ part Settings {
     on to_talk { section = talk }
     event to_memory
     on to_memory { section = memory }
+    event to_rec
+    on to_rec { section = recpage }
     event to_tasks
     on to_tasks { section = tasks }
     event to_keys
@@ -40,15 +42,15 @@ part Settings {
         pages section {
             page menu "Settings" {
                 grid {
-                    at: card.x - 228, card.top + 98; columns: 2; gap: 10; width: 456; row: 90
-                    Tile("Where she lives", pick(if(following, 0, home + 1), "Follows you", screen.0.name, screen.1.name), to_home, cell.w, h: 90) {
+                    at: card.x - 228, card.top + 98; columns: 2; gap: 10; width: 456; row: 72
+                    Tile("Where she lives", pick(if(following, 0, home + 1), "Follows you", screen.0.name, screen.1.name), to_home, cell.w, h: 72) {
                         group { size: 30, 26
                             box { at: 15, 10; size: 26, 17; corner: 3; stroke: 1.8; color: ink }
                             line { from: 9, 23; to: 21, 23; width: 1.8; color: ink }
                             ellipse { at: 15, 10; radius: 4.5; color: mint }
                         }
                     }
-                    Tile("Her look", pick(skin, "Liquid", "Light liquid", "Classic"), to_look, cell.w, h: 90) {
+                    Tile("Her look", pick(skin, "Liquid", "Light liquid", "Classic"), to_look, cell.w, h: 72) {
                         group { size: 32, 32
                             body {
                                 color: coal
@@ -61,10 +63,10 @@ part Settings {
                             box { at: 20, 16; size: 3, 7; corner: 1.5; color: ink }
                         }
                     }
-                    Tile("Language", pick(language, "System", "English", "Español"), to_language, cell.w, h: 90) {
+                    Tile("Language", pick(language, "System", "English", "Español"), to_language, cell.w, h: 72) {
                         text "Aa" { size: 17; weight: 700; color: ink }
                     }
-                    Tile("The lock", pick(with_exit, "Password only", "Safety net on"), to_lock, cell.w, h: 90) {
+                    Tile("The lock", pick(with_exit, "Password only", "Safety net on"), to_lock, cell.w, h: 72) {
                         group { size: 20, 24
                             arc { at: 10, 8; radius: 6; span: 180deg; width: 2; color: ink }
                             line { from: 4, 8; to: 4, 12; width: 2; color: ink }
@@ -72,7 +74,7 @@ part Settings {
                             box { at: 10, 17; size: 18, 13; corner: 3; color: mix(ink, mint, with_exit) }
                         }
                     }
-                    Tile("Notices", pick(if(dnd, 3, min(muted.count, 2)), "All of them arrive", "One app muted", "Some apps muted", "Do not disturb"), to_notices, cell.w, h: 90) {
+                    Tile("Notices", pick(if(dnd, 3, min(muted.count, 2)), "All of them arrive", "One app muted", "Some apps muted", "Do not disturb"), to_notices, cell.w, h: 72) {
                         group { size: 24, 26
                             path { at: 12, 13; color: ink
                                    move -9, 6; line -7, 3; line -7, -3; curve 0, -11 via -7, -11; curve 7, -3 via 7, -11; line 7, 3; line 9, 6; close }
@@ -80,14 +82,14 @@ part Settings {
                             ellipse { at: 19, 5; radius: 3.2; color: mix(mint, lilac, dnd) }
                         }
                     }
-                    Tile("Wardrobe and wallpaper", "Pieces and the background", to_wardrobe, cell.w, h: 90) {
+                    Tile("Wardrobe and wallpaper", "Pieces and the background", to_wardrobe, cell.w, h: 72) {
                         group { size: 30, 22
                             box { at: 15, 11; size: 28, 20; corner: 4; stroke: 1.6; color: ink }
                             path { at: 3, 19; color: ink; move 0, 0; line 8, -9; line 13, -3; line 17, -7; line 24, 0; close }
                             ellipse { at: 22, 6; radius: 2.4; color: mint }
                         }
                     }
-                    Tile("Talking with her", pick(if(not chat.signed_in, 0, if(chat.free, 2, 1)), "Not signed in", "Asks before each step", "Uses the computer"), to_talk, cell.w, h: 90) {
+                    Tile("Talking with her", pick(if(not chat.signed_in, 0, if(chat.free, 2, 1)), "Not signed in", "Asks before each step", "Uses the computer"), to_talk, cell.w, h: 72) {
                         group { size: 30, 26
                             box { at: 15, 11; size: 26, 18; corner: 7; stroke: 1.8; color: ink }
                             path { at: 7, 18; color: ink; move 0, 0; line 6, 0; line 0, 7; close }
@@ -96,7 +98,13 @@ part Settings {
                             ellipse { at: 19, 11; radius: 1.8; color: mint }
                         }
                     }
-                    Tile("What she remembers", mem.summary, to_memory, cell.w, h: 90) {
+                    Tile("Recording", pick(rec_stay, "She goes to a corner", "She stays, with a red eye"), to_rec, cell.w, h: 72) {
+                        group { size: 30, 26
+                            ellipse { at: 15, 13; radius: 11; stroke: 1.8; color: ink }
+                            ellipse { at: 15, 13; radius: 5; color: #e0655a }
+                        }
+                    }
+                    Tile("What she remembers", mem.summary, to_memory, cell.w, h: 72) {
                         group { size: 28, 26
                             ellipse { at: 14, 13; radius: 11; stroke: 1.8; color: ink }
                             ellipse { at: 10, 11; radius: 2.6; color: mint }
@@ -544,6 +552,26 @@ part Settings {
                 on enter talks_btn { talks.glow: 1 }
                 on leave talks_btn { talks.glow: 0 }
                 on press talks_btn { emit mem_clear_talks }
+            }
+
+            // ── recording ──
+            //  What she does while she records the screen: by default she goes to a corner (out of what
+            //  is filmed, when it can be); staying, she is where she was, with the red eye, and she goes
+            //  on being herself on the video.
+            page recpage "Recording" {
+                prop rec.pos = 0 ~200ms
+                follow rec.pos = if(rec_stay, 1, 0)
+                ellipse { at: card.x, card.top + 186; radius: 26; stroke: 3.2; color: mix(ink, #e0655a, rec.pos) }
+                ellipse { at: card.x, card.top + 186; radius: 11 + 3 * rec.pos; color: #e0655a; opacity: 55% + 40% * rec.pos }
+                text "Super+Shift+C starts and stops a recording of the screen." { at: card.x, card.top + 244; anchor: center; size: 12.5; weight: 500; color: ink }
+                text "By default she slips into a corner so she is not in your video. If you want to show her own functions on a video, she can stay where she is: her eye turns red and she goes on as usual. The same keys stop it." { at: card.x, card.top + 292; anchor: center; size: 11; width: 410; lines: 4; color: st.faint }
+                box { at: card.x, card.top + 380; size: 456, 64; corner: 16; color: mix(#202021, #2a1c1a, rec.pos) }
+                box { at: card.x, card.top + 380; size: 456, 64; corner: 16; stroke: 1.2; color: #e0655a; opacity: rec.pos * 70% }
+                text "Stay where she is" { at: card.x - 206, card.top + 370; anchor: left center; size: 13; weight: 600; color: ink }
+                text "No trip to a corner: only the red eye shows she is recording" { at: card.x - 206, card.top + 389; anchor: left center; size: 11; width: 370; lines: 1; color: st.faint }
+                column { at: card.x + 174, card.top + 368
+                    Switch(rec_stay, flip_rec_stay, accent: #e0655a)
+                }
             }
         }
     }
