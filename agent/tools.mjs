@@ -262,6 +262,50 @@ export const TOOLS = [
     },
 ];
 
+//  What only one of her children has (logic/kids.luau does them, host-side: no hands on the desktop). A
+//  watch is something it does again every so many minutes while it lives: it is kept in memory by that
+//  child's logic and ends with the child (let go, its window closing, Marea restarting): never saved, never
+//  a schedule of the system. Its notes are files in one folder (Documents/Marea) that Marea's logic
+//  writes, never the worker.
+export const KID_ONLY_TOOLS = [
+    {
+        name: "watch_start",
+        description: "Starts a WATCH: you do something again every so many minutes, in your window, for as long as you live. Use it when the user asks for something recurring («check this page every 10 minutes for news about X and write what you find in a file»). `what` is the instruction as you will be given it each time, complete enough to do alone (what to look at, what counts as new, where to write it); each run you keep your conversation, so you can compare with what you noticed before. A watch lives and dies with you: if the user lets you go, closes the window or restarts Marea, every watch is gone and nothing is left saved. It also ends by itself after 12 hours. At most 3 at once. After starting one, tell the user in your answer what you set up (what, how often, where you will write) and that it stops if they let you go.",
+        parameters: Type.Object({
+            every_minutes: Type.Integer({ minimum: 1, maximum: 1440, description: "Every how many minutes (1 to 1440)" }),
+            what: Type.String({ maxLength: 1500, description: "The instruction for each run, in the user's language, complete enough to do alone" }),
+            why,
+        }),
+    },
+    {
+        name: "watch_list",
+        looks: true,
+        description: "Your watches: each with its id, how often, what, how many times it ran and when it runs next.",
+        parameters: Type.Object({}),
+    },
+    {
+        name: "watch_stop",
+        description: "Stops one of your watches, by its id (as watch_list gives it), when the user asks or it is no longer needed.",
+        parameters: Type.Object({ id: Type.String({ maxLength: 16 }) }),
+    },
+    {
+        name: "notes_write",
+        description: "Keeps what you found in a note: a file in the user's Documents/Marea folder (the only place you can write). `name` is the file's name (letters, digits, spaces, dots, dashes; .md is added). mode `append` adds a dated section to the end of the file (it is made if it is not there); `replace` overwrites a file that YOU made in this life of yours. Up to 64 KB at a time. It answers with the full path: tell the user where you wrote it. When the user says «anótalo donde quieras», use `<program>-<short topic>.md`.",
+        parameters: Type.Object({
+            name: Type.String({ maxLength: 60, description: "File name, without a folder" }),
+            text: Type.String({ maxLength: 65536, description: "What to write (markdown)" }),
+            mode: Type.Union([Type.Literal("append"), Type.Literal("replace")], { description: "append (default) or replace" }),
+            why,
+        }),
+    },
+    {
+        name: "notes_read",
+        looks: true,
+        description: "Reads a note from the user's Documents/Marea folder (up to 20 000 characters), for example to compare with what you found before.",
+        parameters: Type.Object({ name: Type.String({ maxLength: 60, description: "File name, without a folder" }) }),
+    },
+];
+
 //  What she has while she builds a piece of the desktop with the user
 //  (BUILDER.md): a creation's own files, pleamar's checks and documents,
 //  and a look at what she made. Nothing else: no hands on the desktop, no
@@ -351,5 +395,5 @@ export const BUILDER_TOOLS = [
 ];
 
 export function toolNamed(name) {
-    return TOOLS.find((t) => t.name === name) ?? BUILDER_TOOLS.find((t) => t.name === name) ?? null;
+    return TOOLS.find((t) => t.name === name) ?? BUILDER_TOOLS.find((t) => t.name === name) ?? KID_ONLY_TOOLS.find((t) => t.name === name) ?? null;
 }

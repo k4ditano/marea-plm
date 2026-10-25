@@ -368,6 +368,7 @@ library SpanishUi {
         "{queued} waiting for its turn" = "{queued} esperando su turno"
         "Pause or resume it" = "Pausar o reanudar"
         "next" = "luego"
+        "Stop this watch" = "Parar esta vigilancia"
         "Take it out of the line" = "Quitarla de la cola"
         // her children: what they answered (scene/draw/kidsay.plm)
         "Answer" = "Respuesta"

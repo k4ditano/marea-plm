@@ -190,7 +190,7 @@ part JoinSurface {
                     shadow: 0, 3, 10, 34%, c.deep
                     box { at: tb.cx, tb.cy; size: tb.w, 26; corner: 13 }
                 }
-                box { at: tb.cx, tb.cy; size: tb.w, 26; corner: 13; stroke: 1.3; color: c.l; opacity: 70% + 14% * join.breath }
+                box { at: tb.cx, tb.cy; size: tb.w, 26; corner: 13; stroke: 1.3; color: c.l; opacity: 70% + 14% * join.breath + 22% * ch.$k.wrun * kid.beat }
                 ellipse { at: tb.cx - tb.w / 2 + 15, tb.cy; radius: 3.4; color: mix(c.l, amber, ch.$k.askfirst) }
                 text ch.$k.label { at: tb.cx - tb.w / 2 + 26, tb.cy; anchor: left center; size: 13; weight: 600; color: c.ink; opacity: 1 - letgo.glow; width: 280; lines: 1; measure: jname.$k }
                 text "Let go" { at: tb.cx - tb.w / 2 + 26, tb.cy; anchor: left center; size: 13; weight: 600; color: c.l; opacity: letgo.glow }
@@ -346,16 +346,16 @@ part JoinSurface {
                 //  field that turns into one.
                 input ch.$k.input { at: pl.c.l, st.y - 10; width: pl.fw; size: 15; color: c.ink
                                     placeholder: "Tell me what to do in this window…"
-                                    selection: c.sel; show: not bz }
+                                    selection: c.sel; show: not bz or ch.$k.wrun > 0.5 }
                 //  And while it works, what it is on, with a place to write what comes next (it waits its turn). Where
                 //  it thinks or acts there is a Pause button beside the Stop, on the inner side.
-                let jx.p = if(ch.$k.state == thinking or ch.$k.state == acting, 32, 0)
+                let jx.p = if((ch.$k.state == thinking or ch.$k.state == acting) and ch.$k.wrun < 0.5, 32, 0)
                 let jx.l = pl.c.l + if(pl.side > 0, 0, jx.p)
                 let jx.w = pl.fw - jx.p
-                text ch.$k.status { at: jx.l, st.y; anchor: left center; size: 14; color: c.ink; width: jx.w * 0.44; lines: 1; show: bz }
+                text ch.$k.status { at: jx.l, st.y; anchor: left center; size: 14; color: c.ink; width: jx.w * 0.44; lines: 1; show: bz and ch.$k.wrun < 0.5 }
                 input ch.$k.input { at: jx.l + jx.w * 0.46 + 6, st.y - 9; width: jx.w * 0.54 - 10; size: 14; color: c.ink
                                     placeholder: "Next…"
-                                    selection: c.sel; show: bz and ch.$k.state != awaiting }
+                                    selection: c.sel; show: bz and ch.$k.state != awaiting and ch.$k.wrun < 0.5 }
                 text ch.$k.status { at: pl.c.l, st.y; anchor: left center; size: 14; color: #ffb4a6; width: pl.fw; lines: 1; show: ch.$k.state == offline }
                 //  Send: a tinted drop with a clear arrow; Stop: a ring with a calm coral square.
                 prop jsend.glow = 0 ~140ms
@@ -368,14 +368,14 @@ part JoinSurface {
                 prop jpause.glow = 0 ~140ms
                 let jp.x = jb.x - pl.side * 32
                 group {
-                    show: ch.$k.state == thinking or ch.$k.state == acting
+                    show: (ch.$k.state == thinking or ch.$k.state == acting) and ch.$k.wrun < 0.5
                     ellipse { at: jp.x, st.y; radius: 11.5 + 1 * jpause.glow; color: #ffffff; opacity: 12% + 16% * jpause.glow }
                     box { at: jp.x - 3, st.y; size: 2.8, 10; corner: 1; color: c.ink; show: not ch.$k.paused }
                     box { at: jp.x + 3, st.y; size: 2.8, 10; corner: 1; color: c.ink; show: not ch.$k.paused }
                     path { at: jp.x - 3, st.y - 5; color: amber; stroke: 2; show: ch.$k.paused
                            move 0, 0; line 8, 5; line 0, 10; line 0, 0 }
                 }
-                zone ellipse jpause_btn.$k { at: jp.x, st.y; radius: 14; cursor: pointer; label: "Pause or resume it"; active: ch.$k.phase == sitting and ch.$k.pill > 0.7 and (ch.$k.state == thinking or ch.$k.state == acting) }
+                zone ellipse jpause_btn.$k { at: jp.x, st.y; radius: 14; cursor: pointer; label: "Pause or resume it"; active: ch.$k.phase == sitting and ch.$k.pill > 0.7 and (ch.$k.state == thinking or ch.$k.state == acting) and ch.$k.wrun < 0.5 }
                 on enter jpause_btn.$k { jpause.glow: 1 }
                 on leave jpause_btn.$k { jpause.glow: 0 }
                 on press jpause_btn.$k { emit kid_pause(k) }
@@ -469,7 +469,7 @@ part JoinSurface {
         let kp.x = clamp(kp.win.x + kp.win.w / 2 - kp.w / 2, 8, max(stick.width - kp.w - 8, 8))
         let kp.y = clamp(kp.win.y + 44, 8, max(stick.height - kp.h - 8, 8))
         let kp.work = pick(kp.i, ch.0.state == thinking or ch.0.state == acting or ch.0.state == awaiting or ch.0.state == starting, ch.1.state == thinking or ch.1.state == acting or ch.1.state == awaiting or ch.1.state == starting, ch.2.state == thinking or ch.2.state == acting or ch.2.state == awaiting or ch.2.state == starting, ch.3.state == thinking or ch.3.state == acting or ch.3.state == awaiting or ch.3.state == starting)
-        KidPanel(kp.x, kp.y, kp.w, kp.h, kp.o, kp.i, kp.c.l, kp.c.mid, kp.c.deep, kp.c.ink, kp.work, pick(kp.i, ch.0.paused, ch.1.paused, ch.2.paused, ch.3.paused), pick(kp.i, ch.0.askfirst, ch.1.askfirst, ch.2.askfirst, ch.3.askfirst), pick(kp.i, ch.0.q, ch.1.q, ch.2.q, ch.3.q))
+        KidPanel(kp.x, kp.y, kp.w, kp.h, kp.o, kp.i, kp.c.l, kp.c.mid, kp.c.deep, kp.c.ink, kp.work, pick(kp.i, ch.0.paused, ch.1.paused, ch.2.paused, ch.3.paused), pick(kp.i, ch.0.askfirst, ch.1.askfirst, ch.2.askfirst, ch.3.askfirst), pick(kp.i, ch.0.q, ch.1.q, ch.2.q, ch.3.q), pick(kp.i, ch.0.wn, ch.1.wn, ch.2.wn, ch.3.wn))
         //  Where you write in it (below its thread), and Enter.
         input kp.input { at: kp.x + 30, kp.y + kp.h - 41; width: kp.w - 100; size: 14; color: kp.c.ink; placeholder: "Tell it what to do next…"; selection: kp.c.mid; show: kp.o > 0.5 }
         on submit kp.input { emit kp_send }

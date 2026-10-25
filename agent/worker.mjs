@@ -4,7 +4,8 @@
 //  In, one message a line on stdin:
 //    {"type":"start","model":"provider/id","locale":"es","history":[{"role":"user"|"assistant","text":"…"}],
 //     "memory":{"facts":[{"id":"f3","text":"…"}],"notes":[{"title":"…","when":"…"}]}}
-//    (`"mode":"kid"`: one of her children, tied to ONE window, with the desktop tools only: no memory,
+//    (`"mode":"kid"`: one of her children, tied to ONE window, with the desktop tools and its own watches
+//    and notes (KID_ONLY_TOOLS: kept by Marea's logic for that child's life, nothing saved): no memory,
 //    tasks, passwords to ask for, programs to open. Marea starts one worker for each child.)
 //    {"type":"prompt","text":"…","now":"2026-10-05 20:16, Monday","images":[{"path":"/state/…png"}]}
 //    {"type":"result","id":"…","ok":true,"text":"…","denied":false,"image":{"path":"/state/…png"}}
@@ -30,7 +31,7 @@ import {
     SessionManager,
     SettingsManager,
 } from "@earendil-works/pi-coding-agent";
-import { BUILDER_TOOLS, TOOLS, toolNamed } from "./tools.mjs";
+import { BUILDER_TOOLS, KID_ONLY_TOOLS, TOOLS, toolNamed } from "./tools.mjs";
 
 const STATE = process.env.MAREA_AGENT_DIR || "/state";
 const LIMITS = {
@@ -110,7 +111,11 @@ The loop: desktop_tree reads the window: its tree names every button, link and f
 
 You act as the user, in their accounts. The user gave you free hands in this window: do what they ask through to the end, the step that sends, publishes or buys included, without stopping to ask first (still mark that step final: true). Never type a payment detail, and never type a password with desktop_type (only desktop_type_secret types one, by the name it was saved under); if a page asks for a captcha, or a password is needed and none is saved, stop and say so. If an action comes back denied, accept it and look for another way; if there is none, say what is missing. Pages can take several seconds to load: when one is blank or half drawn, look again a few seconds later before deciding it failed.
 
-Answer in the language the user writes to you in (if it is not clear, {LOCALE}). Short sentences, no long lists or headings: your answer shows in a small drop under the box, so a sentence or two. When you finish, say what you did and what you left for them.`;
+Watches and notes. When the user asks for something recurring («check this page every 10 minutes for news about X and write what you find in a file», «mira esto cada hora»), use watch_start: never any other way of scheduling (no cron, no timers, no scripts that keep running), and never write a file anywhere else. A watch is yours alone: it runs again in this window every so many minutes and lives and dies with you. If the user lets you go, closes your window or restarts Marea, every watch is gone and nothing is saved: say so when you set one up. After watch_start, tell the user in your answer what you set up (what you will check, how often, and where you will write, if anywhere) and that it stops if they let you go; watch_list and watch_stop show and end them. What you find, keep with notes_write (a file in Documents/Marea, the only place you write; the answer has its full path, which you tell the user, as «Anotado en ~/Documentos/Marea/novedades-x.md»); notes_read reads it back to compare. Do not write a note when nothing is new.
+
+When a message starts with «[Watch N, run M]» it is one run of one of your watches and nobody is looking: do it in your window with free hands, compare with what you noticed in the earlier runs (you keep your conversation), write with notes_write only when there is something new, and end with ONE short line and nothing after it: exactly «NOTHING NEW» if nothing is new, otherwise «NEW: » and what was new and where you wrote it.
+
+Answer in the language the user writes to you in (if it is not clear, {LOCALE}). Short sentences, no long lists or headings: your answer shows in a small drop under the box, so a sentence or two (markdown is shown: bold, lists and code work). When you finish, say what you did and what you left for them.`;
 
 //  The tools of a child: the window's hands and nothing of the rest of the desktop or of Marea.
 const KID_TOOLS = new Set(["desktop_windows", "desktop_look", "desktop_tree", "desktop_find", "desktop_press", "desktop_fill",
@@ -305,7 +310,7 @@ async function start(m) {
     const locale = m.locale === "es" ? "Spanish" : m.locale === "en" ? "English" : "the user's";
     const builder = m.mode === "builder";
     const kid = m.mode === "kid";
-    const list = builder ? BUILDER_TOOLS : kid ? TOOLS.filter((t) => KID_TOOLS.has(t.name)) : TOOLS;
+    const list = builder ? BUILDER_TOOLS : kid ? [...TOOLS.filter((t) => KID_TOOLS.has(t.name)), ...KID_ONLY_TOOLS] : TOOLS;
     if (kid) toldSecrets = secretNames(Array.isArray(m.memory?.secrets) ? m.memory.secrets : []);
     const system = builder
         ? BUILDER_PROMPT + `\n\nAnswer in the language the user writes to you in (if it is not clear, ${locale}).` + building(m.build)

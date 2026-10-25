@@ -83,6 +83,10 @@ part Join {
     fact ch.0.askfirst = false; fact ch.1.askfirst = false; fact ch.2.askfirst = false; fact ch.3.askfirst = false
     fact ch.0.q = 0; fact ch.1.q = 0; fact ch.2.q = 0; fact ch.3.q = 0
     fact ch.0.cards = 0; fact ch.1.cards = 0; fact ch.2.cards = 0; fact ch.3.cards = 0
+    //  Its watches (it does something again every so many minutes while it lives, and ends with it: how many
+    //  there are, and whether a run is going on now: nobody is looking at that one).
+    fact ch.0.wn = 0; fact ch.1.wn = 0; fact ch.2.wn = 0; fact ch.3.wn = 0
+    fact ch.0.wrun = false; fact ch.1.wrun = false; fact ch.2.wrun = false; fact ch.3.wrun = false
     //  What waits (up to three shown) and the first card's step and words.
     text ch.0.n.0 = ""; text ch.1.n.0 = ""; text ch.2.n.0 = ""; text ch.3.n.0 = ""
     text ch.0.n.1 = ""; text ch.1.n.1 = ""; text ch.2.n.1 = ""; text ch.3.n.1 = ""
@@ -152,6 +156,8 @@ part Join {
     text kp.status = ""
     text kp.input = ""
     model kp.rows max 40 { kind: number; text: text; detail: text; state: number }
+    //  Its watches, as the logic says them: what each is, and when it runs next.
+    model kp.watches max 3 { text: text; what: text }
     event kp_open ->                  // `emit kp_open(2)`: the third child's panel
     event kp_close ->
     event kp_send ->
@@ -160,6 +166,7 @@ part Join {
     event kp_ask ->
     event kp_new ->
     event kp_copy ->
+    event kp_unwatch ->               // `emit kp_unwatch(0)`: its first watch is stopped
     event kp_allow ->                 // a card in the thread (its place in it)
     event kp_deny ->
     //  How open it is, and whether the thread follows what arrives.
@@ -198,8 +205,8 @@ part Join {
     //  was lent to their field (marea.plm).
     fact ch.settle = false
     let ch.shown = (ch.0.phase == sitting and not ch.0.hidden) or (ch.1.phase == sitting and not ch.1.hidden) or (ch.2.phase == sitting and not ch.2.hidden) or (ch.3.phase == sitting and not ch.3.hidden)
-    //  A new answer waits for one of them (the chip's dot beats).
-    let ch.new_any = ch.0.new or ch.1.new or ch.2.new or ch.3.new
+    //  A new answer waits for one of them, or a watch is running (the tab's ring and the chip's dot beat).
+    let ch.new_any = ch.0.new or ch.1.new or ch.2.new or ch.3.new or ch.0.wrun or ch.1.wrun or ch.2.wrun or ch.3.wrun
     let ch.sit = ch.0.phase == sitting or ch.1.phase == sitting or ch.2.phase == sitting or ch.3.phase == sitting
     //  All of them sitting or not out: nothing moves.
     let ch.calm = (ch.0.phase == none or ch.0.phase == sitting) and (ch.1.phase == none or ch.1.phase == sitting) and (ch.2.phase == none or ch.2.phase == sitting) and (ch.3.phase == none or ch.3.phase == sitting)

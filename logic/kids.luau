@@ -19,6 +19,8 @@
 --      .next          what you wrote while it worked: it runs one after another when it has answered
 --      .paused .held  a pause holds what it would do next (the proposal or the result of a step)
 --      .askfirst      a card for each step that is not only looking, `.asks` the ones that wait for you
+--      .watches       what it does again every so many minutes while it lives (memory only: they end with
+--                     the child, whatever ends it); .notes_made the notes it made, which only it may replace
 --      .cur .slot …   what the follow loop knows of its window
 --  Everything the scene sends carries the number (`emit join_send(k)`); everything the workers
 --  say stays with the child whose worker said it. A tool that is not for the child's window is
@@ -74,8 +76,11 @@ return function(shared)
     local DESKTOP = { desktop_look = true, desktop_tree = true, desktop_find = true, desktop_press = true, desktop_fill = true, desktop_steps = true, desktop_wait = true, terminal_wait = true, desktop_run = true, desktop_click = true, desktop_type = true, desktop_type_secret = true, desktop_key = true, desktop_hotkey = true, desktop_scroll = true, desktop_drag = true }
     --  Its window's pid is the only one a child touches (and its dialogs'); `desktop_windows` is the
     --  list of just those. Nothing that opens, moves or brings forward: that is the desktop's.
+    --  What only a child has, done here and not by the hands (agent/tools.mjs: KID_ONLY_TOOLS): its watches, and
+    --  its notes in one folder.
+    local OWN = { watch_start = true, watch_list = true, watch_stop = true, notes_write = true, notes_read = true }
     local function refuses(kid, tool, args)
-        if tool ~= "desktop_windows" and not DESKTOP[tool] then
+        if tool ~= "desktop_windows" and not DESKTOP[tool] and not OWN[tool] then
             return "You are tied to one window (" .. kid.window.app .. "): you do not open programs, move windows or do anything else outside it. Do what is asked inside it."
         end
         if DESKTOP[tool] then
@@ -105,6 +110,11 @@ return function(shared)
         desktop_hotkey = "Pressing keys in %s…",
         desktop_scroll = "Scrolling in %s…",
         desktop_drag = "Dragging in %s…",
+        watch_start = "Setting up a watch…",
+        watch_list = "Looking at its watches…",
+        watch_stop = "Stopping a watch…",
+        notes_write = "Writing a note…",
+        notes_read = "Reading a note…",
     }
     local function program(kid, args)
         if tostring(args.pid or ""):match("^(%d+)") == kid.window.pid then return nice(kid.window.app) end
@@ -139,12 +149,18 @@ return function(shared)
         if tool == "desktop_hotkey" then return string.format(tr("Pressed %s"), one_line(args.keys, 20)) end
         if tool == "desktop_scroll" then return string.format(tr("Scrolled in %s"), app) end
         if tool == "desktop_drag" then return string.format(tr("Dragged in %s"), app) end
+        if tool == "watch_start" then return string.format(tr("Set a watch every %d minutes"), math.floor(tonumber(args.every_minutes) or 0)) end
+        if tool == "watch_list" then return tr("Looked at its watches") end
+        if tool == "watch_stop" then return string.format(tr("Stopped watch %s"), one_line(args.id, 8)) end
+        if tool == "notes_write" then return string.format(tr("Wrote the note «%s»"), one_line(args.name, 40)) end
+        if tool == "notes_read" then return string.format(tr("Read the note «%s»"), one_line(args.name, 40)) end
         return string.format(tr("Worked in %s"), app)
     end
     --  Tools that only look: never a card, even when it asks before acting.
-    local LOOKS = { desktop_windows = true, desktop_look = true, desktop_tree = true, desktop_find = true, desktop_wait = true, terminal_wait = true }
+    local LOOKS = { desktop_windows = true, desktop_look = true, desktop_tree = true, desktop_find = true, desktop_wait = true, terminal_wait = true, watch_list = true, notes_read = true }
     local function said(kid, tool, args)
         if tool == "desktop_windows" then return tr("Looking at the window…") end
+        if OWN[tool] then return tr(JOINED_WORDS[tool]) end
         return string.format(tr(JOINED_WORDS[tool] or "Working in %s…"), program(kid, args))
     end
 
@@ -169,6 +185,7 @@ return function(shared)
         local name = nice(kid.window.app)
         local task = kid.task and tostring(kid.task):gsub("%s+", " "):match("^%s*(.-)%s*$") or ""
         if task ~= "" and BUSY[kid.state] then name = name .. " · " .. first_letters(task, 22) .. (letters(task) > 22 and "…" or "") end
+        if kid.watch_tag then name = name .. "  " .. kid.watch_tag end
         T(kid.k, "label", name)
         if panel_of(kid) then text["kp.title"] = name end
     end
@@ -292,6 +309,7 @@ return function(shared)
         end)
     end
     local ask   -- (below)
+    local watches_end, watch_finish, own_exec   -- its watches and its notes (below)
     local function notify(kid, words)
         run("notify-send", { "-a", "Marea", "-i", "dialog-information", string.format(tr("%s: done"), nice(kid.window.app)), one_line(words, 140) }, function() end)
     end
@@ -308,6 +326,23 @@ return function(shared)
         rest_later(kid)
         local how = kid.ending or { ok = false, said = "" }
         kid.ending = nil
+        --  A run of a watch (nobody is looking): its summary goes to the activity log, not to the answer's drop.
+        if kid.watch_run then
+            local w = kid.watch_run
+            kid.watch_run, kid.task = nil, nil
+            F(kid.k, "wrun", false)
+            relabel(kid)
+            watch_finish(kid, w, how)
+            paint_panel(kid)
+            if how.ok and #kid.next > 0 then
+                local nxt = table.remove(kid.next, 1)
+                sync_queue(kid)
+                after(400, function()
+                    if kids[kid.k] == kid and not BUSY[kid.state] then ask(kid, nxt) end
+                end)
+            end
+            return
+        end
         --  What it says goes where the user is looking: under its box (what streamed in already is there;
         --  a failure's words, not streamed, are put there now).
         local words = tostring(how.said or "")
@@ -361,13 +396,20 @@ return function(shared)
         paint_panel(kid)
         set_state(kid, "acting")
         status(kid, said(kid, tool, args))
-        hands.exec(tool, args, {
-            scope = kid.scope,
-            programs = kid.programs,
-            name = function(a) return program(kid, a) end,
-            prefix = "kid" .. kid.k .. "-look",
-            secret = function(a, done) chat.type_secret(a, done) end,
-        }, function(ok, words, extra, flags)
+        local exec = function(done)
+            if OWN[tool] then
+                own_exec(kid, tool, args, done)
+                return
+            end
+            hands.exec(tool, args, {
+                scope = kid.scope,
+                programs = kid.programs,
+                name = function(a) return program(kid, a) end,
+                prefix = "kid" .. kid.k .. "-look",
+                secret = function(a, done2) chat.type_secret(a, done2) end,
+            }, done)
+        end
+        exec(function(ok, words, extra, flags)
             if kids[kid.k] ~= kid then return end
             row.state = ok and 1 or 2
             if not ok then row.detail = one_line(words, 70) end
@@ -397,6 +439,8 @@ return function(shared)
         if tool == "desktop_steps" and type(args.steps) == "table" then body = body .. "\n" .. table.concat(args.steps, "\n") end
         if tool == "desktop_hotkey" then body = body .. "  (" .. tostring(args.keys or "") .. ")" end
         if tool == "desktop_key" then body = body .. "  (" .. tostring(args.key or "") .. ")" end
+        if tool == "watch_start" then body = body .. "\n" .. tostring(args.every_minutes or "?") .. " min: " .. tostring(args.what or "") end
+        if tool == "notes_write" then body = body .. "\n" .. tostring(args.name or "") .. " (" .. tostring(args.mode or "append") .. ")" end
         return (body:gsub("^%s+", ""))
     end
     local function decide(kid, id, yes)
@@ -438,6 +482,7 @@ return function(shared)
             else
                 set_state(kid, "offline")
                 status(kid, m.reason == "signed_out" and tr("She is not signed in.") or tr("That model cannot be used with her account: choose another in Settings"))
+                watches_end(kid, tr("It cannot work"))
             end
             for _, line in ipairs(kid.queue) do write(kid.worker, line) end
             kid.queue = {}
@@ -447,12 +492,20 @@ return function(shared)
                 set_state(kid, "thinking")
                 status(kid, tr("Thinking…"))
                 --  A new piece of its words: the bubble starts it over, at its top, following it.
-                kid.seg, kid.shown = "", 0
-                kid.live_row = add_row(kid, 2, "")
+                if not kid.watch_run then
+                    kid.seg, kid.shown = "", 0
+                    kid.live_row = add_row(kid, 2, "")
+                end
             end
             kid.live = kid.live .. (m.text or "")
-            if kid.live_row then kid.live_row.text = kid.live end
-            say(kid, kid.live, false)
+            if kid.watch_run then
+                --  A watch run does not pop the answer open: its words are a line of the log.
+                if kid.watch_row then kid.watch_row.text = string.format(tr("Watch %d: "), kid.watch_run.id) .. one_line(kid.live, 120) end
+                paint_panel(kid)
+            else
+                if kid.live_row then kid.live_row.text = kid.live end
+                say(kid, kid.live, false)
+            end
         elseif kind == "propose" then
             kid.live, kid.live_row = nil, nil
             local tool, args = tostring(m.tool), (type(m.args) == "table" and m.args or {})
@@ -525,6 +578,7 @@ return function(shared)
                 set_state(kid, "offline")
                 status(kid, tr("Her engine cannot start: ") .. said_why)
                 kid.queue = {}
+                watches_end(kid, tr("Its engine cannot start"))
                 return
             end
             if kid.state ~= "idle" and kid.state ~= "offline" then
@@ -566,6 +620,254 @@ return function(shared)
         send(kid, { type = "prompt", text = words, now = os.date("%Y-%m-%d %H:%M, %A"), free = true,
                     joined = { pid = kid.window.pid, app = kid.window.app, title = kid.window.title },
                     secrets = chat.secrets() })
+    end
+
+    -- ── its notes ────────────────────────────────────────────────────
+    --  What a child finds it keeps in files: ONE folder, Documents/Marea (`xdg-user-dir DOCUMENTS`, or
+    --  ~/Documents), and nothing outside it. The words go through here, host-side: the worker only proposes
+    --  `notes_write`; its sandbox has no folder of the user's. The name is cleaned to letters, digits,
+    --  spaces, dots and dashes (.md or .txt), never a path; 64 KB a write and 2 MB a file; `replace` only
+    --  overwrites a file this child made in its life (a set of names it keeps), `append` adds a dated
+    --  section to any file of the folder; a symbolic link is never written through. It is written with
+    --  the `sh` Marea already may run (`cat >> "$1"`, the path an argument, the words on its input): no
+    --  new permission.
+    local NOTE_WRITE, NOTE_FILE, NOTE_READ = 65536, 2 * 1024 * 1024, 20000
+    local notes = { dir = nil, waiting = nil }
+    local function with_notes_dir(done)
+        if notes.dir then done(notes.dir) return end
+        if notes.waiting then notes.waiting[#notes.waiting + 1] = done return end
+        notes.waiting = { done }
+        local function finish(dir)
+            local list = notes.waiting
+            notes.waiting = nil
+            notes.dir = dir
+            for _, f in ipairs(list) do f(dir) end
+        end
+        run("xdg-user-dir", { "DOCUMENTS" }, function(out, code)
+            local docs = code == 0 and tostring(out):match("^%s*(.-)%s*$") or ""
+            if docs == "" or docs == shared.home_dir then docs = shared.home_dir .. "/Documents" end
+            local dir = docs .. "/Marea"
+            run("mkdir", { "-p", dir }, function(_, c2)
+                finish(c2 == 0 and dir or nil)
+            end, { errors = false })
+        end, { errors = false })
+    end
+    local function note_name(raw, kid)
+        local n = tostring(raw or "")
+        n = n:gsub("[/\\]", " "):gsub("[^%w ._%-]", ""):gsub("%s+", " ")
+        n = n:gsub("^[%s%.]+", ""):gsub("%s+$", "")
+        local ext = n:lower():match("%.(%w+)$")
+        if ext == "md" or ext == "txt" then n = n:sub(1, #n - #ext - 1) else ext = "md" end
+        n = n:gsub("[%s%.]+$", "")
+        if n == "" then n = nice(kid.window.app):lower() .. "-notes" end
+        return n:sub(1, 56) .. "." .. ext
+    end
+    local function not_a_link(path, ok_cb, fail_cb)
+        run("test", { "-L", path }, function(_, code)
+            if code == 0 then fail_cb() else ok_cb() end
+        end, { errors = false })
+    end
+    local function notes_exec(kid, tool, args, done)
+        with_notes_dir(function(dir)
+            if not dir then done(false, "The notes folder (Documents/Marea) cannot be made.") return end
+            local name = note_name(args.name, kid)
+            local path = dir .. "/" .. name
+            if tool == "notes_read" then
+                not_a_link(path, function()
+                    run("sh", { "-c", 'head -c ' .. NOTE_READ .. ' -- "$1"', "sh", path }, function(out, code)
+                        if code ~= 0 then done(false, "There is no note called " .. name .. " in Documents/Marea.") return end
+                        done(true, tostring(out))
+                    end, { errors = false })
+                end, function() done(false, "That note is a link: it is not read.") end)
+                return
+            end
+            local words = tostring(args.text or "")
+            if words == "" then done(false, "There is nothing to write.") return end
+            if #words > NOTE_WRITE then done(false, "Too long: 64 KB at a time at most.") return end
+            local replace = args.mode == "replace"
+            not_a_link(path, function()
+                run("sh", { "-c", 'if [ -f "$1" ]; then wc -c < "$1"; else echo -1; fi', "sh", path }, function(out)
+                    local size = tonumber(tostring(out):match("-?%d+")) or -1
+                    local exists = size >= 0
+                    if replace and exists and not kid.notes_made[name] then
+                        done(false, name .. " was not made by you in this life: replace only works on your own notes; use mode append, or another name.")
+                        return
+                    end
+                    if not replace and exists and size + #words > NOTE_FILE then
+                        done(false, name .. " is full (2 MB): write to another note.")
+                        return
+                    end
+                    local payload, script
+                    if replace then
+                        payload = words:sub(-1) == "\n" and words or (words .. "\n")
+                        script = 'cat > "$1"'
+                    else
+                        payload = ((exists and size > 0) and "\n" or "") .. "## " .. os.date("%Y-%m-%d %H:%M") .. " · " .. nice(kid.window.app) .. "\n\n" .. words .. "\n"
+                        script = 'cat >> "$1"'
+                    end
+                    run("sh", { "-c", script, "sh", path }, function(_, code)
+                        if code ~= 0 then done(false, "Writing " .. name .. " failed.") return end
+                        kid.notes_made[name] = true
+                        kid.wrote = true
+                        done(true, "Saved in " .. path .. " (" .. #payload .. " bytes " .. (replace and "written" or "added") .. "). Tell the user where.")
+                    end, { errors = true, input = payload })
+                end, { errors = false })
+            end, function() done(false, name .. " is a link: it is not written through.") end)
+        end)
+    end
+
+    -- ── its watches ──────────────────────────────────────────────────
+    --  «Check this page every 10 minutes and note what is new.» A watch is the child's own and lives as long
+    --  as the child does: it is a chain of timers in this process, a generation token on each, and nothing
+    --  else. It is not saved, it is not a cron job or a systemd timer, it is not one of her tasks (those are
+    --  in memory.json, and are not for children): when the child is let go, its window closes, its engine
+    --  cannot work or Marea restarts, every watch is gone and stays gone. Up to three for each child, at most
+    --  one run at a time (a tick that finds the child busy, or its window not shown, is skipped and the
+    --  log says so), and each ends by itself after twelve hours.
+    --  For tests only: MAREA_WATCH_UNIT_MS makes a «minute» that many milliseconds (default 60000) and
+    --  MAREA_WATCH_EXPIRE_MS the twelve hours (default 43200000).
+    local function env_number(name, default)
+        local ok, v = pcall(sys.ask, "env", name)
+        return ok and tonumber(v) or default
+    end
+    local WATCH_UNIT = env_number("MAREA_WATCH_UNIT_MS", 60000)
+    local WATCH_EXPIRE = env_number("MAREA_WATCH_EXPIRE_MS", 12 * 3600 * 1000)
+    local WATCH_MAX = 3
+    local function every_words(m) return m % 60 == 0 and (m // 60) .. "h" or m .. "m" end
+    local function clock(t) return os.date("%H:%M", t) end
+    --  What the panel lists, and what the tab says («↻10m»).
+    local function sync_watches(kid)
+        local out, tag = {}, nil
+        for _, id in ipairs(kid.watch_order) do
+            local w = kid.watches[id]
+            out[#out + 1] = { text = string.format(tr("Watch %d · every %s · next %s · ran %d"), w.id, every_words(w.every), clock(w.next_at), w.n), what = one_line(w.what, 70) }
+            tag = (tag and "↻×" .. #kid.watch_order) or ("↻" .. every_words(w.every))
+        end
+        kid.watch_tag = tag
+        F(kid.k, "wn", #out)
+        if panel_of(kid) then model["kp.watches"] = out end
+        relabel(kid)
+    end
+    local function watch_stop_one(kid, id)
+        local w = kid.watches[id]
+        if not w then return false end
+        w.gen = w.gen + 1
+        if w.timer then cancel(w.timer); w.timer = nil end
+        kid.watches[id] = nil
+        for i, v in ipairs(kid.watch_order) do
+            if v == id then table.remove(kid.watch_order, i) break end
+        end
+        sync_watches(kid)
+        return true
+    end
+    watches_end = function(kid, why)
+        local any = #kid.watch_order > 0
+        for _, id in ipairs({ table.unpack(kid.watch_order) }) do watch_stop_one(kid, id) end
+        if any and why and kids[kid.k] == kid then
+            add_row(kid, 5, string.format(tr("Its watches ended: %s."), why))
+            paint_panel(kid)
+        end
+    end
+    local function watch_prompt(kid, w)
+        return string.format("[Watch %d, run %d] Nobody is looking: this is your watch %d, which the user asked you to keep every %d minutes. Do it now in your window, with free hands: %s\n\nCompare with what you noticed in the earlier runs (you keep your conversation). Write with notes_write only if there is something new. End with ONE short line and nothing after it: exactly NOTHING NEW if nothing is new; otherwise NEW: and what was new and where you wrote it.",
+            w.id, w.n, w.id, w.every, w.what)
+    end
+    local watch_arm
+    local function watch_skip(kid, w, why)
+        add_row(kid, 3, string.format(tr("Watch %d: skipped, %s"), w.id, why), "", 3)
+        paint_panel(kid)
+    end
+    local function watch_tick(kid, w)
+        if os.time() >= w.expires then
+            watch_stop_one(kid, w.id)
+            add_row(kid, 5, string.format(tr("Watch %d ended: twelve hours are over."), w.id))
+            paint_panel(kid)
+            run("notify-send", { "-a", "Marea", "-i", "dialog-information", nice(kid.window.app) .. ": " .. string.format(tr("watch %d ended"), w.id), one_line(w.what, 100) }, function() end)
+            return
+        end
+        watch_arm(kid, w)
+        if kid.watch_run or BUSY[kid.state] then watch_skip(kid, w, tr("busy")) return end
+        if fact["ch." .. kid.k .. ".hidden"] == true then watch_skip(kid, w, tr("its window is not shown")) return end
+        if kid.state == "offline" then watch_skip(kid, w, tr("offline")) return end
+        w.n = w.n + 1
+        kid.watch_run, kid.wrote = w, false
+        kid.task = string.format(tr("Watch %d"), w.id)
+        F(kid.k, "wrun", true)
+        kid.watch_row = add_row(kid, 3, string.format(tr("Watch %d: checking…"), w.id), "", 0)
+        local words = watch_prompt(kid, w)
+        kid.history[#kid.history + 1] = { role = "user", text = words }
+        start_worker(kid)
+        set_state(kid, "thinking")
+        status(kid, string.format(tr("Watch %d: checking…"), w.id))
+        sync_watches(kid)
+        send(kid, { type = "prompt", text = words, now = os.date("%Y-%m-%d %H:%M, %A"), free = true,
+                    joined = { pid = kid.window.pid, app = kid.window.app, title = kid.window.title },
+                    secrets = chat.secrets() })
+    end
+    watch_arm = function(kid, w)
+        w.next_at = os.time() + math.floor(w.every * WATCH_UNIT / 1000)
+        local gen = w.gen
+        w.timer = after(w.every * WATCH_UNIT, function()
+            if kids[kid.k] ~= kid or kid.watches[w.id] ~= w or w.gen ~= gen then return end
+            watch_tick(kid, w)
+        end)
+        sync_watches(kid)
+    end
+    --  A run is over: its last line says whether there was news. News (a line that starts with NEW, or a
+    --  note written) makes the chip beat if the answer is put away, and a word on the desktop; nothing
+    --  new is a line in the log and nothing else.
+    watch_finish = function(kid, w, how)
+        local row = kid.watch_row
+        kid.watch_row = nil
+        local last = ""
+        for line in tostring(how.said or ""):gmatch("[^\n]+") do
+            if line:match("%S") then last = line end
+        end
+        last = last:gsub("^%s+", ""):gsub("%s+$", "")
+        local news = last:upper():match("^%**NEW[:%s]") ~= nil or (kid.wrote and not last:upper():match("^%**NOTHING NEW"))
+        local shown = last:gsub("^%**NEW:%**%s*", ""):gsub("^%**NOTHING NEW%**", tr("nothing new"))
+        local line = string.format(tr("Watch %d: "), w.id) .. one_line(how.ok and shown ~= "" and shown or (how.said ~= "" and how.said or tr("did not finish")), 120)
+        if row then
+            row.text, row.state = line, how.ok and 1 or 2
+        else
+            add_row(kid, 3, line, "", how.ok and 1 or 2)
+        end
+        kid.wrote = false
+        if how.ok and news then
+            if fact["ch." .. kid.k .. ".min"] == true or fact["ch." .. kid.k .. ".shut"] == true then F(kid.k, "new", true) end
+            run("notify-send", { "-a", "Marea", "-i", "dialog-information", nice(kid.window.app) .. ": " .. tr("news"), one_line(shown, 140) }, function() end)
+        end
+        sync_watches(kid)
+    end
+    own_exec = function(kid, tool, args, done)
+        if tool == "notes_write" or tool == "notes_read" then notes_exec(kid, tool, args, done) return end
+        if tool == "watch_list" then
+            if #kid.watch_order == 0 then done(true, "You have no watches.") return end
+            local lines = {}
+            for _, id in ipairs(kid.watch_order) do
+                local w = kid.watches[id]
+                lines[#lines + 1] = string.format("%d: every %d min, ran %d times, next at %s, ends at %s: %s", w.id, w.every, w.n, clock(w.next_at), clock(w.expires), one_line(w.what, 200))
+            end
+            done(true, table.concat(lines, "\n"))
+            return
+        end
+        if tool == "watch_stop" then
+            local id = tostring(args.id or ""):match("%d+")
+            if id and watch_stop_one(kid, tonumber(id)) then done(true, "Watch " .. id .. " stopped.") else done(false, "You have no watch " .. tostring(args.id) .. ".") end
+            return
+        end
+        --  watch_start
+        local every = math.floor(tonumber(args.every_minutes) or 0)
+        local what = tostring(args.what or ""):match("^%s*(.-)%s*$")
+        if every < 1 or every > 1440 then done(false, "every_minutes has to be from 1 to 1440.") return end
+        if what == "" then done(false, "A watch needs `what`: the instruction for each run.") return end
+        if #kid.watch_order >= WATCH_MAX then done(false, "You already have " .. WATCH_MAX .. " watches: stop one first (watch_stop).") return end
+        kid.watch_seq = (kid.watch_seq or 0) + 1
+        local w = { id = kid.watch_seq, every = every, what = what:sub(1, 1500), why = tostring(args.why or ""), n = 0, gen = 1, expires = os.time() + math.floor(WATCH_EXPIRE / 1000) }
+        kid.watches[w.id] = w
+        kid.watch_order[#kid.watch_order + 1] = w.id
+        watch_arm(kid, w)
+        done(true, string.format("Watch %d set: every %d minutes, first run at %s. It lives only as long as you do: if the user lets you go, closes the window or restarts Marea it is gone, and it ends by itself at %s. Tell the user what you set up, how often and where you will write.", w.id, every, clock(w.next_at), clock(w.expires)))
     end
 
     -- ── windows and monitors ─────────────────────────────────────────
@@ -912,6 +1214,8 @@ return function(shared)
         if not kid then return end
         kids[k] = nil
         if kid.idle_timer then cancel(kid.idle_timer) end
+        --  Its watches live and die with it: every timer is cancelled and nothing is left.
+        watches_end(kid)
         --  Its worker goes with it.
         if kid.worker then
             local id = kid.worker
@@ -925,7 +1229,7 @@ return function(shared)
         F(k, "said_on", false)
         F(k, "state", "idle")
         F(k, "letters", 0); F(k, "min", false); F(k, "shut", false); F(k, "new", false)
-        F(k, "paused", false); F(k, "askfirst", false); F(k, "q", 0); F(k, "cards", 0)
+        F(k, "paused", false); F(k, "askfirst", false); F(k, "q", 0); F(k, "cards", 0); F(k, "wn", 0); F(k, "wrun", false)
         for i = 0, 2 do T(k, "n." .. i, "") end
         T(k, "card", ""); T(k, "cardbody", "")
         if tonumber(fact["kp.k"]) == k then fact["kp.k"] = -1 end
@@ -949,6 +1253,7 @@ return function(shared)
             scope = { pid = found.pid, dialogs = {} }, programs = {},
             queue = {}, history = {}, state = "idle", ready = false,
             rows = {}, asks = {}, ask_order = {}, next = {}, held = {},
+            watches = {}, watch_order = {}, notes_made = {},
         }
         kids[k] = kid
         T(k, "app", found.app)
@@ -956,7 +1261,7 @@ return function(shared)
         T(k, "said", ""); T(k, "status", ""); T(k, "input", "")
         F(k, "said_on", false); F(k, "letters", 0); F(k, "min", false); F(k, "shut", false); F(k, "new", false)
         F(k, "state", "idle")
-        F(k, "paused", false); F(k, "askfirst", false); F(k, "q", 0); F(k, "cards", 0)
+        F(k, "paused", false); F(k, "askfirst", false); F(k, "q", 0); F(k, "cards", 0); F(k, "wn", 0); F(k, "wrun", false)
         relabel(kid)
         F(k, "hidden", false)
         F(k, "carry", false)
@@ -1170,7 +1475,17 @@ return function(shared)
         text["kp.title"] = text["ch." .. k .. ".label"]
         text["kp.status"] = text["ch." .. k .. ".status"]
         text["kp.input"] = ""
+        sync_watches(kid)
         paint_panel(kid)
+    end)
+    on("kp_unwatch", function(i)
+        local kid = panel_kid()
+        local id = kid and kid.watch_order[(tonumber(i) or -1) + 1]
+        if id then
+            watch_stop_one(kid, id)
+            add_row(kid, 5, string.format(tr("Watch %d stopped."), id))
+            paint_panel(kid)
+        end
     end)
     on("kp_close", function() fact["kp.k"] = -1 end)
     on("kp_send", function()
