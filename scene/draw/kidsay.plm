@@ -1,0 +1,85 @@
+// Marea's scene, in pieces: what a child answered, as a drop under its box. marea.plm includes it.
+part KidSay {
+    // ── the answer of a child ────────────────────────────────────
+    //  A calmer, darker drop of the child's own water that hangs under its box (scene/surfaces/join.plm
+    //  places it: `x`, `t` is its top, `w` its width). In it, a head (what it is and its minimise button) and
+    //  under that the answer as the model wrote it (markdown), in a list that scrolls with the wheel. It is
+    //  as tall as what it says, up to `maxh`; a slim bar says where the reader is, it follows what arrives
+    //  while the reader is at the bottom, and a chip takes them down again when they went up. Its letters
+    //  come up out of the water as `rev` lets them out. It is a component because a layout's name is not
+    //  one for each of the four children that `repeat` makes: its list is its own here.
+    component KidSay(x: number, t: number, w: number, open: number, said: text, rev: number, minimise: event, maxh: number, ring: color, mid: color, deep: color, ink: color, sel: color) {
+        prop stuck = 1 ~0ms
+        prop blen = 0 ~0ms
+        prop bscroll = 0 ~0ms
+        prop bh = 0 ~120ms
+        prop min.glow = 0 ~140ms
+        prop bot.glow = 0 ~140ms
+        let h = bh
+        let vh = max(bh - 46, 20)
+        let top = t + 30
+        follow bh = min(blen + 46, maxh)
+        group {
+            show: open > 0.02
+            glow: 6, 26%, ring
+            body {
+                gradient: 0, t to 0, t + h, mid, deep
+                rim: 26%
+                shadow: 0, 3, 10, 30%, deep
+                box { at: x, t + h / 2; size: w * open, h * clamp(open * 1.6, 0, 1); corner: 17 }
+            }
+        }
+        group {
+            opacity: clamp(open * 2 - 0.6, 0, 1)
+            show: open > 0.3
+            ellipse { at: x - w / 2 + 20, t + 15; radius: 3; color: ring; opacity: 85% }
+            text "Answer" { at: x - w / 2 + 31, t + 15; anchor: left center; size: 11; weight: 600; color: ring; opacity: 85% }
+            //  Minimise: it goes to a chip near the child.
+            ellipse { at: x + w / 2 - 20, t + 15; radius: 9.5; color: #ffffff; opacity: 10% + 16% * min.glow }
+            line { from: x + w / 2 - 24, t + 15; to: x + w / 2 - 16, t + 15; width: 1.7; color: ink; opacity: 70% + 30% * min.glow }
+            zone ellipse min_btn { at: x + w / 2 - 20, t + 15; radius: 12; cursor: pointer; label: "Hide the answer"; active: open > 0.7 }
+            on enter min_btn { min.glow: 1 }
+            on leave min_btn { min.glow: 0 }
+            on press min_btn { emit minimise }
+            //  The wheel reaches the list through this, which is under it.
+            zone box wheel_area { from: x - w / 2 + 8, top - 2; size: w - 16, vh + 6; active: open > 0.7 }
+            column list {
+                at: x - w / 2 + 20, top
+                view: w - 46, vh
+                text said { width: w - 46; size: 14.5; line_height: 1.38; color: ink; markdown: true
+                            selectable: true; selection: sel
+                            letter_opacity: clamp((rev - letter) / 12, 0, 1)
+                            letter_move: 0, (1 - clamp((rev - letter) / 12, 0, 1)) * 6 }
+            }
+            follow blen = list.content
+            follow bscroll = list.scroll
+            //  The slim bar, only when there is more than is seen.
+            group {
+                show: blen > vh + 2
+                box { at: x + w / 2 - 11, top + vh / 2; size: 3, vh; corner: 1.5; color: ink; opacity: 12% }
+                box { from: x + w / 2 - 12.5, top + bscroll / max(blen, 1) * vh; size: 3, max(vh * vh / max(blen, 1), 18); corner: 1.5; color: ink; opacity: 50% }
+            }
+            //  Following the end: only the reader lets go of it (the wheel up, or dragging down); back at the
+            //  bottom, it follows again. A new answer (its letters back to none) follows from its top.
+            on scroll wheel_area while wheel > 0 { stuck: 0 ~0ms }
+            on drag wheel_area while drag.dy > 12 { stuck: 0 ~0ms }
+            on change list.scroll while list.content - list.scroll < vh + 16 { stuck: 1 ~0ms }
+            on change list.content while stuck > 0.5 { list.scroll: max(0, list.content - vh) ~0ms }
+            on change rev < 1 { stuck: 1 ~0ms }
+            every 150ms while open > 0.5 and stuck > 0.5 and abs(max(0, list.content - vh) - list.scroll) > 1 {
+                list.scroll: max(0, list.content - vh) ~quick
+            }
+            //  «Down to the end», when the reader went up.
+            group {
+                show: blen > vh + 2 and stuck < 0.5
+                ellipse { at: x, t + h - 20; radius: 13; color: ring; opacity: 85% + 15% * bot.glow }
+                path { at: x - 5, t + h - 24; color: deep; stroke: 2.1
+                       move 0.4, 3.2; line 5, 8.4; line 9.6, 3.2 }
+                zone ellipse bot_btn { at: x, t + h - 20; radius: 15; cursor: pointer; label: "Down to the end of the answer"; active: open > 0.7 and blen > vh + 2 and stuck < 0.5 }
+                on enter bot_btn { bot.glow: 1 }
+                on leave bot_btn { bot.glow: 0 }
+                on press bot_btn { list.scroll: max(0, list.content - vh) ~quick; stuck: 1 ~0ms }
+            }
+        }
+    }
+}

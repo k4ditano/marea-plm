@@ -32,6 +32,7 @@ return function(shared)
     --  four of them never make the desktop wait.
     local WORKER_ENV = { MAREA_AGENT_HEAP = "192", MAREA_AGENT_NICE = "10" }
 
+    local BUSY = { starting = true, thinking = true, acting = true, awaiting = true }
     local function F(k, name, v) fact["ch." .. k .. "." .. name] = v end
     local function T(k, name, v) text["ch." .. k .. "." .. name] = v end
 
@@ -40,9 +41,12 @@ return function(shared)
         if ok and b then return s:sub(1, b - 1) end
         return s
     end
+    local function letters(s)
+        local ok, n = pcall(utf8.len, s)
+        return ok and n or #s
+    end
 
     -- ── how many, and who works ──────────────────────────────────────
-    local BUSY = { starting = true, thinking = true, acting = true, awaiting = true }
     local function count()
         local n, working = 0, 0
         for _, kid in pairs(kids) do
@@ -109,12 +113,66 @@ return function(shared)
 
     -- ── the worker of a child ────────────────────────────────────────
     local leave   -- let go of a child (below)
+    local relabel -- what its tab says (below)
     local function set_state(kid, st)
         kid.state = st
         F(kid.k, "state", st)
         count()
+        relabel(kid)
     end
     local function status(kid, words) T(kid.k, "status", words or "") end
+
+    --  What its tab says: the program, and while a task runs the first words of it.
+    relabel = function(kid)
+        local name = nice(kid.window.app)
+        local task = kid.task and tostring(kid.task):gsub("%s+", " "):match("^%s*(.-)%s*$") or ""
+        if task ~= "" and BUSY[kid.state] then name = name .. " · " .. first_letters(task, 22) .. (letters(task) > 22 and "…" or "") end
+        T(kid.k, "label", name)
+    end
+
+    -- ── what it says, let out at a reading pace ──────────────────────
+    --  The model hands its words over in a few seconds; they are shown at a pace that can be read
+    --  (hurrying when far behind), as the main chat does, in the child's answer: the scene gets the part
+    --  that has come (`said`) and how many letters it is (`letters`, for the ones that rise out of the
+    --  water). The whole text is kept, up to a limit that no answer reaches.
+    local SHOW_MAX = 20000
+    local TAIL = 12
+    local revealing = false
+    local function reveal_step()
+        local again = false
+        for _, kid in pairs(kids) do
+            local seg = kid.seg
+            if seg and kid.shown then
+                local total = letters(seg)
+                if kid.shown < total + TAIL then
+                    kid.shown = kid.shown + math.max(2, math.min(40, math.floor((total - kid.shown) / 10)))
+                    T(kid.k, "said", kid.shown >= total and seg or first_letters(seg, kid.shown))
+                    F(kid.k, "letters", kid.shown)
+                    again = true
+                end
+            end
+        end
+        if again then after(33, reveal_step) else revealing = false end
+    end
+    local function reveal()
+        if revealing then return end
+        revealing = true
+        after(33, reveal_step)
+    end
+    --  A new text for the answer: it starts at its beginning.
+    local function say(kid, words, restart)
+        kid.seg = first_letters(words, SHOW_MAX)
+        if restart or not kid.shown then kid.shown = 0; F(kid.k, "letters", 0); T(kid.k, "said", "") end
+        F(kid.k, "said_on", true)
+        reveal()
+    end
+    --  No answer on show.
+    local function unsay(kid)
+        kid.seg, kid.shown = nil, nil
+        T(kid.k, "said", "")
+        F(kid.k, "said_on", false)
+        F(kid.k, "letters", 0)
+    end
 
     local function send(kid, m)
         local line = json.encode(m) .. "\n"
@@ -148,10 +206,13 @@ return function(shared)
         rest_later(kid)
         local how = kid.ending or { ok = false, said = "" }
         kid.ending = nil
-        --  What it says goes where the user is looking: under its box.
-        if tostring(how.said or "") ~= "" then
-            T(kid.k, "said", first_letters(tostring(how.said), 260))
-            F(kid.k, "said_on", true)
+        --  What it says goes where the user is looking: under its box (what streamed in already is there;
+        --  a failure's words, not streamed, are put there now).
+        local words = tostring(how.said or "")
+        if words ~= "" and words ~= kid.seg then say(kid, words, true) end
+        --  An answer that came while the bubble was minimised or the box put away: the chip says so.
+        if words ~= "" and (fact["ch." .. kid.k .. ".min"] == true or fact["ch." .. kid.k .. ".shut"] == true) then
+            F(kid.k, "new", true)
         end
     end
 
@@ -202,8 +263,11 @@ return function(shared)
                 kid.live = ""
                 set_state(kid, "thinking")
                 status(kid, tr("Thinking…"))
+                --  A new piece of its words: the bubble starts it over, at its top, following it.
+                kid.seg, kid.shown = "", 0
             end
             kid.live = kid.live .. (m.text or "")
+            say(kid, kid.live, false)
         elseif kind == "propose" then
             kid.live = nil
             local tool, args = tostring(m.tool), (type(m.args) == "table" and m.args or {})
@@ -285,8 +349,8 @@ return function(shared)
 
     local function ask(kid, words)
         if kid.state == "thinking" or kid.state == "acting" or kid.state == "awaiting" or kid.state == "starting" then return end
-        T(kid.k, "said", "")
-        F(kid.k, "said_on", false)
+        unsay(kid)
+        kid.task = words
         kid.history[#kid.history + 1] = { role = "user", text = words }
         if kid.idle_timer then cancel(kid.idle_timer); kid.idle_timer = nil end
         start_worker(kid)
@@ -653,7 +717,8 @@ return function(shared)
         F(k, "hidden", false)
         F(k, "said_on", false)
         F(k, "state", "idle")
-        T(k, "app", ""); T(k, "name", ""); T(k, "said", ""); T(k, "status", ""); T(k, "input", "")
+        F(k, "letters", 0); F(k, "min", false); F(k, "shut", false); F(k, "new", false)
+        T(k, "app", ""); T(k, "name", ""); T(k, "label", ""); T(k, "said", ""); T(k, "status", ""); T(k, "input", "")
         count()
         agent_done()
         log("kids · let go of child " .. k .. ": " .. tostring(why or kid.window.app))
@@ -677,8 +742,9 @@ return function(shared)
         T(k, "app", found.app)
         T(k, "name", nice(found.app))
         T(k, "said", ""); T(k, "status", ""); T(k, "input", "")
-        F(k, "said_on", false)
+        F(k, "said_on", false); F(k, "letters", 0); F(k, "min", false); F(k, "shut", false); F(k, "new", false)
         F(k, "state", "idle")
+        relabel(kid)
         F(k, "hidden", false)
         F(k, "carry", false)
         show_box(kid, found)

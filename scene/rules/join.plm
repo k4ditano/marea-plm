@@ -68,7 +68,12 @@ part JoinRules {
         follow ch.$k.lit = if(ch.$k.phase == sitting or ch.$k.phase == falling, 1, 0)
         follow ch.$k.look = if(ch.$k.phase != none, 1, 0)
         follow ch.$k.stir = if(ch.$k.state == thinking or ch.$k.state == acting or ch.$k.state == starting, 1, if(ch.$k.state == awaiting, 0.45, 0))
-        follow ch.$k.bub = if(ch.$k.said_on and ch.$k.phase == sitting and ch.$k.pill > 0.5, 1, 0)
+        //  The tab is there while it sits and the chat is shut; the chip stands in for the answer (minimised) or the box (put away).
+        let k.bz = ch.$k.state == thinking or ch.$k.state == acting or ch.$k.state == awaiting or ch.$k.state == starting
+        follow ch.$k.tab = if(ch.$k.phase == sitting and not chatting and (ch.$k.pill > 0.5 or ch.$k.shut), 1, 0)
+        follow ch.$k.chip = if(ch.$k.phase == sitting and ch.$k.tab > 0.5 and (ch.$k.shut or (ch.$k.min and (ch.$k.said_on or k.bz))), 1, 0)
+        follow ch.$k.rev = ch.$k.letters
+        follow ch.$k.bub = if(ch.$k.said_on and ch.$k.phase == sitting and ch.$k.pill > 0.5 and not ch.$k.min, 1, 0)
 
         // ── pulling it ───────────────────────────────────────────
         on drag body_zone while join.can and ch.free == k and drag.dx * drag.dx + drag.dy * drag.dy > 100 {
@@ -169,9 +174,16 @@ part JoinRules {
         on still ch.$k.phase for 1400ms while ch.$k.phase == sitting and face == happy { face = eye }
         //  The whole chat, opened while a child sits, takes the boxes' place; closed, they come back.
         on change chatting while chatting and ch.$k.phase == sitting { ch.$k.pill: 0 ~200ms }
-        on change chatting while not chatting and ch.$k.phase == sitting { ch.$k.pill: 1 after 260ms }
-        //  Its answer comes up out of the water, letter by letter.
-        on change ch.$k.said_on while ch.$k.said_on { ch.$k.rev: 0 ~0ms; ch.$k.rev: 320 ~7000ms after 40ms }
+        on change chatting while not chatting and ch.$k.phase == sitting and not ch.$k.shut { ch.$k.pill: 1 after 260ms }
+        //  Its answer comes up out of the water, letter by letter (the logic lets the letters out: `letters`).
+        //  Put away (a double press on the child), the box and the answer go back into it; brought back, they
+        //  grow again. A new answer's dot is put out when it is looked at.
+        on change ch.$k.shut while ch.$k.shut and ch.$k.phase == sitting { ch.$k.pill: 0 ~200ms }
+        on change ch.$k.shut while not ch.$k.shut and ch.$k.phase == sitting and not chatting { ch.$k.pill: 1 after 40ms }
+        on change ch.$k.shut while not ch.$k.shut { ch.$k.new = false }
+        on change ch.$k.min while not ch.$k.min { ch.$k.new = false }
+        on kid_min.$k { ch.$k.min = true }
+        on still ch.$k.dbl for 380ms while ch.$k.dbl { ch.$k.dbl = false }
         //  A window carried by its title bar, told by the window manager: its child's if the mouse is on
         //  its title bar (the first one that fits), and then it goes with the mouse at once, from where
         //  it was taken. Let go: where it was left is where it is (the list of windows says so a moment

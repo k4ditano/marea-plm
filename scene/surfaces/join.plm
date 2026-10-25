@@ -31,6 +31,8 @@ part JoinSurface {
         let mo.y = pick(screen.index, mon.y.0, mon.y.1, mon.y.2)
         //  Joined, the rings on the windows breathe: slow (5 s), and only a fifth of their light.
         wave join.breath = if(ch.sit, 1, 0) at 1.2
+        wave kid.beat = if(ch.new_any, 1, 0) at 4.5
+        spin kid.t by if(ch.working > 0, 1, 0)
         //  Her, where she lives, in this copy's pixels: the threads are fixed on her.
         let hm.x = hm.dx - mo.x
         let hm.y = hm.dy - mo.y
@@ -131,17 +133,18 @@ part JoinSurface {
             //  Where it looks: down when it is pulled, at its box when it sits.
             let st.gx = if(ch.$k.phase == sitting, pl.side * 4 * clamp(ch.$k.pill * 2, 0, 1), clamp(vel(ch.$k.bx) * 0.004, -3.5, 3.5))
             let st.gy = if(ch.$k.phase == sitting, 0, 3)
-            //  What it answered, hanging under the box like a drop: how formed it is, and how
-            //  many of its letters have come (they rise out of the water, as in the chat).
-            measure jsaid.$k
+            //  What it answered, hanging under the box like a drop: how formed it is, and how tall
+            //  (it is as tall as what it says, up to two fifths of the monitor and never past its bottom;
+            //  longer than that, it scrolls). Its letters come up out of the water as they are let out.
             let bub.w = pl.w - 30
             let bub.t = st.y + pl.h / 2 + 9
-            let bub.h = jsaid.$k.height + 28
+            let bub.maxh = max(min(stick.height * 0.4, stick.height - bub.t - 16), 110)
             let bub.x = pl.cx - pl.side * 6
-            //  Whose window it is, in a tab on the ring that the window has: «Kitty» and the
-            //  way out. It sits on the other side of the child from the box, or past the end of it.
+            //  Whose window it is, in a tab on the ring that the window has: «Kitty» (and, while a task runs,
+            //  the first words of it), its minimise button and the way out. It sits on the other side of the
+            //  child from the box, or past the end of it.
             measure jname.$k
-            let tb.w = jname.$k.width + 62
+            let tb.w = jname.$k.width + 86
             let tb.room = st.x - kd.r - 12 - tb.w > max(win.l, 0) + 6
             let tb.cx0 = if(pl.side > 0, if(tb.room, st.x - kd.r - 12 - tb.w / 2, pl.cx + pl.w * clamp(ch.$k.pill, 0, 1) / 2 + 12 + tb.w / 2), st.x + kd.r + 12 + tb.w / 2)
             //  (And the tab stays on the window's ring, not past its end.)
@@ -176,9 +179,10 @@ part JoinSurface {
             //  ── its tab ──
             //  A swelling of the window's own edge that says whose it is.
             group {
-                opacity: clamp(ch.$k.pill * 3 - 2, 0, 1)
-                show: ch.$k.pill > 0.7
+                opacity: ch.$k.tab
+                show: ch.$k.tab > 0.02
                 prop letgo.glow = 0 ~140ms
+                prop tmin.glow = 0 ~140ms
                 body {
                     gradient: 0, tb.cy - 13 to 0, tb.cy + 13, c.bot, c.deep
                     rim: 26%
@@ -187,12 +191,20 @@ part JoinSurface {
                 }
                 box { at: tb.cx, tb.cy; size: tb.w, 26; corner: 13; stroke: 1.3; color: c.l; opacity: 70% + 14% * join.breath }
                 ellipse { at: tb.cx - tb.w / 2 + 15, tb.cy; radius: 3.4; color: c.l }
-                text ch.$k.name { at: tb.cx - tb.w / 2 + 26, tb.cy; anchor: left center; size: 13; weight: 600; color: c.ink; opacity: 1 - letgo.glow; measure: jname.$k }
+                text ch.$k.label { at: tb.cx - tb.w / 2 + 26, tb.cy; anchor: left center; size: 13; weight: 600; color: c.ink; opacity: 1 - letgo.glow; width: 280; lines: 1; measure: jname.$k }
                 text "Let go" { at: tb.cx - tb.w / 2 + 26, tb.cy; anchor: left center; size: 13; weight: 600; color: c.l; opacity: letgo.glow }
+                //  Minimise: its answer to a chip, or (with no answer) the box and all.
+                ellipse { at: tb.cx + tb.w / 2 - 40, tb.cy; radius: 9.5; color: #ffffff; opacity: 10% + 16% * tmin.glow }
+                line { from: tb.cx + tb.w / 2 - 44, tb.cy; to: tb.cx + tb.w / 2 - 36, tb.cy; width: 1.7; color: c.ink; opacity: 70% + 30% * tmin.glow }
+                zone ellipse tmin_btn.$k { at: tb.cx + tb.w / 2 - 40, tb.cy; radius: 12; cursor: pointer; label: "Minimise"; active: ch.$k.phase == sitting and ch.$k.tab > 0.7 }
+                on enter tmin_btn.$k { tmin.glow: 1 }
+                on leave tmin_btn.$k { tmin.glow: 0 }
+                on press tmin_btn.$k while ch.$k.said_on { toggle ch.$k.min }
+                on press tmin_btn.$k while not ch.$k.said_on { toggle ch.$k.shut }
                 ellipse { at: tb.cx + tb.w / 2 - 16, tb.cy; radius: 9.5; color: #ffffff; opacity: 10% + 16% * letgo.glow }
                 line { from: tb.cx + tb.w / 2 - 19.5, tb.cy - 3.5; to: tb.cx + tb.w / 2 - 12.5, tb.cy + 3.5; width: 1.7; color: c.ink; opacity: 70% + 30% * letgo.glow }
                 line { from: tb.cx + tb.w / 2 - 19.5, tb.cy + 3.5; to: tb.cx + tb.w / 2 - 12.5, tb.cy - 3.5; width: 1.7; color: c.ink; opacity: 70% + 30% * letgo.glow }
-                zone ellipse letgo_btn.$k { at: tb.cx + tb.w / 2 - 16, tb.cy; radius: 13; cursor: pointer; label: "Let go of the window"; active: ch.$k.phase == sitting and ch.$k.pill > 0.7 }
+                zone ellipse letgo_btn.$k { at: tb.cx + tb.w / 2 - 16, tb.cy; radius: 13; cursor: pointer; label: "Let go of the window"; active: ch.$k.phase == sitting and ch.$k.tab > 0.7 }
                 on enter letgo_btn.$k { letgo.glow: 1 }
                 on leave letgo_btn.$k { letgo.glow: 0 }
                 on press letgo_btn.$k { emit chat_detach(k) }
@@ -263,21 +275,6 @@ part JoinSurface {
                         corner: 16
                         blend: 10 + 30 * clamp(ch.$k.pill * (1 - ch.$k.pill) * 4, 0, 1)
                         show: ch.$k.pill > 0.02
-                    }
-                }
-            }
-            //  And its answer: a calmer, darker drop of the same water that forms under the box.
-            group {
-                show: ch.$k.bub > 0.02
-                glow: 6, 26%, c.l
-                body {
-                    gradient: 0, bub.t to 0, bub.t + bub.h, c.mid, c.deep
-                    rim: 26%
-                    shadow: 0, 3, 10, 30%, c.deep
-                    box {
-                        at: bub.x, bub.t + bub.h / 2
-                        size: bub.w * ch.$k.bub, bub.h * clamp(ch.$k.bub * 1.6, 0, 1)
-                        corner: 17
                     }
                 }
             }
@@ -356,12 +353,49 @@ part JoinSurface {
                 on submit ch.$k.input { emit join_send(k) }
                 on press jsend_btn.$k while bz { emit kid_stop(k) }
                 on press jsend_btn.$k while not bz { emit join_send(k) }
-                //  What it answered, in the drop under the box; its letters come up out of the water.
-                text ch.$k.said { at: bub.x - bub.w / 2 + 20, bub.t + 14; anchor: left top; width: bub.w - 40; size: 14.5; line_height: 1.38; color: c.ink; measure: jsaid.$k
-                                  opacity: clamp(ch.$k.bub * 2 - 0.6, 0, 1)
-                                  letter_opacity: clamp((ch.$k.rev - letter) / 10, 0, 1)
-                                  letter_move: 0, (1 - clamp((ch.$k.rev - letter) / 10, 0, 1)) * 6 }
             }
+
+            //  ── what it answered ──
+            //  The drop under its box (scene/draw/kidsay.plm).
+            KidSay(bub.x, bub.t, bub.w, ch.$k.bub, ch.$k.said, ch.$k.rev, kid_min.$k, bub.maxh, c.l, c.mid, c.deep, c.ink, c.sel)
+
+            //  ── the chip ──
+            //  What stands in for the answer while it is minimised (and for the whole box while that is put
+            //  away, with a double press on the child): a spinner while it works, a beating dot when a new
+            //  answer came, a little speech bubble otherwise. Pressed, everything comes back.
+            group {
+                opacity: ch.$k.chip
+                show: ch.$k.chip > 0.02
+                prop chip.glow = 0 ~140ms
+                let cp.x = if(ch.$k.shut, st.x + pl.side * (kd.r + 26), bub.x - bub.w / 2 + 20)
+                let cp.y = if(ch.$k.shut, st.y, bub.t + 18)
+                body {
+                    gradient: 0, cp.y - 15 to 0, cp.y + 15, c.bot, c.deep
+                    rim: 26%
+                    shadow: 0, 3, 10, 34%, c.deep
+                    ellipse { at: cp.x, cp.y; radius: 15 + 1 * chip.glow }
+                }
+                ellipse { at: cp.x, cp.y; radius: 15 + 1 * chip.glow; stroke: 1.3; color: c.l; opacity: 70% + 20% * chip.glow }
+                //  It works.
+                arc { at: cp.x, cp.y; radius: 7; span: 110deg; width: 2.2; rotate: kid.t * 360deg; color: c.ink; show: bz }
+                //  A new answer: the dot beats.
+                ellipse { at: cp.x, cp.y; radius: 4.5 + 1.2 * kid.beat; color: c.l; show: ch.$k.new and not bz }
+                ellipse { at: cp.x, cp.y; radius: 9 + 4 * kid.beat; stroke: 1.4; color: c.l; opacity: 55% - 35% * kid.beat; show: ch.$k.new and not bz }
+                //  Nothing new.
+                box { at: cp.x, cp.y - 1; size: 13, 10; corner: 3.5; stroke: 1.5; color: c.ink; opacity: 85%; show: not bz and not ch.$k.new }
+                path { at: cp.x - 3, cp.y + 3.5; color: c.ink; stroke: 1.5; opacity: 85%; show: not bz and not ch.$k.new
+                       move 0, 0; line 0.5, 3.5; line 4, 0 }
+                zone ellipse chip_btn.$k { at: cp.x, cp.y; radius: 17; cursor: pointer; label: "Show its answer"; active: ch.$k.chip > 0.7 }
+                on enter chip_btn.$k { chip.glow: 1 }
+                on leave chip_btn.$k { chip.glow: 0 }
+                on press chip_btn.$k { ch.$k.min = false; ch.$k.shut = false }
+            }
+
+            //  The child itself answers to a double press: it puts its box and answer away (it stays on the
+            //  ring of its window), or brings them back.
+            zone ellipse kball.$k { at: st.x, st.y; radius: kd.r + 1; cursor: pointer; label: "Put away the box (double press)"; active: ch.$k.phase == sitting and ch.$k.seat > 0.9 and ch.$k.tab > 0.7 }
+            on press kball.$k while ch.$k.dbl { toggle ch.$k.shut; ch.$k.dbl = false }
+            on press kball.$k while not ch.$k.dbl { ch.$k.dbl = true }
         }
     }
 }

@@ -356,5 +356,12 @@ library SpanishUi {
         "4 children already, let one go" = "Ya tengo 4 hijas, suelta una"
         "That window already has a child" = "Esa ventana ya tiene una hija"
         "Already has a child" = "Ya tiene una hija"
+        // her children: what they answered (scene/draw/kidsay.plm)
+        "Answer" = "Respuesta"
+        "Hide the answer" = "Ocultar la respuesta"
+        "Show its answer" = "Ver su respuesta"
+        "Down to the end of the answer" = "Bajar al final de la respuesta"
+        "Minimise" = "Minimizar"
+        "Put away the box (double press)" = "Guardar la caja (doble pulsación)"
     }
 }

@@ -64,11 +64,23 @@ part Join {
     //  What it last answered is there to show.
     fact ch.0.said_on = false; fact ch.1.said_on = false; fact ch.2.said_on = false; fact ch.3.said_on = false
     //
+    //  Its answer, seen: how many letters of it have come (the logic lets them out at a reading pace),
+    //  minimised to a chip (`min`), the whole box and answer put away (`shut`: a double press on the
+    //  child), a new answer that came while it was put away (`new`: the chip beats). `dbl` is the first press
+    //  of a double one.
+    fact ch.0.letters = 0; fact ch.1.letters = 0; fact ch.2.letters = 0; fact ch.3.letters = 0
+    fact ch.0.min = false; fact ch.1.min = false; fact ch.2.min = false; fact ch.3.min = false
+    fact ch.0.shut = false; fact ch.1.shut = false; fact ch.2.shut = false; fact ch.3.shut = false
+    fact ch.0.new = false; fact ch.1.new = false; fact ch.2.new = false; fact ch.3.new = false
+    fact ch.0.dbl = false; fact ch.1.dbl = false; fact ch.2.dbl = false; fact ch.3.dbl = false
+    //
     //  The words.
     text ch.0.app = ""; text ch.1.app = ""; text ch.2.app = ""; text ch.3.app = ""
     //  Its window's name, as it is said (Kitty).
     text ch.0.name = ""; text ch.1.name = ""; text ch.2.name = ""; text ch.3.name = ""
-    //  What it last answered, short.
+    //  What the tab says: its program and, while a task runs, the first words of it.
+    text ch.0.label = ""; text ch.1.label = ""; text ch.2.label = ""; text ch.3.label = ""
+    //  What it last answered (the part of it that has come).
     text ch.0.said = ""; text ch.1.said = ""; text ch.2.said = ""; text ch.3.said = ""
     //  Where what you write in its box goes.
     text ch.0.input = ""; text ch.1.input = ""; text ch.2.input = ""; text ch.3.input = ""
@@ -98,11 +110,14 @@ part Join {
     prop ch.0.pulse = 1 ~900ms; prop ch.1.pulse = 1 ~900ms; prop ch.2.pulse = 1 ~900ms; prop ch.3.pulse = 1 ~900ms
     //  How formed the drop of its answer is, and how many letters of it have come.
     prop ch.0.bub = 0 ~spring(170, 15); prop ch.1.bub = 0 ~spring(170, 15); prop ch.2.bub = 0 ~spring(170, 15); prop ch.3.bub = 0 ~spring(170, 15)
-    prop ch.0.rev = 0 ~2200ms; prop ch.1.rev = 0 ~2200ms; prop ch.2.rev = 0 ~2200ms; prop ch.3.rev = 0 ~2200ms
+    prop ch.0.rev = 0 ~150ms; prop ch.1.rev = 0 ~150ms; prop ch.2.rev = 0 ~150ms; prop ch.3.rev = 0 ~150ms
     //  How formed it is on her (it grows out of her as it is pulled and goes back into her when it is let go), the ring that runs round her when it comes home, and how much she looks at it.
     prop ch.0.bud = 0 ~spring(150, 13); prop ch.1.bud = 0 ~spring(150, 13); prop ch.2.bud = 0 ~spring(150, 13); prop ch.3.bud = 0 ~spring(150, 13)
     prop ch.0.kpulse = 1 ~700ms; prop ch.1.kpulse = 1 ~700ms; prop ch.2.kpulse = 1 ~700ms; prop ch.3.kpulse = 1 ~700ms
     prop ch.0.look = 0 ~gentle; prop ch.1.look = 0 ~gentle; prop ch.2.look = 0 ~gentle; prop ch.3.look = 0 ~gentle
+    //  The chip that stands in for the answer while it is minimised (or the box, put away), and the tab on the window's ring.
+    prop ch.0.chip = 0 ~200ms; prop ch.1.chip = 0 ~200ms; prop ch.2.chip = 0 ~200ms; prop ch.3.chip = 0 ~200ms
+    prop ch.0.tab = 0 ~200ms; prop ch.1.tab = 0 ~200ms; prop ch.2.tab = 0 ~200ms; prop ch.3.tab = 0 ~200ms
     //  How much it works (the tide in its box, the light of her ring for it).
     prop ch.0.stir = 0 ~900ms; prop ch.1.stir = 0 ~900ms; prop ch.2.stir = 0 ~900ms; prop ch.3.stir = 0 ~900ms
     //  The way from her to it (a vector of one): where she looks and where her dot goes.
@@ -141,6 +156,8 @@ part Join {
     //  was lent to their field (marea.plm).
     fact ch.settle = false
     let ch.shown = (ch.0.phase == sitting and not ch.0.hidden) or (ch.1.phase == sitting and not ch.1.hidden) or (ch.2.phase == sitting and not ch.2.hidden) or (ch.3.phase == sitting and not ch.3.hidden)
+    //  A new answer waits for one of them (the chip's dot beats).
+    let ch.new_any = ch.0.new or ch.1.new or ch.2.new or ch.3.new
     let ch.sit = ch.0.phase == sitting or ch.1.phase == sitting or ch.2.phase == sitting or ch.3.phase == sitting
     //  All of them sitting or not out: nothing moves.
     let ch.calm = (ch.0.phase == none or ch.0.phase == sitting) and (ch.1.phase == none or ch.1.phase == sitting) and (ch.2.phase == none or ch.2.phase == sitting) and (ch.3.phase == none or ch.3.phase == sitting)
@@ -154,6 +171,8 @@ part Join {
     event join_drop ->                // let go: which window is it over?
     event join_send ->                // Enter in a box
     event kid_stop ->                 // a box's Stop
+    //  An answer's minimise button, with the child's number in the name (a component's event).
+    event kid_min.0; event kid_min.1; event kid_min.2; event kid_min.3
     //  What the logic tells a child, with the child's number in the name (the logic's events reach the
     //  scene's rules without a payload): the window was found, fall onto it; and nothing is under it, or
     //  that window has a child already.
@@ -182,6 +201,9 @@ part Join {
     follow hov.a = if(hov.on and ch.pulling, 1, 0)
     //  And the slow breath of the rings on the windows (join surface).
     prop join.breath = 0
+    //  A faster beat for what asks to be looked at (a new answer's dot) and the turn of the spinners.
+    prop kid.beat = 0
+    prop kid.t = 0
     //  Which monitor she lives on, for the notch.
     let host.i = if(hosts.2, 2, if(hosts.1, 1, 0))
     let host.x = pick(host.i, mon.x.0, mon.x.1, mon.x.2)
