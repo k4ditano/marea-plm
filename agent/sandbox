@@ -54,10 +54,6 @@ args=(
   #  else must not become hers without anyone deciding it.
   --clearenv
   --ro-bind /usr /usr
-  --symlink usr/lib /lib
-  --symlink usr/lib /lib64
-  --symlink usr/bin /bin
-  --symlink usr/bin /sbin
   --proc /proc
   --dev /dev
   --tmpfs /tmp
@@ -83,6 +79,19 @@ args=(
   --setenv LANG C.UTF-8
   --chdir /state
 )
+
+#  The root's lib and bin as this system has them. Node's loader is asked for
+#  as /lib64/ld-linux-x86-64.so.2: on Arch /lib64 leads to usr/lib, on Debian
+#  and Fedora to usr/lib64, and pointed at usr/lib there the loader was not
+#  found ("execvp /marea-node: No such file or directory", issue 3). Where they
+#  are folders of their own (/usr not merged), they are mounted as they are.
+for d in bin sbin lib lib64 lib32 libx32; do
+  if [ -L "/$d" ]; then
+    args+=(--symlink "$(readlink "/$d")" "/$d")
+  elif [ -d "/$d" ]; then
+    args+=(--ro-bind "/$d" "/$d")
+  fi
+done
 
 #  Her children (logic/kids.luau) each run a worker of their own, up to four at once: they ask for
 #  a smaller heap (MAREA_AGENT_HEAP, in MB: Node collects instead of growing) and a lower
