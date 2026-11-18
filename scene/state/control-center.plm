@@ -20,7 +20,7 @@ part ControlCenter {
     //  Settings has two sections: the usual stuff and the look.
     //  The language she speaks: the system's (`LANG`), or one chosen in
     //  Settings. The logic turns it into `locale`, which is what switches the texts.
-    fact language: system | english | spanish = system
+    fact language: system | english | spanish | portuguese = system
     prop paging = 0 ~240ms
     follow paging = if(page == none, 0, 1)
     model networks max 5 { name: text; signal: number; current: bool; secure: bool; known: bool; percent: number }

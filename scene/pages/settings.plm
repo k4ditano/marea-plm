@@ -63,7 +63,7 @@ part Settings {
                             box { at: 20, 16; size: 3, 7; corner: 1.5; color: ink }
                         }
                     }
-                    Tile("Language", pick(language, "System", "English", "Español"), to_language, cell.w, h: 72) {
+                    Tile("Language", pick(language, "System", "English", "Español", "Português (Brasil)"), to_language, cell.w, h: 72) {
                         text "Aa" { size: 17; weight: 700; color: ink }
                     }
                     Tile("The lock", pick(with_exit, "Password only", "Safety net on"), to_lock, cell.w, h: 72) {
@@ -195,18 +195,18 @@ part Settings {
             }
 
             // ── the language ──
-            //  Three rows, each name written in its own language.
+            //  Four rows, each name written in its own language.
             page language "Language" {
                 text "The language she speaks in." { at: card.x - 228, card.top + 122; anchor: left center; size: 12; color: st.faint }
-                repeat l in 0..3 {
+                repeat l in 0..4 {
                     let ly = card.top + 178 + l * 74
-                    let lang.on.$l = if(l == 0, language == system, if(l == 1, language == english, language == spanish))
+                    let lang.on.$l = if(l == 0, language == system, if(l == 1, language == english, if(l == 2, language == spanish, language == portuguese)))
                     box { at: card.x, ly; size: 456, 64; corner: 16; color: mix(mix(#25282b, #2c3033, lang_zone.$l.hover), #1a2a25, lang.on.$l) }
                     box { at: card.x, ly; size: 456, 64; corner: 16; stroke: 1.3; color: mint; opacity: lang.on.$l * 80% + lang_zone.$l.hover * 20% }
                     ellipse { at: card.x - 196, ly; radius: 20; color: ink; opacity: 8% }
-                    text pick(l, "Aa", "EN", "ES") { at: card.x - 196, ly; anchor: center; size: 13; weight: 700; color: ink }
-                    text pick(l, "System", "English", "Español") { at: card.x - 164, ly - 9; anchor: left center; size: 13.5; weight: 600; color: ink }
-                    text pick(l, "The one your session speaks", "Always in English", "Siempre en español") { at: card.x - 164, ly + 10; anchor: left center; size: 11; color: st.faint }
+                    text pick(l, "Aa", "EN", "ES", "PT") { at: card.x - 196, ly; anchor: center; size: 13; weight: 700; color: ink }
+                    text pick(l, "System", "English", "Español", "Português (Brasil)") { at: card.x - 164, ly - 9; anchor: left center; size: 13.5; weight: 600; color: ink }
+                    text pick(l, "The one your session speaks", "Always in English", "Siempre en español", "Sempre em português") { at: card.x - 164, ly + 10; anchor: left center; size: 11; color: st.faint }
                     ellipse { at: card.x + 200, ly; radius: 9; stroke: 1.6; color: mix(st.faint, mint, lang.on.$l) }
                     ellipse { at: card.x + 200, ly; radius: 5 * lang.on.$l; color: mint }
                     zone box lang_zone.$l { at: card.x, ly; size: 456, 64; corner: 16; cursor: pointer }
@@ -214,6 +214,7 @@ part Settings {
                 on press lang_zone.0 { language = system }
                 on press lang_zone.1 { language = english }
                 on press lang_zone.2 { language = spanish }
+                on press lang_zone.3 { language = portuguese }
             }
 
             // ── the lock ──

@@ -123,7 +123,7 @@ local OWN = {
       open_page("settings", "memory") },
     { "Settings", "settings ajustes preferences preferencias configuracion configuration", 1, open_page("settings", "menu") },
     { "Where she lives", "monitor pantalla screen casa home follow seguir sigueme sígueme donde vive", 1, open_page("settings", "home") },
-    { "Language", "language idioma lengua english ingles inglés español spanish", 1, open_page("settings", "language") },
+    { "Language", "language idioma lengua english ingles inglés español spanish português portugues portuguese", 1, open_page("settings", "language") },
     { "Appearance", "appearance apariencia skin piel theme tema glass cristal lens lente look aspecto", 1, open_page("settings", "look") },
     { "Her sky", "sky cielo weather tiempo clima temperatura temperature lluvia rain ciudad city ubicacion ubicación location", 1,
       function() open_page("calendar")(); fact["sky.editing"] = true end },
@@ -1574,17 +1574,18 @@ table.insert(hooks.language, function() if fact.searching == true then search() 
 --  `LANG`, the first one that says something, as pleamar reads it—, asked here
 --  and not remembered from the `locale` it started with: if only the logic is
 --  reloaded, `locale` may already be one chosen by hand. Anything that is not
---  Spanish is English, which is the language the scene is written in.
+--  Spanish or Portuguese is English, which is the language the scene is written in.
 local function system_locale()
     for _, v in ipairs({ "LC_ALL", "LC_MESSAGES", "LANG" }) do
         local ok, value = pcall(sys.ask, "env", v)
         if ok and type(value) == "string" and value ~= "" and value ~= "C" and value ~= "POSIX" then
-            return value:sub(1, 2):lower() == "es" and "es" or "en"
+            local code = value:sub(1, 2):lower()
+            return code == "es" and "es" or code == "pt" and "pt_br" or "en"
         end
     end
     return "en"
 end
-local LOCALES = { english = "en", spanish = "es" }
+local LOCALES = { english = "en", spanish = "es", portuguese = "pt_br" }
 local function speak()
     local was = fact.locale
     fact.locale = LOCALES[fact.language] or system_locale()
@@ -1594,7 +1595,7 @@ local function speak()
         if not ok then log("language · a page could not be written again:", err) end
     end
 end
-if settings.language == "system" or settings.language == "english" or settings.language == "spanish" then
+if settings.language == "system" or settings.language == "english" or settings.language == "spanish" or settings.language == "portuguese" then
     fact.language = settings.language
 end
 speak()

@@ -307,7 +307,7 @@ async function start(m) {
             model = runtime.getModel(provider, rest.join("/")) ?? model;
         }
     }
-    const locale = m.locale === "es" ? "Spanish" : m.locale === "en" ? "English" : "the user's";
+    const locale = m.locale === "es" ? "Spanish" : m.locale === "pt_br" ? "Brazilian Portuguese" : m.locale === "en" ? "English" : "the user's";
     const builder = m.mode === "builder";
     const kid = m.mode === "kid";
     const list = builder ? BUILDER_TOOLS : kid ? [...TOOLS.filter((t) => KID_TOOLS.has(t.name)), ...KID_ONLY_TOOLS] : TOOLS;
