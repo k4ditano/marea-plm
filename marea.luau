@@ -197,6 +197,56 @@ local function own_matches(q)
     return found
 end
 
+--  The window manager's layouts (only in pleamar-wm's own session): «layout»
+--  lists them, «layout gr» narrows them, and a layout's own name finds it
+--  too. Choosing one gives it to the monitor under the mouse. The number is
+--  the window manager's (`layout_set` in its scene); the order here is the
+--  most used first, as the list has room for seven.
+local LAYOUTS = {
+    { "Leader", 0, "leader lider líder principal master mestre" },
+    { "Leader on the right", 4, "leader-right right direita derecha" },
+    { "Scrolling", 5, "scrolling scroller scroll rolagem rolar niri desplazamiento" },
+    { "Columns", 1, "columns colunas columnas" },
+    { "Grid", 3, "grid grade grelha cuadricula cuadrícula" },
+    { "Free canvas", 8, "free livre libre canvas lienzo floating flutuante" },
+    { "Fractal", 7, "fractal zoom" },
+    { "Rows", 2, "rows linhas filas" },
+    { "Marea", 6, "marea tide maré" },
+}
+local function layout_matches(q)
+    local found = {}
+    if not hooks.in_wm or #q < 3 then return found end
+    local rest = nil
+    if ("layout"):sub(1, #q) == q then
+        rest = ""
+    elseif q:sub(1, 7) == "layout " then
+        rest = q:sub(8):match("^%s*(.-)%s*$")
+    end
+    for _, l in ipairs(LAYOUTS) do
+        local name = tr(l[1])
+        local hit
+        if rest ~= nil then
+            hit = rest == "" or name:lower():find(rest, 1, true) ~= nil
+            if not hit then
+                for w in string.gmatch(l[3], "%S+") do
+                    if w:sub(1, #rest) == rest then hit = true; break end
+                end
+            end
+        else
+            hit = name:lower():find(q, 1, true) ~= nil
+            if not hit then
+                for w in string.gmatch(l[3], "%S+") do
+                    if w:sub(1, #q) == q then hit = true; break end
+                end
+            end
+        end
+        if hit and #found < (rest ~= nil and 7 or 2) then
+            found[#found + 1] = { name = name, kind_label = tr("Layout"), icon = "", glyph = 1, layout = l[2] }
+        end
+    end
+    return found
+end
+
 local function search()
     local q = (text.query or ""):lower()
     generation = generation + 1
@@ -206,7 +256,8 @@ local function search()
         if q == "" or a.name:lower():find(q, 1, true) then matches[#matches + 1] = a end
     end
     table.sort(matches, prefer)
-    local list = own_matches(q)
+    local list = layout_matches(q)
+    for _, o in ipairs(own_matches(q)) do list[#list + 1] = o end
     --  Then the windows already open whose program or title it names: going
     --  to one is quicker than opening another.
     if #q >= 2 then
@@ -295,6 +346,12 @@ on("open_result", function(i)
         --  The finder is closing as this arrives; the card opens a moment
         --  later, so the two do not cross.
         after(180, OWN[h.own][4])
+        return
+    end
+    if h.layout ~= nil then
+        log("layout:", h.name)
+        text.query = ""
+        run("pleamar-wm", { "--say", "wm", "emit layout_set " .. tostring(h.layout) }, nil, { output = false })
         return
     end
     if h.package then
