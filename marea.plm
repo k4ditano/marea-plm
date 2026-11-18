@@ -24,6 +24,8 @@ import "common/palette.plm"
 import "common/accessories.plm"
 import "lang/es.plm"
 import "lang/es-logic.plm"
+import "lang/pt_br.plm"
+import "lang/pt_br-logic.plm"
 
 scene Marea {
     permissions {

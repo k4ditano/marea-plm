@@ -52,7 +52,7 @@ return function(shared)
     local function sky_find(name)
         local q = tostring(name or ""):match("^%s*(.-)%s*$")
         if q == "" then return end
-        local lang = fact.locale == "es" and "es" or "en"
+        local lang = fact.locale == "es" and "es" or fact.locale == "pt_br" and "pt" or "en"
         run("curl", { "-s", "--max-time", "10", "https://geocoding-api.open-meteo.com/v1/search?count=1&format=json&language=" .. lang .. "&name=" .. url_encode(q) }, function(out)
             local ok, v = pcall(json.decode, tostring(out or ""))
             local r = ok and type(v) == "table" and type(v.results) == "table" and v.results[1] or nil
