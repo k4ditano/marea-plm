@@ -28,8 +28,10 @@ library SpanishUi {
         "Agents" = "Agentes"
         "Today" = "Hoy"
         "Siempre en español" = "Siempre en español"
+        "Sempre em português" = "Sempre em português"
         "ES" = "ES"
         "EN" = "EN"
+        "PT" = "PT"
         "Aa" = "Aa"
         "Language" = "Idioma"
         "Safety net" = "Red de seguridad"
@@ -212,7 +214,7 @@ library SpanishUi {
         "Esc to exit · test lock" = "Esc para salir · bloqueo de prueba"
         "Stop" = "Detener"
 
-        // the same in both languages: said anyway, so loading says nothing is missing
+        // the same in every language: said anyway, so loading says nothing is missing
         "1 h" = "1 h"
         "2 min" = "2 min"
         "3 h" = "3 h"
@@ -228,6 +230,7 @@ library SpanishUi {
         "LANGUAGE" = "IDIOMA"
         "English" = "English"
         "Español" = "Español"
+        "Português (Brasil)" = "Português (Brasil)"
         "Recording saved" = "Grabación guardada"
         "Watch" = "Ver"
         "Copy path" = "Copiar ruta"
